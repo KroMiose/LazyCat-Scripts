@@ -16,7 +16,7 @@ ensure_dependencies() {
     local required_cmds=("git" "curl" "zsh")
     local missing_cmds=()
     local cmd
-    echo "🔎 Checking for required dependencies..."
+    echo "🔎 正在检查所需依赖..."
     for cmd in "${required_cmds[@]}"; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
             missing_cmds+=("$cmd")
@@ -24,14 +24,14 @@ ensure_dependencies() {
     done
 
     if [ ${#missing_cmds[@]} -gt 0 ]; then
-        echo "⚠️ The following dependencies are missing: ${missing_cmds[*]}"
+        echo "⚠️  检测到以下依赖项缺失: ${missing_cmds[*]}"
         
         local pkg_manager=""
         local install_cmd=""
 
         if [[ "$(uname)" == "Darwin" ]]; then
             if ! command -v brew >/dev/null 2>&1; then
-                echo "❌ Homebrew is not installed. Please install it first from https://brew.sh/" >&2
+                echo "❌ 错误: Homebrew 未安装。请先从 https://brew.sh/ 安装。" >&2
                 exit 1
             fi
             pkg_manager="Homebrew"
@@ -49,31 +49,31 @@ ensure_dependencies() {
             pkg_manager="pacman"
             install_cmd="sudo pacman -S --noconfirm --needed ${missing_cmds[*]}"
         else
-            echo "❌ Could not detect a supported package manager (apt, dnf, yum, pacman, brew)." >&2
-            echo "   Please install the missing dependencies manually and run the script again." >&2
+            echo "❌ 无法检测到支持的包管理器 (apt, dnf, yum, pacman, brew)。" >&2
+            echo "   请您手动安装缺失的依赖后，再重新运行此脚本。" >&2
             exit 1
         fi
 
-        read -p "This script can attempt to install them using '${pkg_manager}'. This may require sudo privileges. Proceed? (Y/n): " confirm_install
+        read -p "脚本可以尝试使用 '${pkg_manager}' 为您安装。此操作可能需要 sudo 权限。是否继续？ (Y/n): " confirm_install
         confirm_install=${confirm_install:-Y}
 
         if [[ "$confirm_install" =~ ^[Yy]$ ]]; then
-            echo "⏳ Running installation command..."
+            echo "⏳ 正在运行安装命令..."
             eval "$install_cmd"
             
             for cmd in "${missing_cmds[@]}"; do
                 if ! command -v "$cmd" >/dev/null 2>&1; then
-                    echo "❌ Failed to install '$cmd'. Please install it manually and try again." >&2
+                    echo "❌ 错误: '$cmd' 安装失败。请您手动安装后再试。" >&2
                     exit 1
                 fi
             done
-            echo "✅ All dependencies are now installed."
+            echo "✅ 所有依赖均已成功安装。"
         else
-            echo "🛑 Installation aborted by user. Please install dependencies manually."
+            echo "🛑 用户取消了安装。请您手动安装依赖。"
             exit 1
         fi
     else
-        echo "✅ All dependencies are already installed."
+        echo "✅ 所有依赖项均已安装。"
     fi
 }
 
@@ -94,7 +94,7 @@ echo "--- Zsh 环境配置选项 ---"
 read -p "是否要安装 Powerlevel10k 主题？ (Y/n): " confirm_p10k
 confirm_p10k=${confirm_p10k:-Y} # 默认为 Yes
 
-read -p "是否要安装 zsh-autosuggestions 和 zsh-syntax-highlighting 插件？ (Y/n): " confirm_plugins
+read -p "是否要安装 zsh-autosuggestions (自动补全) 和 zsh-syntax-highlighting (语法高亮) 插件？ (Y/n): " confirm_plugins
 confirm_plugins=${confirm_plugins:-Y} # 默认为 Yes
 echo ""
 
@@ -192,14 +192,14 @@ echo "✅ .zshrc 配置完成。"
 # --- Set Zsh as default shell ---
 # Check if zsh was just installed or if the current shell is not zsh
 if [[ " ${missing_cmds[*]} " =~ " zsh " ]] || [[ "$SHELL" != */zsh ]]; then
-    read -p "Do you want to set Zsh as your default shell? (Y/n): " confirm_chsh
+    read -p "是否要将 Zsh 设置为您的默认 Shell？ (Y/n): " confirm_chsh
     confirm_chsh=${confirm_chsh:-Y}
     if [[ "$confirm_chsh" =~ ^[Yy]$ ]]; then
-        echo "⏳ Trying to change the default shell to Zsh. This may ask for your password."
+        echo "⏳ 正在尝试将默认 Shell 更改为 Zsh。此过程可能需要您的密码。"
         if chsh -s "$(command -v zsh)"; then
-            echo "✅ Default shell changed successfully."
+            echo "✅ 默认 Shell 已成功更改。"
         else
-            echo "⚠️ Failed to change default shell automatically. You can try to do it manually by running: chsh -s $(command -v zsh)"
+            echo "⚠️  自动更改默认 Shell 失败。您可以手动运行此命令尝试: chsh -s $(command -v zsh)"
         fi
     fi
 fi
@@ -209,7 +209,7 @@ echo ""
 echo "========================================================================"
 echo "      🎉 Zsh 环境配置完成! 🎉"
 echo "------------------------------------------------------------------------"
-echo "  所有请求的组件已安装和配置。请执行以下最后一步:"
+echo "  所有您请求的组件均已安装和配置完毕。请执行最后一步:"
 echo ""
 
 if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
@@ -221,7 +221,7 @@ if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
 fi
 
 echo "  - 启动 Zsh:"
-echo "     注销并重新登录以使所有更改（包括默认shell）完全生效。"
+echo "     请注销并重新登录，以使所有更改（包括默认 Shell）完全生效。"
 echo "     或者，在当前窗口输入 'exec zsh' 来立即体验新配置。"
 echo ""
 
