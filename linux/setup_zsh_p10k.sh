@@ -147,45 +147,52 @@ echo "🔧 正在配置 .zshrc 文件..."
 cp "$ZSHRC_FILE" "${ZSHRC_FILE}.bak.$(date +%s)"
 echo "  -> 已创建备份文件: ${ZSHRC_FILE}.bak.*"
 
+# 根据选择配置 P10k 主题
 if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
     echo "  -> 正在配置 Powerlevel10k 主题..."
+    # 使用 grep 和 sed 安全地替换或追加主题设置
     if grep -qE '^\s*ZSH_THEME=' "$ZSHRC_FILE"; then
-        sed -i '' 's/^\s*ZSH_THEME=.*/ZSH_THEME="powerlevel10k\/powerlevel10k"/' "$ZSHRC_FILE"
+        if [[ "$(uname)" == "Darwin" ]]; then
+            sed -i '' 's/^\s*ZSH_THEME=.*/ZSH_THEME="powerlevel10k\/powerlevel10k"/' "$ZSHRC_FILE"
+        else
+            sed -i 's/^\s*ZSH_THEME=.*/ZSH_THEME="powerlevel10k\/powerlevel10k"/' "$ZSHRC_FILE"
+        fi
     else
-        echo "  -> 未找到 ZSH_THEME 设置，正在添加..."
         echo '\nZSH_THEME="powerlevel10k/powerlevel10k"' >> "$ZSHRC_FILE"
     fi
 
+    # 添加 P10k 首次运行配置
     P10K_CONFIG_LINE='[[ ! -f ~/.p10k.zsh ]] && p10k configure'
     if ! grep -qF -- "$P10K_CONFIG_LINE" "$ZSHRC_FILE"; then
-        echo "  -> 正在添加 Powerlevel10k 首次运行配置..."
         echo -e "\n# To customize prompt, run \`p10k configure\` or edit ~/.p10k.zsh.\n${P10K_CONFIG_LINE}" >> "$ZSHRC_FILE"
     fi
 fi
 
+# 根据选择配置插件
 if [[ "$confirm_plugins" =~ ^[Yy]$ ]]; then
     echo "  -> 正在配置插件..."
+    # 检查 'plugins=(...)' 行是否存在
     if grep -qE '^\s*plugins=\(' "$ZSHRC_FILE"; then
         # 检查是否为默认的 'plugins=(git)'
         if grep -qE '^\s*plugins=\(git\)\s*$' "$ZSHRC_FILE"; then
-            echo "  -> 找到默认的插件配置，正在添加新插件..."
-            sed -i '' 's/^\s*plugins=\(git\)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/' "$ZSHRC_FILE"
+            echo "  -> 找到默认插件配置，正在添加新插件..."
+            local sed_command="s/^\s*plugins=\(git\)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/"
+            if [[ "$(uname)" == "Darwin" ]]; then
+                sed -i '' "$sed_command" "$ZSHRC_FILE"
+            else
+                sed -i "$sed_command" "$ZSHRC_FILE"
+            fi
         else
-            # 如果不是默认配置，提示用户手动添加
-            echo "  -> ⚠️  检测到您有自定义的插件列表！"
-            echo "     为了安全，脚本不会自动修改它。"
+            echo "  -> ⚠️  检测到您有自定义的插件列表！为了安全，脚本不会自动修改它。"
             echo "     请您手动将 'zsh-autosuggestions' 和 'zsh-syntax-highlighting' 添加到"
             echo "     .zshrc 文件中的 'plugins=(...)' 列表里。"
         fi
     else
-        # 如果连 plugins=(...) 这行都找不到，就添加一个
+        # 如果连 'plugins=(...)' 行都找不到，就添加一个
         echo "  -> 未找到 plugins=(...) 设置，正在添加..."
         echo '\nplugins=(git zsh-autosuggestions zsh-syntax-highlighting)' >> "$ZSHRC_FILE"
     fi
 fi
-
-# 修复 sed 在 macOS 上创建的额外备份文件
-rm -f "${ZSHRC_FILE}.bak"
 
 echo "✅ .zshrc 配置完成。"
 
