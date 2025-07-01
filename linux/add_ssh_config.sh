@@ -56,13 +56,56 @@ fi
 read -p " STEP 4: 请输入服务器的 SSH 端口 (默认为 22): " port
 port=${port:-22} # 如果用户未输入，则使用默认值 22
 
-# 5. 获取私钥路径
-read -p " STEP 5: 请输入私钥文件的【绝对路径】(或拖动文件到此): " identity_file
+# 5. 获取私钥
+echo " STEP 5: 请输入私钥文件的【绝对路径】，或直接按 Enter 键后粘贴私钥内容。"
+read -p "私钥文件路径: " identity_file_path
+
+identity_file_to_use=""
+
 # 处理拖放文件时可能产生的引号
-identity_file_clean=$(echo "$identity_file" | sed "s/'//g")
-if [ ! -f "$identity_file_clean" ]; then
-    echo "❌ 错误: 私钥文件 '${identity_file_clean}' 未找到或不是一个有效文件。" >&2
-    exit 1
+identity_file_path_clean=$(echo "$identity_file_path" | sed "s/'//g")
+
+if [ -n "$identity_file_path_clean" ]; then
+    # 情况一: 用户提供了文件路径
+    if [ ! -f "$identity_file_path_clean" ]; then
+        echo "❌ 错误: 私钥文件 '${identity_file_path_clean}' 未找到或不是一个有效文件。" >&2
+        exit 1
+    fi
+    identity_file_to_use="$identity_file_path_clean"
+    echo "✅ 已确认私钥文件: $identity_file_to_use"
+else
+    # 情况二: 用户直接回车，准备粘贴密钥
+    
+    # 根据主机别名定义一个安全的密钥保存路径
+    new_key_path="$SSH_DIR/id_rsa_${host_alias}"
+
+    # 检查目标密钥文件是否已存在，防止误覆盖
+    if [ -f "$new_key_path" ]; then
+        echo ""
+        read -p "⚠️  警告: 目标私钥文件 '${new_key_path}' 已存在。您想覆盖它吗? (y/N): " overwrite_key
+        if [[ ! "$overwrite_key" =~ ^[Yy]$ ]]; then
+            echo "操作已取消，未覆盖任何文件。"
+            exit 0
+        fi
+        echo "好的，现有的密钥文件将被覆盖..."
+    fi
+    
+    echo ""
+    echo "请直接粘贴您的私钥内容。输入完成后，在新的一行按 Ctrl+D 结束。"
+    
+    # 读取多行输入直到遇到 EOF (Ctrl+D)
+    pasted_key=$(cat)
+
+    if [ -z "$pasted_key" ]; then
+        echo "❌ 错误: 您没有输入任何内容。" >&2
+        exit 1
+    fi
+
+    echo "⏳ 正在保存您粘贴的私钥..."
+    echo -n "$pasted_key" > "$new_key_path" # 使用 -n 避免 echo 引入额外的换行符
+    chmod 600 "$new_key_path"
+    identity_file_to_use="$new_key_path"
+    echo "✅ 私钥已自动为您保存到: $identity_file_to_use"
 fi
 
 # --- 准备配置内容 ---
@@ -78,7 +121,7 @@ if [[ "$port" != "22" ]]; then
 fi
 
 CONFIG_BLOCK+="
-    IdentityFile ${identity_file_clean}
+    IdentityFile ${identity_file_to_use}
     IdentitiesOnly yes
 "
 
