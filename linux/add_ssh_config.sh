@@ -94,15 +94,17 @@ else
     echo "请直接粘贴您的私钥内容。输入完成后，在新的一行按 Ctrl+D 结束。"
     
     # 读取多行输入直到遇到 EOF (Ctrl+D)
-    pasted_key=$(cat)
+    echo "⏳ 正在等待您粘贴私钥..."
+    cat > "$new_key_path"
 
-    if [ -z "$pasted_key" ]; then
-        echo "❌ 错误: 您没有输入任何内容。" >&2
+    # 检查用户是否真的输入了内容
+    if [ ! -s "$new_key_path" ]; then
+        echo "❌ 错误: 您没有输入任何内容，或输入为空。" >&2
+        rm "$new_key_path" # 清理创建的空文件
         exit 1
     fi
 
-    echo "⏳ 正在保存您粘贴的私钥..."
-    echo -n "$pasted_key" > "$new_key_path" # 使用 -n 避免 echo 引入额外的换行符
+    # 确保文件权限正确
     chmod 600 "$new_key_path"
     identity_file_to_use="$new_key_path"
     echo "✅ 私钥已自动为您保存到: $identity_file_to_use"
