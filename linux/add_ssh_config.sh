@@ -104,6 +104,15 @@ else
         exit 1
     fi
 
+    # 鲁棒性处理：确保文件末尾一定有换行符，以防用户复制时丢失。
+    # 这是处理 "invalid format" 错误的最终保险。
+    # sed -i 在 macOS 和 Linux 上语法不同，这里做兼容性处理。
+    if [[ "$(uname)" == "Darwin" ]]; then
+        sed -i '' -e '$a\' "$new_key_path" # macOS/BSD sed
+    else
+        sed -i -e '$a\' "$new_key_path" # Linux/GNU sed
+    fi
+
     # 确保文件权限正确
     chmod 600 "$new_key_path"
     identity_file_to_use="$new_key_path"
