@@ -280,16 +280,21 @@ install_poetry() {
     fi
     log_success "Poetry 安装成功，已安装到 $USER_HOME/.local/bin。"
 
+    log_info "正在为 Poetry 应用推荐配置..."
+
+    log_info " -> 正在禁用 keyring 后端 (避免在无 GUI 环境下卡死)..."
+    if ! run_as_user "" "$USER_HOME/.local/bin/poetry config keyring.enabled false"; then
+        log_warn "Poetry 'keyring.enabled' 配置失败，但这通常不影响使用。"
+    fi
+
     read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否将 Poetry 的虚拟环境固定创建在项目目录中 (.venv)？(推荐)(Y/n): ${COLOR_RESET}")" use_in_project
     if [[ ! "$use_in_project" =~ ^[Nn]$ ]]; then
-        log_info "正在为 Poetry 设置 'virtualenvs.in-project' 为 'true'..."
-        # 这个命令需要在 pyenv 环境加载后执行，所以我们再次使用 run_as_user
-        if run_as_user "" "$USER_HOME/.local/bin/poetry config virtualenvs.in-project true"; then
-            log_success "Poetry 配置成功。"
-        else
-            log_error "Poetry 'virtualenvs.in-project' 配置失败。"
+        log_info " -> 正在设置在项目目录中创建 .venv..."
+        if ! run_as_user "" "$USER_HOME/.local/bin/poetry config virtualenvs.in-project true"; then
+            log_warn "Poetry 'virtualenvs.in-project' 配置失败。"
         fi
     fi
+    log_success "Poetry 配置步骤完成。"
     return 0
 }
 
