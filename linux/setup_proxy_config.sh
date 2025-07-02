@@ -139,7 +139,7 @@ proxy() {
     export all_proxy="socks5://\${PROXY_HOST}:\${PROXY_PORT}"
     export no_proxy="localhost,127.0.0.1,::1,*.local"
     
-    echo "✅ 代理已开启: http/https -> http://${PROXY_HOST}:${PROXY_PORT} | all -> socks5://${PROXY_HOST}:${PROXY_PORT}"
+    echo "✅ 代理已开启: http/https -> http://\${PROXY_HOST}:\${PROXY_PORT} | all -> socks5://\${PROXY_HOST}:\${PROXY_PORT}"
 }
 
 unproxy() {
