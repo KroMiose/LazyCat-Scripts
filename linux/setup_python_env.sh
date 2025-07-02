@@ -154,9 +154,9 @@ select_and_install_python() {
     # 询问是否使用国内镜像源
     read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否使用国内镜像源加速 Python 下载？(推荐)(Y/n): ${COLOR_RESET}")" use_mirror
     if [[ ! "$use_mirror" =~ ^[Nn]$ ]]; then
-        # 使用淘宝镜像源
-        mirror_env="PYTHON_BUILD_MIRROR_URL=https://registry.npmmirror.com/-/binary/python"
-        log_info "将使用淘宝镜像源加速下载。"
+        # 使用专门的 pyenv 镜像源
+        mirror_env="PYTHON_BUILD_MIRROR_URL=https://pyenv-mirror.vercel.app/api/pythons/"
+        log_info "将使用 pyenv 专用镜像源加速下载。"
     fi
 
     local major_version
