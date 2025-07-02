@@ -86,11 +86,11 @@ alwaysApply: true
 
 -   对于需要 `sudo` 的脚本：
     ```bash
-    sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/path/to/script.sh)"
+    sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/path/to/script.sh)"
     ```
 -   对于不需要 `sudo` 的脚本：
     ```bash
-    bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/path/to/script.sh)"
+    bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/path/to/script.sh)"
     ```
 
 ## **元认知指令：维护本文档**

@@ -2,10 +2,11 @@
 
 # ==============================================================================
 # 脚本名称: setup_python_env.sh
-# 功    能: 在 Linux 系统上提供一个交互式向导，用于安装和配置一个干净、
-#           现代化的 Python 开发环境。支持通过 pyenv 安装指定版本的 Python，
+# 功    能: 在 Debian/Ubuntu 系统上，通过系统包管理器 (apt) 提供一个交互式向导，
+#           用于安装和配置一个现代化的 Python 开发环境。
+#           支持从官方源或 PPA (deadsnakes) 安装指定版本的 Python,
 #           并可选安装 pipx, poetry, pdm 等流行工具。
-# 适用系统: 基于 Debian/Ubuntu, RHEL/CentOS/Fedora, Arch Linux 的系统。
+# 适用系统: 基于 Debian/Ubuntu 的系统。
 # 使用方法: sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_python_env.sh)"
 # ==============================================================================
 
@@ -53,231 +54,166 @@ if [ ! -d "$USER_HOME" ]; then
     exit 1
 fi
 
-# --- pyenv 和 Python 工具安装 ---
+# --- 核心辅助函数 ---
 
-# 函数：为 pyenv 安装系统级依赖
-# 来源: https://github.com/pyenv/pyenv/wiki/Common-build-problems
-install_pyenv_dependencies() {
-    log_info "正在检测系统并安装 'pyenv' 的编译依赖..."
-    if [ -f /etc/debian_version ]; then
-        # Debian/Ubuntu
+# 在模拟的用户真实登录环境中执行命令
+# 用于需要以普通用户身份执行的操作，例如 'pipx'
+run_as_user() {
+    local script_to_run="$1"
+    sudo -i -u "$REAL_USER" bash <<<"set -e; ${script_to_run}"
+}
+
+# --- 系统与依赖检查 ---
+
+check_system() {
+    if ! [ -f /etc/debian_version ]; then
+        log_error "此脚本目前仅为基于 Debian/Ubuntu 的系统优化。"
+        log_error "在您的系统上运行可能会导致未知问题。"
+        read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 您确定要继续吗？ (y/N): ${COLOR_RESET}")" choice
+        if [[ ! "$choice" =~ ^[Yy]$ ]]; then
+            log_info "脚本终止。"
+            exit 0
+        fi
+    fi
+}
+
+install_dependencies() {
+    log_info "正在更新软件包列表并安装基础依赖..."
+    apt-get update
+    # software-properties-common 用于 add-apt-repository
+    # python3-pip 和 python3-venv 是 Python 环境的基础
+    apt-get install -y software-properties-common python3-pip python3-venv
+    log_success "基础依赖安装完毕。"
+}
+
+# --- Python 安装与配置 ---
+
+select_and_install_python_apt() {
+    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否添加 deadsnakes PPA 以获取更多/更新的 Python 版本？(推荐)(Y/n): ${COLOR_RESET}")" choice
+    if [[ ! "$choice" =~ ^[Nn]$ ]]; then
+        log_info "正在添加 deadsnakes PPA..."
+        if add-apt-repository -y ppa:deadsnakes/ppa; then
+            log_success "deadsnakes PPA 添加成功。"
+        else
+            log_error "添加 deadsnakes PPA 失败。将仅从官方源查找。"
+        fi
+        log_info "正在更新软件包列表..."
         apt-get update
-        apt-get install -y make build-essential libssl-dev zlib1g-dev \
-            libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
-            libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev \
-            liblzma-dev python3-openssl git
-    elif [ -f /etc/redhat-release ]; then
-        # RHEL/CentOS/Fedora
-        yum install -y gcc zlib-devel bzip2 bzip2-devel readline-devel \
-            sqlite sqlite-devel openssl-devel xz xz-devel libffi-devel findutils
-    elif [ -f /etc/arch-release ]; then
-        # Arch Linux
-        pacman -Syu --noconfirm base-devel openssl zlib xz tk
-    else
-        log_warn "无法检测到您的 Linux 发行版，将跳过依赖安装。"
-        log_warn "如果 Python 安装失败，请根据 pyenv-installer 的指引手动安装依赖。"
-    fi
-    log_success "pyenv 依赖项处理完毕。"
-}
-
-# 函数：安装 pyenv 并配置 shell
-install_pyenv() {
-    if [ -d "$USER_HOME/.pyenv" ]; then
-        log_info "'pyenv' 已经安装在 $USER_HOME/.pyenv，跳过安装。"
-        return
     fi
 
-    log_info "正在为用户 '$REAL_USER' 安装 'pyenv'..."
-    log_info "正在尝试从官方 GitHub 源克隆 'pyenv'..."
-    if ! git clone https://github.com/pyenv/pyenv.git "$USER_HOME/.pyenv"; then
-        log_warn "从官方源克隆 'pyenv' 失败，这可能是网络问题。"
-        local choice
-        read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否尝试使用代理 (ghproxy.com) 重新克隆？(y/N): ${COLOR_RESET}")" choice
-        if [[ "$choice" =~ ^[Yy]$ ]]; then
-            log_info "正在尝试通过代理 (ghproxy.com) 克隆 'pyenv'..."
-            if ! git clone https://ghproxy.com/https://github.com/pyenv/pyenv.git "$USER_HOME/.pyenv"; then
-                log_error "通过代理克隆 'pyenv' 仓库同样失败。"
-                log_error "请检查您的网络连接或尝试其他代理。"
-                exit 1
-            fi
-        else
-            log_error "用户选择不使用代理，脚本终止。"
-            exit 1
-        fi
+    log_info "正在查找可用的 Python 版本..."
+    # 查找所有名为 python3.xx 的软件包
+    local available_pythons
+    mapfile -t available_pythons < <(apt-cache pkgnames | grep -E '^python3\.[0-9]{1,2}$' | sort -rV)
+
+    if [ ${#available_pythons[@]} -eq 0 ]; then
+        log_error "未找到可供安装的 'python3.x' 软件包。"
+        log_warn "您可以尝试手动运行 'apt-get update' 或检查您的软件源配置。"
+        return 1
     fi
 
-    # 确保 .pyenv 目录的所有权正确
-    chown -R "$REAL_USER":"$REAL_USER" "$USER_HOME/.pyenv"
-
-    # 确保用户主目录的基本权限正确
-    chown "$REAL_USER":"$REAL_USER" "$USER_HOME"
-
-    # 为所有相关的 shell 配置文件添加 pyenv 初始化代码
-    log_info "正在为 shell 配置文件（.profile, .bashrc, .zprofile, .zshrc）添加 pyenv 初始化代码..."
-
-    local shell_configs=("$USER_HOME/.profile" "$USER_HOME/.bashrc" "$USER_HOME/.zprofile" "$USER_HOME/.zshrc")
-    local pyenv_config='\n# pyenv configuration\nexport PYENV_ROOT="$HOME/.pyenv"\nexport PATH="$PYENV_ROOT/bin:$PATH"\nif command -v pyenv 1>/dev/null 2>&1; then\n  eval "$(pyenv init --path)"\n  eval "$(pyenv init -)"\nfi\n'
-
-    for config_file in "${shell_configs[@]}"; do
-        # 即使文件不存在，也要确保为其添加配置
-        if ! grep -q 'PYENV_ROOT' "$config_file" 2>/dev/null; then
-            log_info "  -> 正在向 $config_file 添加配置..."
-            echo -e "$pyenv_config" >>"$config_file"
-            chown "$REAL_USER":"$REAL_USER" "$config_file"
-        else
-            log_warn "  -> $config_file 中已存在 pyenv 配置，跳过。"
-        fi
-    done
-    log_success "'pyenv' 安装并配置完毕！"
-}
-
-# 函数：交互式地选择并安装 Python 版本
-select_and_install_python() {
-    # 使用 pyenv 真实可执行文件的绝对路径，而不是符号链接
-    local PYENV_CMD="$USER_HOME/.pyenv/libexec/pyenv"
-
-    # 检查并配置代理和镜像源
-    local proxy_env=""
-    local mirror_env=""
-
-    # 检查是否已有代理配置
-    if [[ -z "$http_proxy" && -z "$https_proxy" ]]; then
-        read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 检测到未配置代理。是否需要配置代理以加速 Python 下载？(y/N): ${COLOR_RESET}")" use_proxy
-        if [[ "$use_proxy" =~ ^[Yy]$ ]]; then
-            read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 请输入代理地址 (例如: http://127.0.0.1:7890): ${COLOR_RESET}")" proxy_url
-            if [[ -n "$proxy_url" ]]; then
-                proxy_env="http_proxy=$proxy_url https_proxy=$proxy_url"
-                log_info "将使用代理: $proxy_url"
-            fi
-        fi
-    else
-        log_info "检测到已有代理配置，将自动使用。"
-        proxy_env="http_proxy=$http_proxy https_proxy=$https_proxy"
-    fi
-
-    # 询问是否使用国内镜像源
-    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否使用国内镜像源加速 Python 下载？(推荐)(Y/n): ${COLOR_RESET}")" use_mirror
-    if [[ ! "$use_mirror" =~ ^[Nn]$ ]]; then
-        # 先尝试几个不同的镜像源
-        echo "1) pyenv-mirror.vercel.app (推荐)"
-        echo "2) pyenv.ibeats.top"
-        echo "3) 清华大学镜像源"
-        read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 请选择镜像源 (1-3, 默认: 1): ${COLOR_RESET}")" mirror_choice
-        case "${mirror_choice:-1}" in
-        1)
-            mirror_env="PYTHON_BUILD_MIRROR_URL=https://pyenv-mirror.vercel.app/api/pythons/"
-            log_info "将使用 pyenv-mirror.vercel.app 镜像源。"
+    log_info "请选择您希望安装的 Python 版本:"
+    select python_pkg in "${available_pythons[@]}" "退出安装"; do
+        case "$python_pkg" in
+        "退出安装")
+            log_info "用户选择退出安装。"
+            return 0
             ;;
-        2)
-            mirror_env="PYTHON_BUILD_MIRROR_URL=https://pyenv.ibeats.top"
-            log_info "将使用 pyenv.ibeats.top 镜像源。"
-            ;;
-        3)
-            mirror_env="PYTHON_BUILD_MIRROR_URL_SKIP_CHECKSUM=1 PYTHON_BUILD_MIRROR_URL=https://mirrors.tuna.tsinghua.edu.cn/python/"
-            log_info "将使用清华大学镜像源。"
+        "")
+            log_warn "无效选项，请重新选择。"
             ;;
         *)
-            mirror_env="PYTHON_BUILD_MIRROR_URL=https://pyenv-mirror.vercel.app/api/pythons/"
-            log_info "使用默认镜像源: pyenv-mirror.vercel.app"
+            log_info "您选择了 ${python_pkg}."
+            break
             ;;
         esac
+    done
+
+    log_info "正在安装 ${python_pkg} 及其 venv 模块..."
+    if ! apt-get install -y "$python_pkg" "${python_pkg}-venv"; then
+        log_error "${python_pkg} 安装失败。请检查 apt 的输出信息。"
+        return 1
     fi
+    log_success "${python_pkg} 安装成功！"
 
-    local major_version
-    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 请输入您想安装的 Python 主版本号 (例如: 3.12, 3.11): ${COLOR_RESET}")" major_version
+    configure_python_alternatives
+}
 
-    if ! [[ "$major_version" =~ ^3\.[0-9]{1,2}$ ]]; then
-        log_error "无效的格式。请输入类似 '3.12' 的版本号。"
+configure_python_alternatives() {
+    log_info "正在配置系统默认的 'python3' 命令..."
+
+    # 查找 /usr/bin 下所有已安装的 python3.x 可执行文件
+    local installed_pythons
+    mapfile -t installed_pythons < <(find /usr/bin/python3.* -maxdepth 0 -type f -executable 2>/dev/null | grep -E 'python3\.[0-9]+$' | sort -rV)
+
+    if [ ${#installed_pythons[@]} -eq 0 ]; then
+        log_error "在 /usr/bin 中未找到任何 'python3.x' 可执行文件。"
         return 1
     fi
 
-    log_info "正在查找 ${major_version} 的最新可用稳定版本..."
-    local latest_version
-    # 使用 pyenv 的绝对路径执行命令，并应用代理配置
-    latest_version=$(sudo -u "$REAL_USER" env $proxy_env "$PYENV_CMD" install --list | awk '/^ *'${major_version}'\.[0-9]+ *$/ {print $1}' | sort -V | tail -n 1)
-
-    if [ -z "$latest_version" ]; then
-        log_error "未找到 ${major_version} 的任何可用稳定版本。请检查版本号或网络连接。"
-        return 1
-    fi
-
-    local choice
-    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 找到的最新版本是 ${latest_version}。是否安装此版本并设为全局默认？(y/N): ${COLOR_RESET}")" choice
-    if ! [[ "$choice" =~ ^[Yy]$ ]]; then
-        log_info "用户取消安装。"
-        return 0
-    fi
-
-    local installed_versions
-    installed_versions=$(sudo -u "$REAL_USER" env $proxy_env "$PYENV_CMD" versions --bare)
-
-    if echo "$installed_versions" | grep -q "^${latest_version}$"; then
-        log_info "Python 版本 ${latest_version} 已经安装。"
-    else
-        log_info "正在使用 'pyenv' 安装 Python ${latest_version}... (这可能需要几分钟)"
-        log_info "如果下载缓慢，请耐心等待或考虑配置更快的代理。"
-        
-        log_info "正在以用户登录会话 (sudo -i) 进行 Python 构建以确保环境正确..."
-        # The pyenv init commands should have been added to .profile or .zprofile
-        # which are read by a login shell.
-        local install_script="
-            set -e
-            export $proxy_env
-            export $mirror_env
-            $PYENV_CMD install ${latest_version}
-        "
-        
-        # 使用 `sudo -i -u` 来模拟一个真实的用户登录, 这会加载用户的 profile 文件,
-        # 确保所有的环境变量和路径都已正确设置。
-        if ! sudo -i -u "$REAL_USER" bash <<< "$install_script"; then
-            log_error "Python ${latest_version} 安装失败。"
-            log_error "这可能是网络问题或持续的权限问题。"
-            log_error "您也可以参考 https://github.com/pyenv/pyenv/wiki/Common-build-problems"
-            return 1
+    # 确保所有找到的 Python 都被注册到 update-alternatives 系统中
+    log_info "将已安装的 Python 版本注册到系统选择中..."
+    for p_path in "${installed_pythons[@]}"; do
+        # 检查该路径是否已作为 python3 的一个候选项存在
+        if ! update-alternatives --display python3 | grep -q -x "$p_path"; then
+            local version_name
+            version_name=$(basename "$p_path")
+            log_info "  -> 正在添加 ${version_name}..."
+            # 使用版本号的数字作为优先级，使得新版本有更高优先级
+            # 例如: python3.11 -> 311
+            local priority
+            priority=$(echo "$version_name" | sed 's/python//' | tr -d '.')
+            update-alternatives --install /usr/bin/python3 python3 "$p_path" "$priority"
         fi
-        log_success "Python ${latest_version} 安装成功！"
-    fi
+    done
 
-    log_info "正在将 Python ${latest_version} 设置为全局版本..."
-    sudo -i -u "$REAL_USER" "$PYENV_CMD" global ${latest_version}
-    log_success "全局 Python 版本已设置为 $(sudo -i -u "$REAL_USER" "$PYENV_CMD" global)。"
+    # 通过交互式菜单让用户选择默认版本
+    log_info "您现在可以通过交互式菜单选择默认的 'python3' 版本。"
+    log_warn "请在接下来的菜单中输入您想要的版本的编号，然后按 Enter。"
+    update-alternatives --config python3
+
+    # 验证最终选择
+    local current_python_path
+    current_python_path=$(update-alternatives --query python3 | grep 'Value:' | awk '{print $2}')
+    if [ -n "$current_python_path" ]; then
+        log_success "默认 'python3' 已设置为: $current_python_path"
+        log_info "当前版本: $(${current_python_path} --version)"
+    else
+        log_error "无法确认默认 Python 版本。"
+    fi
 }
 
 # 函数：安装 pipx 并通过它安装其他工具
 install_pipx_and_tools() {
-    # 使用 pyenv 真实可执行文件的绝对路径
-    local PYENV_CMD="$USER_HOME/.pyenv/libexec/pyenv"
-
-    # 检查全局 python 版本是否已设置
-    if ! sudo -i -u "$REAL_USER" "$PYENV_CMD" which python &>/dev/null; then
-        log_error "未找到由 pyenv 管理的 Python。请先选择并安装一个 Python 版本。"
+    if ! command -v python3 &>/dev/null; then
+        log_warn "未找到 'python3' 命令。将跳过 pipx 和相关工具的安装。"
         return 1
     fi
 
     log_info "正在为用户 '$REAL_USER' 安装 'pipx'..."
-    local pipx_install_script="
-        set -e
-        python -m pip install --user pipx
-        python -m pipx ensurepath
-    "
-    if sudo -i -u "$REAL_USER" bash <<< "$pipx_install_script"; then
-        log_success "'pipx' 安装和路径配置成功。"
-        log_info "请注意: 'pipx' 的路径将在下次登录时生效。"
+    # 使用 python3 -m pip 来确保我们使用的是与当前 python3 版本关联的 pip
+    if run_as_user "python3 -m pip install --user pipx"; then
+        log_success "'pipx' 安装成功。"
     else
-        log_error "'pipx' 安装或路径配置失败。"
+        log_error "'pipx' 安装失败。"
         return 1
     fi
+
+    log_info "正在为您的 Shell 配置 pipx 路径..."
+    if run_as_user "python3 -m pipx ensurepath"; then
+        log_success "'pipx' 路径配置成功。"
+    else
+        log_error "'pipx' 路径配置失败。"
+    fi
+    log_info "请注意: 'pipx' 的路径将在下次登录时生效。"
 
     local tools_to_install=("poetry" "pdm")
     for tool in "${tools_to_install[@]}"; do
         read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否要安装 ${tool}？(y/N): ${COLOR_RESET}")" choice
         if [[ "$choice" =~ ^[Yy]$ ]]; then
             log_info "正在使用 'pipx' 安装 '${tool}'..."
-            local tool_install_script="
-                set -e
-                python -m pipx install ${tool}
-            "
-            if sudo -i -u "$REAL_USER" bash <<< "$tool_install_script"; then
+            # 使用 python3 -m pipx 来调用，以防 .local/bin 尚未在当前会话的 PATH 中
+            if run_as_user "python3 -m pipx install ${tool}"; then
                 log_success "'${tool}' 安装成功！"
             else
                 log_error "'${tool}' 安装失败。"
@@ -297,8 +233,8 @@ show_summary() {
     echo -e "\n  1. ${COLOR_YELLOW}关闭当前所有的终端窗口。${COLOR_RESET}"
     echo -e "  2. ${COLOR_YELLOW}重新打开一个新的终端。${COLOR_RESET}"
     echo -e "\n然后您就可以在新的终端中使用以下命令:"
-    echo -e "  - ${COLOR_BLUE}pyenv versions${COLOR_RESET} (查看已安装的 Python 版本)"
-    echo -e "  - ${COLOR_BLUE}python --version${COLOR_RESET} (查看当前的全局 Python 版本)"
+    echo -e "  - ${COLOR_BLUE}python3 --version${COLOR_RESET} (查看当前的默认 Python 版本)"
+    echo -e "  - ${COLOR_BLUE}update-alternatives --config python3${COLOR_RESET} (随时切换默认版本)"
     echo -e "  - ${COLOR_BLUE}pipx list${COLOR_RESET} (查看已安装的 Python 工具)"
     echo -e "${COLOR_GREEN}========================================================${COLOR_RESET}\n"
 }
@@ -306,19 +242,19 @@ show_summary() {
 # --- 主逻辑 ---
 main() {
     log_info "欢迎使用 Python 环境配置向导！"
-    log_info "将为用户 '$REAL_USER' 在 '$USER_HOME' 中配置环境。"
+    log_info "将为用户 '$REAL_USER' 在系统范围内配置环境。"
 
-    # 步骤 1: 安装 pyenv 及其依赖
-    install_pyenv_dependencies
-    install_pyenv
+    # 步骤 0: 检查系统并安装依赖
+    check_system
+    install_dependencies
 
-    # 步骤 2: 交互式选择并安装 Python 版本
-    select_and_install_python
+    # 步骤 1: 交互式选择并安装 Python 版本
+    select_and_install_python_apt
 
-    # 步骤 3 & 4: 安装 pipx 和其他工具
+    # 步骤 2: 安装 pipx 和其他工具
     install_pipx_and_tools
 
-    # 步骤 5: 显示最终摘要
+    # 步骤 3: 显示最终摘要
     show_summary
 }
 
