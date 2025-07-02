@@ -88,7 +88,24 @@ install_pyenv() {
     fi
 
     log_info "正在为用户 '$REAL_USER' 安装 'pyenv'..."
-    git clone https://github.com/pyenv/pyenv.git "$USER_HOME/.pyenv"
+    log_info "正在尝试从官方 GitHub 源克隆 'pyenv'..."
+    if ! git clone https://github.com/pyenv/pyenv.git "$USER_HOME/.pyenv"; then
+        log_warn "从官方源克隆 'pyenv' 失败，这可能是网络问题。"
+        local choice
+        read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否尝试使用代理 (ghproxy.com) 重新克隆？(y/N): ${COLOR_RESET}")" choice
+        if [[ "$choice" =~ ^[Yy]$ ]]; then
+            log_info "正在尝试通过代理 (ghproxy.com) 克隆 'pyenv'..."
+            if ! git clone https://ghproxy.com/https://github.com/pyenv/pyenv.git "$USER_HOME/.pyenv"; then
+                log_error "通过代理克隆 'pyenv' 仓库同样失败。"
+                log_error "请检查您的网络连接或尝试其他代理。"
+                exit 1
+            fi
+        else
+            log_error "用户选择不使用代理，脚本终止。"
+            exit 1
+        fi
+    fi
+
     chown -R "$REAL_USER":"$REAL_USER" "$USER_HOME/.pyenv"
 
     # 为 .bashrc 和 .zshrc 配置 pyenv
