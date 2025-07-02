@@ -224,6 +224,24 @@
   bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/setup_proxy_config.sh)"
   ```
 
+  **通过代理执行**
+
+  如果您在当前网络环境下无法直接访问 GitHub，导致上面的命令失败，您可以指定一个已知的代理来运行此脚本。请将命令末尾的 `http://your-proxy-host:port` 替换为您的代理地址。
+
+  - **对于 HTTP 代理:**
+
+    ```bash
+    bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/setup_proxy_config.sh --proxy http://your-proxy-host:port)"
+    ```
+
+  - **对于 SOCKS5 代理:**
+
+    ```bash
+    bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/setup_proxy_config.sh --proxy socks5h://your-proxy-host:port)"
+    ```
+
+    > `socks5h` 表示代理会为您解析域名，这通常是您想要的。
+
 ---
 
 #### 🛡️ `restore_shell_backup.sh`
