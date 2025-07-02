@@ -43,22 +43,30 @@ if [ -z "$SUDO_USER" ]; then
     exit 1
 fi
 REAL_USER="$SUDO_USER"
+USER_SHELL=$(getent passwd "$REAL_USER" | cut -d: -f7)
+if [ -z "$USER_SHELL" ] || [ ! -x "$USER_SHELL" ]; then
+    log_warn "无法确定用户 '$REAL_USER' 的有效默认 Shell，将回退使用 /bin/bash。"
+    USER_SHELL="/bin/bash"
+fi
 
 # --- 核心辅助函数 ---
 # 在普通用户环境中执行命令，并传递网络配置
 run_as_user() {
     local env_vars="$1"
     local script_to_run="$2"
-    sudo -i -u "$REAL_USER" bash <<< "set -e; export ${env_vars}; ${script_to_run}"
+    # 使用由 getent 命令获取到的用户真实 Shell 来执行命令，确保环境一致性
+    # 例如，这能让 pdm 的安装脚本正确地识别到 .zshrc 并修改它
+    sudo -i -u "$REAL_USER" "$USER_SHELL" <<< "set -e; export ${env_vars}; ${script_to_run}"
 }
 
 # --- 业务逻辑函数 ---
 
 install_system_dependencies() {
     log_info "正在更新软件包列表并安装基础依赖 (python3-pip, venv, git, curl, poetry)..."
-    apt-get update
+    # 使用在 network_setup 中配置的代理
+    env ${PROXY_ENV} apt-get update
     # python3-poetry 会将 poetry 安装到系统路径
-    apt-get install -y python3-pip python3-venv git curl python3-poetry
+    env ${PROXY_ENV} apt-get install -y python3-pip python3-venv git curl python3-poetry
     log_success "基础依赖及 Poetry 安装完毕。"
 }
 
@@ -123,9 +131,10 @@ main() {
     log_info "欢迎使用 Python 工具环境配置向导！"
     log_info "本脚本将为您安装 poetry 和 pdm。"
     
-    install_system_dependencies
-    
+    # 优先进行网络配置，以便后续所有下载操作都能使用
     network_setup
+    
+    install_system_dependencies
     
     if ! install_pdm; then
         log_error "环境配置过程中发生错误，脚本已中止。"
