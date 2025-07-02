@@ -56,7 +56,7 @@ run_as_user() {
     local script_to_run="$2"
     # 使用由 getent 命令获取到的用户真实 Shell 来执行命令，确保环境一致性
     # 例如，这能让 pdm 的安装脚本正确地识别到 .zshrc 并修改它
-    sudo -i -u "$REAL_USER" "$USER_SHELL" <<< "set -e; export ${env_vars}; ${script_to_run}"
+    sudo -i -u "$REAL_USER" "$USER_SHELL" <<<"set -e; export ${env_vars}; ${script_to_run}"
 }
 
 # --- 业务逻辑函数 ---
@@ -98,20 +98,73 @@ network_setup() {
 
 install_pdm() {
     local env_exports="${PROXY_ENV} ${PIP_ENV}"
-    
-    log_info "正在为用户 '$REAL_USER' 安装 pdm..."
+
+    log_info "正在为用户 '$REAL_USER' 下载并安装 pdm..."
     log_info "将使用 PDM 官方推荐的安装脚本。"
-    
+
     local pdm_install_script="curl -sSL https://raw.githubusercontent.com/pdm-project/pdm/main/install-pdm.py | python3 -"
-    
+
     if run_as_user "$env_exports" "$pdm_install_script"; then
-        log_success "'pdm' 安装成功！"
-        log_info "pdm 的路径将在下次登录时生效。"
-        return 0
+        log_success "'pdm' 的二进制文件已成功安装到 ~/.local/bin。"
     else
         log_error "'pdm' 安装失败。请检查网络连接或代理设置。"
         return 1
     fi
+
+    log_info "正在确保 ~/.local/bin 目录在您的 Shell 路径中..."
+    local path_setup_script=$(
+        cat <<'EOF'
+# This script runs inside the user's shell (e.g., zsh), so $SHELL and $HOME are correct.
+if [[ "$SHELL" == *zsh ]]; then
+    CONFIG_FILE="$HOME/.zshrc"
+elif [[ "$SHELL" == *bash ]]; then
+    CONFIG_FILE="$HOME/.bashrc"
+else
+    # A safe fallback for other shells like dash, sh etc. that read .profile
+    CONFIG_FILE="$HOME/.profile"
+fi
+
+# Ensure the user's local bin and the config file exist
+mkdir -p "$HOME/.local/bin"
+touch "$CONFIG_FILE"
+
+# Define the configuration block with unique markers
+PATH_BLOCK=$(cat <<'EOM_BLOCK'
+# --- LAZYCAT-LOCAL-BIN-START ---
+# Added by LazyCat-Scripts to ensure local binaries are in PATH
+export PATH="$HOME/.local/bin:$PATH"
+# --- LAZYCAT-LOCAL-BIN-END ---
+EOM_BLOCK
+)
+
+# Idempotently update the configuration file by removing the old block first
+if grep -qF -- "# --- LAZYCAT-LOCAL-BIN-START ---" "$CONFIG_FILE"; then
+    # Use awk to print all lines NOT between the markers
+    awk '
+        BEGIN {p=0}
+        /# --- LAZYCAT-LOCAL-BIN-START ---/ {p=1; next}
+        /# --- LAZYCAT-LOCAL-BIN-END ---/ {p=0; next}
+        !p {print}
+    ' "$CONFIG_FILE" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+    echo "INFO: 已移除旧的路径配置，准备更新..."
+fi
+
+# Append the new block to the file
+printf "\n%s\n" "$PATH_BLOCK" >> "$CONFIG_FILE"
+
+echo "SUCCESS: 已将 '$HOME/.local/bin' 路径配置到 ${CONFIG_FILE} 中。"
+EOF
+    )
+    # Run the path setup script as the actual user in their own shell
+    if run_as_user "" "$path_setup_script"; then
+        log_success "Shell 路径配置成功！请重启终端以使更改生效。"
+    else
+        log_error "自动配置 Shell 路径失败。"
+        log_warn "您可能需要手动将 '$HOME/.local/bin' 添加到您的 PATH 中。"
+        return 1
+    fi
+
+    return 0
 }
 
 show_summary() {
@@ -130,17 +183,17 @@ show_summary() {
 main() {
     log_info "欢迎使用 Python 工具环境配置向导！"
     log_info "本脚本将为您安装 poetry 和 pdm。"
-    
+
     # 优先进行网络配置，以便后续所有下载操作都能使用
     network_setup
-    
+
     install_system_dependencies
-    
+
     if ! install_pdm; then
         log_error "环境配置过程中发生错误，脚本已中止。"
         exit 1
     fi
-    
+
     show_summary
 }
 
