@@ -2,9 +2,8 @@
 
 # ==============================================================================
 # 脚本名称: setup_python_env.sh
-# 功    能: 快速搭建一个基于 pipx 的现代化 Python 工具环境。
-#           本脚本将为您安装 pipx, 并默认安装 poetry 和 pdm。
-#           它不管理 Python 版本，而是使用您系统已有的 python3。
+# 功    能: 快速搭建 Python 开发工具环境。
+#           本脚本将为您通过 apt 安装 poetry, 并通过官方脚本安装 pdm。
 #           脚本内置了网络代理和 PyPI 镜像的配置向导。
 # 适用系统: 基于 Debian/Ubuntu 的系统。
 # 使用方法: sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_python_env.sh)"
@@ -56,10 +55,11 @@ run_as_user() {
 # --- 业务逻辑函数 ---
 
 install_system_dependencies() {
-    log_info "正在更新软件包列表并安装基础依赖 (python3, pip, venv, git, curl)..."
+    log_info "正在更新软件包列表并安装基础依赖 (python3-pip, venv, git, curl, poetry)..."
     apt-get update
-    apt-get install -y python3-pip python3-venv git curl
-    log_success "基础依赖安装完毕。"
+    # python3-poetry 会将 poetry 安装到系统路径
+    apt-get install -y python3-pip python3-venv git curl python3-poetry
+    log_success "基础依赖及 Poetry 安装完毕。"
 }
 
 network_setup() {
@@ -88,61 +88,46 @@ network_setup() {
     fi
 }
 
-install_pipx_and_tools() {
+install_pdm() {
     local env_exports="${PROXY_ENV} ${PIP_ENV}"
-
-    log_info "正在为用户 '$REAL_USER' 安装 pipx..."
-    log_info "将使用官方 get-pipx.py 引导脚本以确保最佳兼容性。"
-    local pipx_install_script="
-        curl -sSL https://raw.githubusercontent.com/pypa/pipx/main/get-pipx.py | python3 -
-    "
-    if ! run_as_user "$env_exports" "$pipx_install_script"; then
-        log_error "通过引导脚本安装 'pipx' 失败。"
-        log_error "请检查您的网络连接或代理设置。"
+    
+    log_info "正在为用户 '$REAL_USER' 安装 pdm..."
+    log_info "将使用 PDM 官方推荐的安装脚本。"
+    
+    local pdm_install_script="curl -sSL https://raw.githubusercontent.com/pdm-project/pdm/main/install-pdm.py | python3 -"
+    
+    if run_as_user "$env_exports" "$pdm_install_script"; then
+        log_success "'pdm' 安装成功！"
+        log_info "pdm 的路径将在下次登录时生效。"
+        return 0
+    else
+        log_error "'pdm' 安装失败。请检查网络连接或代理设置。"
         return 1
     fi
-    log_success "'pipx' 安装成功。"
-
-    log_info "正在将 pipx 添加到您的 Shell 路径中..."
-    if ! run_as_user "$env_exports" "~/.local/bin/pipx ensurepath"; then
-        log_warn "'pipx ensurepath' 执行失败，您可能需要手动将 ~/.local/bin 添加到 PATH。"
-    fi
-
-    local tools=("poetry" "pdm")
-    for tool in "${tools[@]}"; do
-        log_info "正在使用 'pipx' 安装 '${tool}'..."
-        if run_as_user "$env_exports" "pipx install ${tool}"; then
-            log_success "'${tool}' 安装成功！"
-        else
-            log_error "'${tool}' 安装失败。"
-            return 1
-        fi
-    done
-    return 0
 }
 
 show_summary() {
     echo -e "\n${COLOR_GREEN}========================================================"
     echo -e "      🎉 Python 工具环境配置完成! 🎉"
     echo -e "--------------------------------------------------------${COLOR_RESET}"
-    echo -e "已为您安装好 pipx, poetry, pdm。"
+    echo -e "已为您安装好 poetry 和 pdm。"
     echo -e "为确保所有更改完全生效, 请执行以下操作:"
     echo -e "\n  1. ${COLOR_YELLOW}关闭当前所有的终端窗口。${COLOR_RESET}"
     echo -e "  2. ${COLOR_YELLOW}重新打开一个新的终端。${COLOR_RESET}"
-    echo -e "\n然后您就可以在新的终端中使用 poetry, pdm 等命令了。"
+    echo -e "\n然后您就可以在新的终端中使用 poetry 和 pdm 命令了。"
     echo -e "${COLOR_GREEN}========================================================${COLOR_RESET}\n"
 }
 
 # --- 主逻辑 ---
 main() {
     log_info "欢迎使用 Python 工具环境配置向导！"
-    log_info "本脚本将为您安装 pipx, poetry, 和 pdm。"
+    log_info "本脚本将为您安装 poetry 和 pdm。"
     
     install_system_dependencies
     
     network_setup
     
-    if ! install_pipx_and_tools; then
+    if ! install_pdm; then
         log_error "环境配置过程中发生错误，脚本已中止。"
         exit 1
     fi
