@@ -202,14 +202,20 @@ inject_shell_config() {
 }
 
 install_pyenv() {
-    log_info "正在为用户 '$REAL_USER' 下载并安装 pyenv..."
-
-    local pyenv_installer="curl -sSL https://pyenv.run | bash"
-    if ! run_as_user "$PROXY_ENV" "$pyenv_installer"; then
-        log_error "pyenv 安装失败。请检查网络或代理设置。"
-        return 1
+    log_info "正在检查 pyenv 安装状态..."
+    # pyenv 官方安装脚本 (pyenv.run) 在目标目录 (~/.pyenv) 已存在时会报错退出。
+    # 因此，我们在此处检查该目录是否存在，以确保脚本的幂等性。
+    if sudo -u "$REAL_USER" [ -d "$USER_HOME/.pyenv" ]; then
+        log_info "检测到 '$USER_HOME/.pyenv' 目录，将跳过 pyenv 的下载和安装。"
+    else
+        log_info "正在为用户 '$REAL_USER' 下载并安装 pyenv..."
+        local pyenv_installer="curl -sSL https://pyenv.run | bash"
+        if ! run_as_user "$PROXY_ENV" "$pyenv_installer"; then
+            log_error "pyenv 安装失败。请检查网络或代理设置。"
+            return 1
+        fi
+        log_success "pyenv 安装成功。"
     fi
-    log_success "pyenv 安装成功。"
 
     log_info "正在配置 pyenv 的 Shell 环境..."
     local pyenv_config
