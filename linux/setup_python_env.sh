@@ -82,8 +82,7 @@ install_dependencies() {
     apt-get update
     # software-properties-common 用于 add-apt-repository
     # python3-pip 和 python3-venv 是 Python 环境的基础
-    # pipx 用于管理 python 工具, 通过 apt 安装以避免 'externally-managed-environment' 错误
-    apt-get install -y software-properties-common python3-pip python3-venv pipx
+    apt-get install -y software-properties-common python3-pip python3-venv
     log_success "基础依赖安装完毕。"
 }
 
@@ -191,14 +190,23 @@ install_pipx_and_tools() {
         return 1
     fi
 
-    # pipx 已通过 apt 在 install_dependencies 中安装
-    log_info "正在为您的 Shell 配置 pipx 路径..."
-    if run_as_user "pipx ensurepath"; then
-        log_success "'pipx' 路径配置成功。"
+    log_info "正在为用户 '$REAL_USER' 安装 'pipx'..."
+    log_info "将使用官方 get-pipx.py 引导脚本以确保最佳兼容性。"
+
+    # 使用 pipx 官方的引导脚本进行安装，避免系统包的各种问题
+    local pipx_install_script="
+        export PIPX_HOME=~/.local/pipx
+        export PIPX_BIN_DIR=~/.local/bin
+        curl -sSL https://raw.githubusercontent.com/pypa/pipx/main/get-pipx.py | python3
+        ~/.local/bin/pipx ensurepath
+    "
+    if run_as_user "$pipx_install_script"; then
+        log_success "'pipx' 安装和路径配置成功。"
+        log_info "请注意: 'pipx' 的路径将在下次登录时生效。"
     else
-        log_error "'pipx' 路径配置失败。"
+        log_error "'pipx' 安装失败。请检查以上日志获取详细信息。"
+        return 1
     fi
-    log_info "请注意: 'pipx' 的路径将在下次登录时生效。"
 
     local tools_to_install=("poetry" "pdm")
     for tool in "${tools_to_install[@]}"; do
@@ -210,11 +218,15 @@ install_pipx_and_tools() {
                 log_success "'${tool}' 安装成功！"
             else
                 log_error "'${tool}' 安装失败。"
+                # 关键：如果任何一个工具安装失败，则整个函数失败
+                return 1
             fi
         else
             log_info "跳过安装 '${tool}'。"
         fi
     done
+    # 所有工具都成功安装（或跳过）后，函数成功返回
+    return 0
 }
 
 # 函数：显示最后的总结信息
@@ -245,7 +257,11 @@ main() {
     select_and_install_python_apt
 
     # 步骤 2: 安装 pipx 和其他工具
-    install_pipx_and_tools
+    # 如果此函数失败，则脚本终止
+    if ! install_pipx_and_tools; then
+        log_error "由于工具安装失败，配置流程已中止。"
+        exit 1
+    fi
 
     # 步骤 3: 显示最终摘要
     show_summary
