@@ -132,6 +132,33 @@ select_and_install_python() {
     # 使用 pyenv 真实可执行文件的绝对路径，而不是符号链接
     local PYENV_CMD="$USER_HOME/.pyenv/libexec/pyenv"
 
+    # 检查并配置代理和镜像源
+    local proxy_env=""
+    local mirror_env=""
+    
+    # 检查是否已有代理配置
+    if [[ -z "$http_proxy" && -z "$https_proxy" ]]; then
+        read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 检测到未配置代理。是否需要配置代理以加速 Python 下载？(y/N): ${COLOR_RESET}")" use_proxy
+        if [[ "$use_proxy" =~ ^[Yy]$ ]]; then
+            read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 请输入代理地址 (例如: http://127.0.0.1:7890): ${COLOR_RESET}")" proxy_url
+            if [[ -n "$proxy_url" ]]; then
+                proxy_env="http_proxy=$proxy_url https_proxy=$proxy_url"
+                log_info "将使用代理: $proxy_url"
+            fi
+        fi
+    else
+        log_info "检测到已有代理配置，将自动使用。"
+        proxy_env="http_proxy=$http_proxy https_proxy=$https_proxy"
+    fi
+
+    # 询问是否使用国内镜像源
+    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否使用国内镜像源加速 Python 下载？(推荐)(Y/n): ${COLOR_RESET}")" use_mirror
+    if [[ ! "$use_mirror" =~ ^[Nn]$ ]]; then
+        # 使用淘宝镜像源
+        mirror_env="PYTHON_BUILD_MIRROR_URL=https://registry.npmmirror.com/-/binary/python"
+        log_info "将使用淘宝镜像源加速下载。"
+    fi
+
     local major_version
     read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 请输入您想安装的 Python 主版本号 (例如: 3.12, 3.11): ${COLOR_RESET}")" major_version
 
@@ -142,11 +169,11 @@ select_and_install_python() {
 
     log_info "正在查找 ${major_version} 的最新可用稳定版本..."
     local latest_version
-    # 使用 pyenv 的绝对路径执行命令
-    latest_version=$(sudo -u "$REAL_USER" "$PYENV_CMD" install --list | awk '/^ *'${major_version}'\.[0-9]+ *$/ {print $1}' | sort -V | tail -n 1)
+    # 使用 pyenv 的绝对路径执行命令，并应用代理配置
+    latest_version=$(sudo -u "$REAL_USER" env $proxy_env "$PYENV_CMD" install --list | awk '/^ *'${major_version}'\.[0-9]+ *$/ {print $1}' | sort -V | tail -n 1)
 
     if [ -z "$latest_version" ]; then
-        log_error "未找到 ${major_version} 的任何可用稳定版本。请检查版本号或 'pyenv' 的源。"
+        log_error "未找到 ${major_version} 的任何可用稳定版本。请检查版本号或网络连接。"
         return 1
     fi
 
@@ -158,15 +185,18 @@ select_and_install_python() {
     fi
 
     local installed_versions
-    installed_versions=$(sudo -u "$REAL_USER" "$PYENV_CMD" versions --bare)
+    installed_versions=$(sudo -u "$REAL_USER" env $proxy_env "$PYENV_CMD" versions --bare)
 
     if echo "$installed_versions" | grep -q "^${latest_version}$"; then
         log_info "Python 版本 ${latest_version} 已经安装。"
     else
         log_info "正在使用 'pyenv' 安装 Python ${latest_version}... (这可能需要几分钟)"
-        if ! sudo -u "$REAL_USER" "$PYENV_CMD" install ${latest_version}; then
-            log_error "Python ${latest_version} 安装失败。请检查错误信息。"
-            log_error "您可能需要手动安装更多编译依赖。请参考 https://github.com/pyenv/pyenv/wiki/Common-build-problems"
+        log_info "如果下载缓慢，请耐心等待或考虑配置更快的代理。"
+        # 使用所有配置的环境变量执行安装
+        if ! sudo -u "$REAL_USER" env $proxy_env $mirror_env "$PYENV_CMD" install ${latest_version}; then
+            log_error "Python ${latest_version} 安装失败。"
+            log_error "这可能是网络问题。请检查您的网络连接或代理配置。"
+            log_error "您也可以参考 https://github.com/pyenv/pyenv/wiki/Common-build-problems"
             return 1
         fi
         log_success "Python ${latest_version} 安装成功！"
