@@ -17,13 +17,46 @@ if [ "$(id -u)" -eq 0 ]; then
     exit 1
 fi
 
+# --- 尝试从环境变量中获取现有代理配置 ---
+EXISTING_PROXY=""
+# 优先使用小写的变量，因为它们更通用
+if [ -n "$http_proxy" ]; then
+    EXISTING_PROXY="$http_proxy"
+elif [ -n "$https_proxy" ]; then
+    EXISTING_PROXY="$https_proxy"
+elif [ -n "$all_proxy" ]; then
+    EXISTING_PROXY="$all_proxy"
+# 作为备选，检查大写变量
+elif [ -n "$HTTP_PROXY" ]; then
+    EXISTING_PROXY="$HTTP_PROXY"
+elif [ -n "$HTTPS_PROXY" ]; then
+    EXISTING_PROXY="$HTTPS_PROXY"
+elif [ -n "$ALL_PROXY" ]; then
+    EXISTING_PROXY="$ALL_PROXY"
+fi
+
+DEFAULT_HOST="127.0.0.1"
+DEFAULT_PORT="7890"
+
+if [ -n "$EXISTING_PROXY" ]; then
+    echo "🔍 检测到现有代理环境变量: $EXISTING_PROXY"
+    # 移除协议头 (http://, https://, socks5://, etc.) 和尾部斜杠
+    PROXY_NO_PROTOCOL=$(echo "$EXISTING_PROXY" | sed -E 's_.*://__; s_/$__')
+    # 从 user:pass@host:port 中提取 host:port
+    PROXY_HOST_PORT=$(echo "$PROXY_NO_PROTOCOL" | sed -E 's/.*@//')
+    # 提取主机和端口
+    DEFAULT_HOST=$(echo "$PROXY_HOST_PORT" | awk -F: '{print $1}')
+    DEFAULT_PORT=$(echo "$PROXY_HOST_PORT" | awk -F: '{print $2}')
+    echo "  -> 将使用 Host: $DEFAULT_HOST, Port: $DEFAULT_PORT 作为默认值。"
+fi
+
 # --- 交互式获取代理信息 ---
 echo "--- 代理配置向导 ---"
-read -p "请输入代理服务器地址 (默认: 127.0.0.1): " PROXY_HOST
-PROXY_HOST=${PROXY_HOST:-127.0.0.1}
+read -p "请输入代理服务器地址 (默认: ${DEFAULT_HOST}): " PROXY_HOST
+PROXY_HOST=${PROXY_HOST:-${DEFAULT_HOST}}
 
-read -p "请输入代理服务器端口 (默认: 7890): " PROXY_PORT
-PROXY_PORT=${PROXY_PORT:-7890}
+read -p "请输入代理服务器端口 (默认: ${DEFAULT_PORT}): " PROXY_PORT
+PROXY_PORT=${PROXY_PORT:-${DEFAULT_PORT}}
 
 echo ""
 echo "✨ 您的代理配置如下:"

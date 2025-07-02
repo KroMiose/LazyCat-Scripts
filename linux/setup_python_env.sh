@@ -77,8 +77,40 @@ network_setup() {
 
     read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 您是否需要通过代理服务器访问网络？ (y/N): ${COLOR_RESET}")" use_proxy
     if [[ "$use_proxy" =~ ^[Yy]$ ]]; then
-        read -p "  -> 请输入代理主机 (例如: 127.0.0.1): " proxy_host
-        read -p "  -> 请输入代理端口 (例如: 7890): " proxy_port
+        # --- 尝试从环境变量中获取现有代理配置 ---
+        local EXISTING_PROXY=""
+        if [ -n "$http_proxy" ]; then
+            EXISTING_PROXY="$http_proxy"
+        elif [ -n "$https_proxy" ]; then
+            EXISTING_PROXY="$https_proxy"
+        elif [ -n "$all_proxy" ]; then
+            EXISTING_PROXY="$all_proxy"
+        elif [ -n "$HTTP_PROXY" ]; then
+            EXISTING_PROXY="$HTTP_PROXY"
+        elif [ -n "$HTTPS_PROXY" ]; then
+            EXISTING_PROXY="$HTTPS_PROXY"
+        elif [ -n "$ALL_PROXY" ]; then
+            EXISTING_PROXY="$ALL_PROXY"
+        fi
+
+        local DEFAULT_HOST="127.0.0.1"
+        local DEFAULT_PORT="7890"
+
+        if [ -n "$EXISTING_PROXY" ]; then
+            # 移除协议头和尾部斜杠
+            local PROXY_NO_PROTOCOL=$(echo "$EXISTING_PROXY" | sed -E 's_.*://__; s_/$__')
+            # 从 user:pass@host:port 中提取 host:port
+            local PROXY_HOST_PORT=$(echo "$PROXY_NO_PROTOCOL" | sed -E 's/.*@//')
+            DEFAULT_HOST=$(echo "$PROXY_HOST_PORT" | awk -F: '{print $1}')
+            DEFAULT_PORT=$(echo "$PROXY_HOST_PORT" | awk -F: '{print $2}')
+            log_info "检测到现有代理: $EXISTING_PROXY, 将其作为默认值。"
+        fi
+        
+        read -p "  -> 请输入代理主机 (默认: ${DEFAULT_HOST}): " proxy_host
+        proxy_host=${proxy_host:-${DEFAULT_HOST}}
+        read -p "  -> 请输入代理端口 (默认: ${DEFAULT_PORT}): " proxy_port
+        proxy_port=${proxy_port:-${DEFAULT_PORT}}
+
         if [[ -n "$proxy_host" && -n "$proxy_port" ]]; then
             local proxy_url="http://${proxy_host}:${proxy_port}"
             log_info "将为本次执行设置网络代理: ${proxy_url}"
