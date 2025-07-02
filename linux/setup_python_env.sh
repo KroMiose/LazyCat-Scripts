@@ -134,10 +134,7 @@ install_pyenv() {
 
 # 函数：交互式地选择并安装 Python 版本
 select_and_install_python() {
-    # 为了让当前脚本会话能使用 pyenv，需要手动加载
-    export PYENV_ROOT="$USER_HOME/.pyenv"
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    eval "$(pyenv init -)"
+    local pyenv_env_setup='export PYENV_ROOT="$HOME/.pyenv"; export PATH="$PYENV_ROOT/bin:$PATH";'
 
     local major_version
     read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 请输入您想安装的 Python 主版本号 (例如: 3.12, 3.11): ${COLOR_RESET}")" major_version
@@ -149,8 +146,8 @@ select_and_install_python() {
 
     log_info "正在查找 ${major_version} 的最新可用稳定版本..."
     local latest_version
-    # 以用户身份运行pyenv, 使用 awk 精确匹配 'x.y.z' 格式的版本号，避免匹配到 rc, dev 等版本
-    latest_version=$(sudo -u "$REAL_USER" pyenv install --list | awk '/^ *'${major_version}'\.[0-9]+ *$/ {print $1}' | sort -V | tail -n 1)
+    # 以用户身份运行pyenv, 并确保环境已设置
+    latest_version=$(sudo -u "$REAL_USER" bash -c "${pyenv_env_setup} pyenv install --list" | awk '/^ *'${major_version}'\.[0-9]+ *$/ {print $1}' | sort -V | tail -n 1)
 
     if [ -z "$latest_version" ]; then
         log_error "未找到 ${major_version} 的任何可用稳定版本。请检查版本号或 'pyenv' 的源。"
@@ -165,13 +162,13 @@ select_and_install_python() {
     fi
 
     local installed_versions
-    installed_versions=$(sudo -u "$REAL_USER" pyenv versions --bare)
+    installed_versions=$(sudo -u "$REAL_USER" bash -c "${pyenv_env_setup} pyenv versions --bare")
 
     if echo "$installed_versions" | grep -q "^${latest_version}$"; then
         log_info "Python 版本 ${latest_version} 已经安装。"
     else
         log_info "正在使用 'pyenv' 安装 Python ${latest_version}... (这可能需要几分钟)"
-        if ! sudo -u "$REAL_USER" bash -c "pyenv install ${latest_version}"; then
+        if ! sudo -u "$REAL_USER" bash -c "${pyenv_env_setup} pyenv install ${latest_version}"; then
             log_error "Python ${latest_version} 安装失败。请检查错误信息。"
             log_error "您可能需要手动安装更多编译依赖。请参考 https://github.com/pyenv/pyenv/wiki/Common-build-problems"
             return 1
@@ -180,25 +177,22 @@ select_and_install_python() {
     fi
 
     log_info "正在将 Python ${latest_version} 设置为全局版本..."
-    sudo -u "$REAL_USER" bash -c "pyenv global ${latest_version}"
-    log_success "全局 Python 版本已设置为 $(sudo -u "$REAL_USER" pyenv global)。"
+    sudo -u "$REAL_USER" bash -c "${pyenv_env_setup} pyenv global ${latest_version}"
+    log_success "全局 Python 版本已设置为 $(sudo -u "$REAL_USER" bash -c "${pyenv_env_setup} pyenv global")。"
 }
 
 # 函数：安装 pipx 并通过它安装其他工具
 install_pipx_and_tools() {
-    # 再次确保 pyenv 环境已加载
-    export PYENV_ROOT="$USER_HOME/.pyenv"
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    if command -v pyenv 1>/dev/null 2>&1; then eval "$(pyenv init -)"; fi
+    local pyenv_full_setup='export PYENV_ROOT="$HOME/.pyenv"; export PATH="$PYENV_ROOT/bin:$PATH"; eval "$(pyenv init -)";'
 
     # 检查全局 python 版本是否已设置
-    if ! pyenv which python &>/dev/null; then
+    if ! sudo -u "$REAL_USER" bash -c "${pyenv_full_setup} pyenv which python" &>/dev/null; then
         log_error "未找到由 pyenv管理的 Python。请先选择并安装一个 Python 版本。"
         return 1
     fi
 
     log_info "正在为用户 '$REAL_USER' 安装 'pipx'..."
-    if sudo -u "$REAL_USER" bash -c "python -m pip install --user pipx"; then
+    if sudo -u "$REAL_USER" bash -c "${pyenv_full_setup} python -m pip install --user pipx"; then
         log_success "'pipx' 核心安装成功。"
     else
         log_error "'pipx' 安装失败。"
@@ -206,7 +200,7 @@ install_pipx_and_tools() {
     fi
 
     log_info "正在配置 'pipx' 路径..."
-    if sudo -u "$REAL_USER" bash -c "python -m pipx ensurepath"; then
+    if sudo -u "$REAL_USER" bash -c "${pyenv_full_setup} python -m pipx ensurepath"; then
         log_success "'pipx' 路径配置完毕。"
         log_info "请注意: 'pipx' 的路径将在下次登录时生效。"
     else
@@ -218,7 +212,7 @@ install_pipx_and_tools() {
         read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否要安装 ${tool}？(y/N): ${COLOR_RESET}")" choice
         if [[ "$choice" =~ ^[Yy]$ ]]; then
             log_info "正在使用 'pipx' 安装 '${tool}'..."
-            if sudo -u "$REAL_USER" bash -c "python -m pipx install ${tool}"; then
+            if sudo -u "$REAL_USER" bash -c "${pyenv_full_setup} python -m pipx install ${tool}"; then
                 log_success "'${tool}' 安装成功！"
             else
                 log_error "'${tool}' 安装失败。"
