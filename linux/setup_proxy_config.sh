@@ -3,7 +3,7 @@
 # ==============================================================================
 # 脚本名称: setup_proxy_config.sh
 # 功    能: 交互式地为 Shell 环境配置和取消代理的便捷命令。
-#           支持临时配置（打印命令）和永久配置（写入配置文件）。
+#           支持连接测试、临时配置和永久配置。
 # 适用系统: 所有主流 Linux 发行版及 macOS (Bash/Zsh)
 # 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/setup_proxy_config.sh)"
 # ==============================================================================
@@ -31,7 +31,7 @@ echo "   - 地址: ${PROXY_HOST}"
 echo "   - 端口: ${PROXY_PORT}"
 echo ""
 
-# --- 测试和确认 ---
+# --- 测试函数 ---
 perform_tests() {
     local host="$1"
     local port="$2"
@@ -90,7 +90,8 @@ perform_tests() {
     fi
 }
 
-read -p "是否在写入前测试此代理配置？ (Y/n): " confirm_test
+# --- 可选的测试环节 ---
+read -p "是否在继续前测试此代理配置？ (Y/n): " confirm_test
 confirm_test=${confirm_test:-Y}
 
 if [[ "$confirm_test" =~ ^[Yy]$ ]]; then
@@ -100,19 +101,16 @@ if [[ "$confirm_test" =~ ^[Yy]$ ]]; then
     proceed_anyway=false
     if [ $test_result -eq 0 ]; then
         echo "🎉 所有测试均成功通过！"
-        read -p "是否继续写入配置？ (Y/n): " confirm_proceed
-        if [[ "${confirm_proceed:-Y}" =~ ^[Yy]$ ]]; then
-            proceed_anyway=true
-        fi
+        proceed_anyway=true
     elif [ $test_result -eq 1 ]; then
         echo "⚠️  部分测试失败。如果您的代理不支持所有协议，这可能是正常的。"
-        read -p "是否仍然继续写入配置？ (y/N): " confirm_proceed
+        read -p "是否仍然继续？ (y/N): " confirm_proceed
         if [[ "$confirm_proceed" =~ ^[Yy]$ ]]; then
             proceed_anyway=true
         fi
     else # test_result is 2
         echo "❌ 所有测试均失败。代理地址或端口很可能配置错误。"
-        read -p "是否仍然继续写入配置 (不推荐)？ (y/N): " confirm_proceed
+        read -p "是否仍然继续 (不推荐)？ (y/N): " confirm_proceed
         if [[ "$confirm_proceed" =~ ^[Yy]$ ]]; then
             proceed_anyway=true
         fi
@@ -125,35 +123,8 @@ if [[ "$confirm_test" =~ ^[Yy]$ ]]; then
     echo ""
 fi
 
-# --- 生成配置内容 ---
-# 使用heredoc来创建配置块，更清晰
-read -r -d '' PROXY_CONFIG_BLOCK <<EOM
-# --- PROXY-START --- Managed by setup_proxy_config.sh
-# https://github.com/KroMiose/scripts
-export PROXY_HOST="${PROXY_HOST}"
-export PROXY_PORT="${PROXY_PORT}"
-
-proxy() {
-    export http_proxy="http://\${PROXY_HOST}:\${PROXY_PORT}"
-    export https_proxy="http://\${PROXY_HOST}:\${PROXY_PORT}"
-    export all_proxy="socks5://\${PROXY_HOST}:\${PROXY_PORT}"
-    export no_proxy="localhost,127.0.0.1,::1,*.local"
-    
-    echo "✅ 代理已开启: http/https -> http://\${PROXY_HOST}:\${PROXY_PORT} | all -> socks5://\${PROXY_HOST}:\${PROXY_PORT}"
-}
-
-unproxy() {
-    unset http_proxy
-    unset https_proxy
-    unset all_proxy
-    unset no_proxy
-    echo "☑️  代理已关闭。"
-}
-# --- PROXY-END ---
-EOM
-
-# --- 询问用户操作 ---
-read -p "您想如何使用此配置？ [P]ermanent (写入配置文件) / [T]emporary (仅显示命令) (P/t): " choice
+# --- 询问用户最终操作 ---
+read -p "您想如何应用此配置？ [P]ermanent (写入文件) / [T]emporary (仅显示命令) (P/t): " choice
 choice=${choice:-P}
 
 if [[ "$choice" =~ ^[Tt]$ ]]; then
@@ -178,8 +149,36 @@ fi
 
 # --- 永久写入 ---
 
+# --- 生成配置内容 (使用更兼容的 cat) ---
+PROXY_CONFIG_BLOCK=$(cat <<EOM
+# --- PROXY-START --- Managed by setup_proxy_config.sh
+# https://github.com/KroMiose/scripts
+export PROXY_HOST="${PROXY_HOST}"
+export PROXY_PORT="${PROXY_PORT}"
+
+proxy() {
+    export http_proxy="http://\${PROXY_HOST}:\${PROXY_PORT}"
+    export https_proxy="http://\${PROXY_HOST}:\${PROXY_PORT}"
+    export all_proxy="socks5://\${PROXY_HOST}:\${PROXY_PORT}"
+    export no_proxy="localhost,127.0.0.1,::1,*.local"
+    
+    echo "✅ 代理已开启: http/https -> http://\${PROXY_HOST}:\${PROXY_PORT} | all -> socks5://\${PROXY_HOST}:\${PROXY_PORT}"
+}
+
+unproxy() {
+    unset http_proxy
+    unset https_proxy
+    unset all_proxy
+    unset no_proxy
+    echo "☑️  代理已关闭。"
+}
+# --- PROXY-END ---
+EOM
+)
+
 # --- 检测 Shell 配置文件 ---
 SHELL_TYPE=$(basename "$SHELL")
+PROFILE_FILE=""
 if [ "$SHELL_TYPE" = "zsh" ]; then
     PROFILE_FILE="$HOME/.zshrc"
 elif [ "$SHELL_TYPE" = "bash" ]; then
@@ -191,11 +190,13 @@ else
         PROFILE_FILE="$HOME/.zshrc"
     elif [ -f "$HOME/.bashrc" ]; then
         PROFILE_FILE="$HOME/.bashrc"
-    else
-        echo "❌ 错误: 找不到 ~/.zshrc 或 ~/.bashrc 文件。" >&2
-        echo "请您手动将配置添加到您的 Shell 启动文件中。" >&2
-        exit 1
     fi
+fi
+
+if [ -z "$PROFILE_FILE" ]; then
+    echo "❌ 错误: 找不到 ~/.zshrc 或 ~/.bashrc 文件。" >&2
+    echo "请您手动将配置添加到您的 Shell 启动文件中。" >&2
+    exit 1
 fi
 
 echo "🔧 检测到您的 Shell 配置文件是: $PROFILE_FILE"
@@ -214,7 +215,6 @@ cp "$PROFILE_FILE" "${PROFILE_FILE}.bak.$(date +'%Y-%m-%d_%H-%M-%S')"
 echo "  -> 已创建备份文件: ${PROFILE_FILE}.bak.*"
 
 # 幂等性：先删除旧块
-# 使用 awk 比 sed 更可靠，且跨平台行为一致
 if grep -q "# --- PROXY-START ---" "$PROFILE_FILE"; then
     echo "  -> 检测到旧的代理配置，正在更新..."
     awk '
