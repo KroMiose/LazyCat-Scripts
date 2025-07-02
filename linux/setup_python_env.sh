@@ -204,8 +204,9 @@ inject_shell_config() {
 install_pyenv() {
     log_info "正在检查 pyenv 安装状态..."
     # pyenv 官方安装脚本 (pyenv.run) 在目标目录 (~/.pyenv) 已存在时会报错退出。
-    # 因此，我们在此处检查该目录是否存在，以确保脚本的幂等性。
-    if sudo -u "$REAL_USER" [ -d "$USER_HOME/.pyenv" ]; then
+    # 为确保幂等性，必须先检查目录是否存在。
+    # 使用 `bash -c` 来保证测试命令在一个完整的用户 Shell 环境中被执行，这是最可靠的方式。
+    if sudo -u "$REAL_USER" bash -c "[ -d \"$USER_HOME/.pyenv\" ]"; then
         log_info "检测到 '$USER_HOME/.pyenv' 目录，将跳过 pyenv 的下载和安装。"
     else
         log_info "正在为用户 '$REAL_USER' 下载并安装 pyenv..."
