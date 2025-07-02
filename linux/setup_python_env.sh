@@ -217,22 +217,30 @@ select_and_install_python() {
         log_info "正在使用 'pyenv' 安装 Python ${latest_version}... (这可能需要几分钟)"
         log_info "如果下载缓慢，请耐心等待或考虑配置更快的代理。"
 
-        # 确保临时目录权限正确
-        mkdir -p /tmp/python-build.$$
-        chown "$REAL_USER":"$REAL_USER" /tmp/python-build.$$
+        # 创建一个专用的用户临时目录来避免权限问题
+        local user_tmp_dir="$USER_HOME/.pyenv/tmp-build-$$"
+        sudo -u "$REAL_USER" mkdir -p "$user_tmp_dir"
 
-        # 使用所有配置的环境变量执行安装，并设置临时目录
-        if ! sudo -u "$REAL_USER" env $proxy_env $mirror_env TMPDIR=/tmp/python-build.$$ "$PYENV_CMD" install ${latest_version}; then
+        # 切换到用户身份并在用户的临时目录中进行构建
+        log_info "正在以用户身份进行 Python 构建以避免权限问题..."
+        if ! sudo -u "$REAL_USER" bash -c "
+            export HOME='$USER_HOME'
+            export TMPDIR='$user_tmp_dir'
+            export $proxy_env
+            export $mirror_env
+            cd '$USER_HOME'
+            '$PYENV_CMD' install ${latest_version}
+        "; then
             log_error "Python ${latest_version} 安装失败。"
             log_error "这可能是网络问题。请检查您的网络连接或代理配置。"
             log_error "您也可以参考 https://github.com/pyenv/pyenv/wiki/Common-build-problems"
-            rm -rf /tmp/python-build.$$
+            sudo -u "$REAL_USER" rm -rf "$user_tmp_dir"
             return 1
         fi
         log_success "Python ${latest_version} 安装成功！"
 
         # 清理临时目录
-        rm -rf /tmp/python-build.$$
+        sudo -u "$REAL_USER" rm -rf "$user_tmp_dir"
     fi
 
     log_info "正在将 Python ${latest_version} 设置为全局版本..."
