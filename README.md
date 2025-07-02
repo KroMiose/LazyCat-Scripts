@@ -38,6 +38,7 @@
 |  🐍  | [`setup_python_env.sh`](#setup_python_envsh)         | 一键配置现代化的 Python 开发环境 (pyenv + pipx)。     |      Linux      |
 |  ⬢   | [`setup_node_env.sh`](#setup_node_envsh)             | 一键配置 nvm, Node.js, pnpm, yarn 等前端开发环境。    |  Linux & macOS  |
 |  🐳  | [`setup_docker_proxy.sh`](#setup_docker_proxysh)     | 交互式地为 Docker 守护进程配置或移除网络代理。        |      Linux      |
+|  ⚡️  | [`setup_sudo_nopasswd.sh`](#setup_sudo_nopasswdsh)   | 为当前用户配置免密 `sudo` (高风险!)。                 |      Linux      |
 
 ## 📖 脚本详解 (Script Details)
 
@@ -159,6 +160,41 @@
 
   ```bash
   sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_docker_proxy.sh)"
+  ```
+
+#### `setup_sudo_nopasswd.sh`
+
+这是一个存在风险但可能在特定场景下（如自动化脚本、受信任的开发环境）非常有用的工具。它通过交互式向导，帮助您为当前用户安全地启用或禁用免密 `sudo` 权限。
+
+- **🚨 安全第一:**
+  - **极度明确的警告:** 脚本在执行前会反复强调此操作的风险。
+  - **严格的用户确认:** 启用免密 `sudo` 前，必须手动输入 `yes` 进行确认，有效防止误操作。
+  - **安全的实现方式:** 脚本严格遵循最佳实践，通过在 `/etc/sudoers.d/` 目录下创建独立的、以用户命名的配置文件来工作，绝不直接修改主 `sudoers` 文件。
+  - **语法预检查:** 在应用任何更改之前，脚本会调用 `visudo -c` 命令来严格检查配置文件的语法。如果语法不正确，它会拒绝应用并自动清理，防止系统被锁。
+
+- **✨ 主要功能:**
+  - **交互式菜单:** 清晰地提供"启用"和"移除"两个选项。
+  - **智能用户检测:** 自动识别出通过 `sudo` 执行脚本的普通用户 (`$SUDO_USER`)，并为其进行配置。
+  - **幂等性:** 您可以反复运行此脚本来启用或禁用此功能，脚本状态会正确切换。
+  - **自动清理:** 在移除配置时，它会干净地删除对应的配置文件。
+
+- **💻 支持系统:**
+  - 任何使用 `sudo` 并且支持 `/etc/sudoers.d/` 配置目录的主流 Linux 发行版。
+
+- **💣 执行副作用:**
+  - **系统级变更:**
+    - 脚本**必须**使用 `sudo` 权限运行。
+    - **核心操作:** 在 `/etc/sudoers.d/` 目录下创建或删除名为 `99-nopasswd-<你的用户名>` 的文件。
+    - **安全模型变更:** 成功执行后，您的用户账户将可以在**不输入密码**的情况下执行所有 `sudo` 命令，这会从根本上改变您系统的安全模型。
+
+- **🔁 可重复执行性:**
+  - 本脚本是**完全可重复执行的**。您可以随时运行它来启用或禁用免密 `sudo`。
+
+- **🚀 一键执行:**
+  > **警告：** 在执行以下命令前，请确保您完全理解其含义和潜在风险。
+
+  ```bash
+  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_sudo_nopasswd.sh)"
   ```
 
 ---
