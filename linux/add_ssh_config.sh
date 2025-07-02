@@ -144,7 +144,7 @@ if grep -q -E "^\s*Host\s+${host_alias}\s*$" "$SSH_CONFIG_PATH"; then
     if [[ "$overwrite" =~ ^[Yy]$ ]]; then
         echo "⏳ 正在备份并覆盖现有配置..."
         # 创建一个备份
-        cp "$SSH_CONFIG_PATH" "${SSH_CONFIG_PATH}.bak.$(date +%s)"
+        cp "$SSH_CONFIG_PATH" "${SSH_CONFIG_PATH}.bak.$(date +'%Y-%m-%d_%H-%M-%S')"
         
         # 使用 awk 过滤掉旧的配置块
         awk -v alias="$host_alias" '

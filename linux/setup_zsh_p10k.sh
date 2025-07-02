@@ -144,7 +144,7 @@ ZSHRC_FILE="$HOME/.zshrc"
 echo "🔧 正在配置 .zshrc 文件..."
 
 # 创建一个 .zshrc 的备份，更加安全
-cp "$ZSHRC_FILE" "${ZSHRC_FILE}.bak.$(date +%s)"
+cp "$ZSHRC_FILE" "${ZSHRC_FILE}.bak.$(date +'%Y-%m-%d_%H-%M-%S')"
 echo "  -> 已创建备份文件: ${ZSHRC_FILE}.bak.*"
 
 # 根据选择配置 P10k 主题
@@ -176,7 +176,7 @@ if [[ "$confirm_plugins" =~ ^[Yy]$ ]]; then
         # 检查是否为默认的 'plugins=(git)'
         if grep -qE '^\s*plugins=\(git\)\s*$' "$ZSHRC_FILE"; then
             echo "  -> 找到默认插件配置，正在添加新插件..."
-            local sed_command="s/^\s*plugins=\(git\)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/"
+            sed_command="s/^\s*plugins=\(git\)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/"
             if [[ "$(uname)" == "Darwin" ]]; then
                 sed -i '' "$sed_command" "$ZSHRC_FILE"
             else
