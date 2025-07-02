@@ -216,65 +216,56 @@ select_and_install_python() {
     else
         log_info "正在使用 'pyenv' 安装 Python ${latest_version}... (这可能需要几分钟)"
         log_info "如果下载缓慢，请耐心等待或考虑配置更快的代理。"
-
-        # 创建一个专用的用户临时目录来避免权限问题
-        local user_tmp_dir="$USER_HOME/.pyenv/tmp-build-$$"
-        sudo -u "$REAL_USER" mkdir -p "$user_tmp_dir"
-
-        # 切换到用户身份并在用户的临时目录中进行构建
-        log_info "正在以用户身份进行 Python 构建以避免权限问题..."
-        if ! sudo -u "$REAL_USER" bash -c "
-            export HOME='$USER_HOME'
-            export TMPDIR='$user_tmp_dir'
+        
+        log_info "正在以用户登录会话 (sudo -i) 进行 Python 构建以确保环境正确..."
+        # The pyenv init commands should have been added to .profile or .zprofile
+        # which are read by a login shell.
+        local install_script="
+            set -e
             export $proxy_env
             export $mirror_env
-            cd '$USER_HOME'
-            '$PYENV_CMD' install ${latest_version}
-        "; then
+            $PYENV_CMD install ${latest_version}
+        "
+        
+        # 使用 `sudo -i -u` 来模拟一个真实的用户登录, 这会加载用户的 profile 文件,
+        # 确保所有的环境变量和路径都已正确设置。
+        if ! sudo -i -u "$REAL_USER" bash <<< "$install_script"; then
             log_error "Python ${latest_version} 安装失败。"
-            log_error "这可能是网络问题。请检查您的网络连接或代理配置。"
+            log_error "这可能是网络问题或持续的权限问题。"
             log_error "您也可以参考 https://github.com/pyenv/pyenv/wiki/Common-build-problems"
-            sudo -u "$REAL_USER" rm -rf "$user_tmp_dir"
             return 1
         fi
         log_success "Python ${latest_version} 安装成功！"
-
-        # 清理临时目录
-        sudo -u "$REAL_USER" rm -rf "$user_tmp_dir"
     fi
 
     log_info "正在将 Python ${latest_version} 设置为全局版本..."
-    sudo -u "$REAL_USER" "$PYENV_CMD" global ${latest_version}
-    log_success "全局 Python 版本已设置为 $(sudo -u "$REAL_USER" "$PYENV_CMD" global)。"
+    sudo -i -u "$REAL_USER" "$PYENV_CMD" global ${latest_version}
+    log_success "全局 Python 版本已设置为 $(sudo -i -u "$REAL_USER" "$PYENV_CMD" global)。"
 }
 
 # 函数：安装 pipx 并通过它安装其他工具
 install_pipx_and_tools() {
     # 使用 pyenv 真实可执行文件的绝对路径
     local PYENV_CMD="$USER_HOME/.pyenv/libexec/pyenv"
-    local PYTHON_CMD="$USER_HOME/.pyenv/shims/python"
 
     # 检查全局 python 版本是否已设置
-    if ! sudo -u "$REAL_USER" "$PYENV_CMD" which python &>/dev/null; then
-        log_error "未找到由 pyenv管理的 Python。请先选择并安装一个 Python 版本。"
+    if ! sudo -i -u "$REAL_USER" "$PYENV_CMD" which python &>/dev/null; then
+        log_error "未找到由 pyenv 管理的 Python。请先选择并安装一个 Python 版本。"
         return 1
     fi
 
     log_info "正在为用户 '$REAL_USER' 安装 'pipx'..."
-    if sudo -u "$REAL_USER" "$PYTHON_CMD" -m pip install --user pipx; then
-        log_success "'pipx' 核心安装成功。"
-    else
-        log_error "'pipx' 安装失败。"
-        return 1
-    fi
-
-    log_info "正在配置 'pipx' 路径..."
-    # pipx 安装后, 可通过其 python shim 直接调用
-    if sudo -u "$REAL_USER" "$PYTHON_CMD" -m pipx ensurepath; then
-        log_success "'pipx' 路径配置完毕。"
+    local pipx_install_script="
+        set -e
+        python -m pip install --user pipx
+        python -m pipx ensurepath
+    "
+    if sudo -i -u "$REAL_USER" bash <<< "$pipx_install_script"; then
+        log_success "'pipx' 安装和路径配置成功。"
         log_info "请注意: 'pipx' 的路径将在下次登录时生效。"
     else
-        log_error "'pipx' 路径配置失败。"
+        log_error "'pipx' 安装或路径配置失败。"
+        return 1
     fi
 
     local tools_to_install=("poetry" "pdm")
@@ -282,7 +273,11 @@ install_pipx_and_tools() {
         read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否要安装 ${tool}？(y/N): ${COLOR_RESET}")" choice
         if [[ "$choice" =~ ^[Yy]$ ]]; then
             log_info "正在使用 'pipx' 安装 '${tool}'..."
-            if sudo -u "$REAL_USER" "$PYTHON_CMD" -m pipx install ${tool}; then
+            local tool_install_script="
+                set -e
+                python -m pipx install ${tool}
+            "
+            if sudo -i -u "$REAL_USER" bash <<< "$tool_install_script"; then
                 log_success "'${tool}' 安装成功！"
             else
                 log_error "'${tool}' 安装失败。"
