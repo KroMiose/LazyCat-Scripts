@@ -3,9 +3,10 @@
 # ==============================================================================
 # 脚本名称: setup_python_env.sh
 # 功    能: 快速搭建功能强大的 Python 开发环境。
-#           本脚本将为您安装 pyenv, poetry, 和 pdm。
+#           本脚本将为您安装 pyenv, poetry, pdm, 和 uv。
 #           - pyenv: 用于管理和隔离不同的 Python 版本。
 #           - poetry & pdm: 现代化的 Python 依赖管理和打包工具。
+#           - uv: 由 Rust 编写的极速 Python 包安装器和解析器。
 #           脚本内置了网络代理和 PyPI 镜像的配置向导。
 # 适用系统: 基于 Debian/Ubuntu 的系统。
 # 使用方法: sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_python_env.sh)"
@@ -250,7 +251,22 @@ install_poetry() {
     local env_exports="${PROXY_ENV} ${PIP_ENV}"
     log_info "正在为用户 '$REAL_USER' 下载并安装 poetry..."
 
-    local poetry_installer="curl -sSL https://install.python-poetry.org | python3 -"
+    local poetry_install_options=""
+    # 基于 https://github.com/python-poetry/install.python-poetry.org 的文档
+    # 要安装旧的稳定版 (1.8.x)，我们需要明确指定版本号。
+    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 您希望安装哪个版本的 Poetry? [1] 1.8.x (旧版稳定版) [2] 2.x (最新稳定版) (默认: 1): ${COLOR_RESET}")" poetry_choice
+
+    if [[ "${poetry_choice:-1}" == "2" ]]; then
+        log_info "选择安装 Poetry 2.x (最新稳定版)..."
+        poetry_install_options="" # 安装脚本默认安装最新稳定版
+    else
+        # 根据官方 Release，1.8 系列的最后一个版本是 1.8.5
+        local legacy_version="1.8.5"
+        log_info "选择安装 Poetry 1.8.x (将使用版本: ${legacy_version})..."
+        poetry_install_options="--version ${legacy_version}"
+    fi
+
+    local poetry_installer="curl -sSL https://install.python-poetry.org | python3 - ${poetry_install_options}"
     if ! run_as_user "$env_exports" "$poetry_installer"; then
         log_error "Poetry 安装失败。请检查网络或代理设置。"
         return 1
@@ -288,25 +304,41 @@ install_pdm() {
     return 0
 }
 
+install_uv() {
+    local env_exports="${PROXY_ENV}"
+    log_info "正在为用户 '$REAL_USER' 下载并安装 uv (极速 Python 包安装器)..."
+
+    # 使用官方推荐的安装脚本
+    # 脚本会自动处理 PATH, 安装到 ~/.local/bin
+    local uv_installer="curl -LsSf https://astral.sh/uv/install.sh | sh"
+    if ! run_as_user "$env_exports" "$uv_installer"; then
+        log_error "uv 安装失败。请检查网络或代理设置。"
+        return 1
+    fi
+    log_success "uv 安装成功，已安装到 $USER_HOME/.local/bin。"
+    return 0
+}
+
 show_summary() {
     echo -e "\n${COLOR_GREEN}========================================================"
     echo -e "      🎉 Python 开发环境配置完成! 🎉"
     echo -e "--------------------------------------------------------${COLOR_RESET}"
-    echo -e "已为您安装好 ${COLOR_YELLOW}pyenv, poetry, pdm${COLOR_RESET}。"
+    echo -e "已为您安装好 ${COLOR_YELLOW}pyenv, poetry, pdm, uv${COLOR_RESET}。"
     echo -e "为确保所有更改完全生效, 请执行以下操作:"
     echo -e "\n  1. ${COLOR_YELLOW}关闭当前所有的终端窗口。${COLOR_RESET}"
     echo -e "  2. ${COLOR_YELLOW}重新打开一个新的终端。${COLOR_RESET}"
     echo -e "\n然后您就可以开始使用新工具了:"
     echo -e "  - 使用 ${COLOR_GREEN}pyenv install <version>${COLOR_RESET} 来安装任意 Python 版本 (例如: 3.10)。"
     echo -e "  - 在您的项目目录中, 使用 ${COLOR_GREEN}pyenv local <version>${COLOR_RESET} 来设置项目级的 Python 版本。"
-    echo -e "  - ${COLOR_GREEN}poetry${COLOR_RESET} 和 ${COLOR_GREEN}pdm${COLOR_RESET} 命令现在应该可以直接使用了。"
+    echo -e "  - ${COLOR_GREEN}poetry${COLOR_RESET}, ${COLOR_GREEN}pdm${COLOR_RESET}, 和 ${COLOR_GREEN}uv${COLOR_RESET} 命令现在应该可以直接使用了。"
+    echo -e "  - 试试极速的 ${COLOR_GREEN}uv pip install <package>${COLOR_RESET} 体验飞一般的感觉！"
     echo -e "${COLOR_GREEN}========================================================${COLOR_RESET}\n"
 }
 
 # --- 主逻辑 ---
 main() {
     log_info "欢迎使用 Python 全功能开发环境配置向导！"
-    log_info "本脚本将为您安装 pyenv, poetry 和 pdm。"
+    log_info "本脚本将为您安装 pyenv, poetry, pdm 和 uv。"
 
     # 1. 身份检查
     check_privileges
@@ -335,7 +367,13 @@ main() {
         exit 1
     fi
 
-    # 7. 显示总结信息
+    # 7. 安装 uv
+    if ! install_uv; then
+        log_error "uv 安装失败，脚本已中止。"
+        exit 1
+    fi
+
+    # 8. 显示总结信息
     show_summary
 }
 
