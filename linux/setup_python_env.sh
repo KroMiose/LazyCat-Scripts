@@ -106,7 +106,11 @@ install_pyenv() {
         fi
     fi
 
+    # 确保 .pyenv 目录的所有权正确
     chown -R "$REAL_USER":"$REAL_USER" "$USER_HOME/.pyenv"
+
+    # 确保用户主目录的基本权限正确
+    chown "$REAL_USER":"$REAL_USER" "$USER_HOME"
 
     # 为所有相关的 shell 配置文件添加 pyenv 初始化代码
     log_info "正在为 shell 配置文件（.profile, .bashrc, .zprofile, .zshrc）添加 pyenv 初始化代码..."
@@ -135,7 +139,7 @@ select_and_install_python() {
     # 检查并配置代理和镜像源
     local proxy_env=""
     local mirror_env=""
-    
+
     # 检查是否已有代理配置
     if [[ -z "$http_proxy" && -z "$https_proxy" ]]; then
         read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 检测到未配置代理。是否需要配置代理以加速 Python 下载？(y/N): ${COLOR_RESET}")" use_proxy
@@ -154,9 +158,29 @@ select_and_install_python() {
     # 询问是否使用国内镜像源
     read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否使用国内镜像源加速 Python 下载？(推荐)(Y/n): ${COLOR_RESET}")" use_mirror
     if [[ ! "$use_mirror" =~ ^[Nn]$ ]]; then
-        # 使用专门的 pyenv 镜像源
-        mirror_env="PYTHON_BUILD_MIRROR_URL=https://pyenv-mirror.vercel.app/api/pythons/"
-        log_info "将使用 pyenv 专用镜像源加速下载。"
+        # 先尝试几个不同的镜像源
+        echo "1) pyenv-mirror.vercel.app (推荐)"
+        echo "2) pyenv.ibeats.top"
+        echo "3) 清华大学镜像源"
+        read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 请选择镜像源 (1-3, 默认: 1): ${COLOR_RESET}")" mirror_choice
+        case "${mirror_choice:-1}" in
+        1)
+            mirror_env="PYTHON_BUILD_MIRROR_URL=https://pyenv-mirror.vercel.app/api/pythons/"
+            log_info "将使用 pyenv-mirror.vercel.app 镜像源。"
+            ;;
+        2)
+            mirror_env="PYTHON_BUILD_MIRROR_URL=https://pyenv.ibeats.top"
+            log_info "将使用 pyenv.ibeats.top 镜像源。"
+            ;;
+        3)
+            mirror_env="PYTHON_BUILD_MIRROR_URL_SKIP_CHECKSUM=1 PYTHON_BUILD_MIRROR_URL=https://mirrors.tuna.tsinghua.edu.cn/python/"
+            log_info "将使用清华大学镜像源。"
+            ;;
+        *)
+            mirror_env="PYTHON_BUILD_MIRROR_URL=https://pyenv-mirror.vercel.app/api/pythons/"
+            log_info "使用默认镜像源: pyenv-mirror.vercel.app"
+            ;;
+        esac
     fi
 
     local major_version
@@ -192,14 +216,23 @@ select_and_install_python() {
     else
         log_info "正在使用 'pyenv' 安装 Python ${latest_version}... (这可能需要几分钟)"
         log_info "如果下载缓慢，请耐心等待或考虑配置更快的代理。"
-        # 使用所有配置的环境变量执行安装
-        if ! sudo -u "$REAL_USER" env $proxy_env $mirror_env "$PYENV_CMD" install ${latest_version}; then
+
+        # 确保临时目录权限正确
+        mkdir -p /tmp/python-build.$$
+        chown "$REAL_USER":"$REAL_USER" /tmp/python-build.$$
+
+        # 使用所有配置的环境变量执行安装，并设置临时目录
+        if ! sudo -u "$REAL_USER" env $proxy_env $mirror_env TMPDIR=/tmp/python-build.$$ "$PYENV_CMD" install ${latest_version}; then
             log_error "Python ${latest_version} 安装失败。"
             log_error "这可能是网络问题。请检查您的网络连接或代理配置。"
             log_error "您也可以参考 https://github.com/pyenv/pyenv/wiki/Common-build-problems"
+            rm -rf /tmp/python-build.$$
             return 1
         fi
         log_success "Python ${latest_version} 安装成功！"
+
+        # 清理临时目录
+        rm -rf /tmp/python-build.$$
     fi
 
     log_info "正在将 Python ${latest_version} 设置为全局版本..."
