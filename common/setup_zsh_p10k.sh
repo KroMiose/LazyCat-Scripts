@@ -171,26 +171,73 @@ fi
 # 根据选择配置插件
 if [[ "$confirm_plugins" =~ ^[Yy]$ ]]; then
     echo "  -> 正在配置插件..."
-    # 检查 'plugins=(...)' 行是否存在
-    if grep -qE '^\s*plugins=\(' "$ZSHRC_FILE"; then
-        # 检查是否为默认的 'plugins=(git)'
-        if grep -qE '^\s*plugins=\(git\)\s*$' "$ZSHRC_FILE"; then
-            echo "  -> 找到默认插件配置，正在添加新插件..."
-            sed_command="s/^\s*plugins=\(git\)/plugins=(git zsh-autosuggestions zsh-syntax-highlighting)/"
-            if [[ "$(uname)" == "Darwin" ]]; then
-                sed -i '' "$sed_command" "$ZSHRC_FILE"
+
+    PLUGINS_TO_ADD=("zsh-autosuggestions" "zsh-syntax-highlighting")
+    ZSHRC_FILE="$HOME/.zshrc"
+    
+    # 检查 'plugins=(...)' 行是否存在且未被注释
+    if grep -qE '^\s*plugins=\(.*\)' "$ZSHRC_FILE"; then
+        echo "  -> 找到 'plugins=(...)' 配置，正在检查并添加缺失的插件..."
+        
+        # 获取未注释的 'plugins=(...)' 行
+        plugins_line=$(grep -E '^\s*plugins=\(.*\)' "$ZSHRC_FILE")
+        
+        # 提取括号内的内容
+        current_plugins_str=$(echo "$plugins_line" | sed -E 's/^\s*plugins=\((.*)\).*/\1/')
+        
+        # 用于构建新插件列表的字符串
+        new_plugins_str="$current_plugins_str"
+        
+        for plugin in "${PLUGINS_TO_ADD[@]}"; do
+            # 使用 Bash 的 [[ ]] 和正则表达式来检查插件是否存在
+            if ! [[ " $current_plugins_str " =~ " $plugin " ]]; then
+                echo "    -> 添加插件: ${plugin}"
+                new_plugins_str="$new_plugins_str $plugin"
             else
-                sed -i "$sed_command" "$ZSHRC_FILE"
+                echo "    -> 插件 '${plugin}' 已存在。"
+            fi
+        done
+        
+        # 清理可能存在的多余空格
+        new_plugins_str=$(echo "$new_plugins_str" | sed 's/^[ \t]*//;s/[ \t]*$//' | sed 's/  */ /g')
+        
+        new_plugins_line="plugins=($new_plugins_str)"
+        
+        # 使用 sed 安全地替换原有的行
+        escaped_plugins_line=$(printf '%s\n' "$plugins_line" | sed 's/[][\\/.^$*]/\\&/g')
+        sed_command="s/$escaped_plugins_line/$new_plugins_line/"
+        
+        if [[ "$(uname)" == "Darwin" ]]; then
+            sed -i '' "$sed_command" "$ZSHRC_FILE"
+        else
+            sed -i "$sed_command" "$ZSHRC_FILE"
+        fi
+        
+    else
+        # 如果 'plugins=(...)' 行不存在，则在 'source .../oh-my-zsh.sh' 之前添加它
+        echo "  -> 未找到 'plugins=(...)' 配置，正在正确位置添加..."
+        plugins_line_to_add="plugins=(git ${PLUGINS_TO_ADD[*]})"
+        
+        source_line_pattern='^\s*source \$ZSH/oh-my-zsh\.sh'
+        
+        if grep -qE "$source_line_pattern" "$ZSHRC_FILE"; then
+            echo "  -> 在 'source \$ZSH/oh-my-zsh.sh' 之前插入插件配置。"
+            insert_text="# Which plugins would you like to load?\n# Standard plugins can be found in \$ZSH/plugins/\n# Custom plugins may be added to \$ZSH_CUSTOM/plugins/\n# Example format: plugins=(rails git textmate ruby lighthouse)\n# Add wisely, as too many plugins slow down shell startup.\n$plugins_line_to_add\n"
+            
+            if [[ "$(uname)" == "Darwin" ]]; then
+                # macOS sed 的 'i' 命令需要在前面加一个反斜杠
+                sed -i '' "/${source_line_pattern}/i\\
+$insert_text
+" "$ZSHRC_FILE"
+            else
+                # GNU sed 可以直接使用 -e 脚本
+                sed -i "/${source_line_pattern}/i $insert_text" "$ZSHRC_FILE"
             fi
         else
-            echo "  -> ⚠️  检测到您有自定义的插件列表！为了安全，脚本不会自动修改它。"
-            echo "     请您手动将 'zsh-autosuggestions' 和 'zsh-syntax-highlighting' 添加到"
-            echo "     .zshrc 文件中的 'plugins=(...)' 列表里。"
+            # 作为备用方案，如果找不到 source 行，则追加到文件末尾
+            echo "  -> 警告: 未找到 'source \$ZSH/oh-my-zsh.sh'。插件配置将追加到文件末尾。" >&2
+            echo -e "\n$plugins_line_to_add" >> "$ZSHRC_FILE"
         fi
-    else
-        # 如果连 'plugins=(...)' 行都找不到，就添加一个
-        echo "  -> 未找到 plugins=(...) 设置，正在添加..."
-        echo '\nplugins=(git zsh-autosuggestions zsh-syntax-highlighting)' >> "$ZSHRC_FILE"
     fi
 fi
 
