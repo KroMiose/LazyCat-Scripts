@@ -1,0 +1,250 @@
+#!/bin/bash
+
+# ==============================================================================
+# 脚本名称: setup_python_env.sh
+# 功    能: 在 Linux 系统上提供一个交互式向导，用于安装和配置一个干净、
+#           现代化的 Python 开发环境。支持通过 pyenv 安装指定版本的 Python，
+#           并可选安装 pipx, poetry, pdm 等流行工具。
+# 适用系统: 基于 Debian/Ubuntu, RHEL/CentOS/Fedora, Arch Linux 的系统。
+# 使用方法: sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_python_env.sh)"
+# ==============================================================================
+
+# --- 核心函数库和颜色定义 ---
+COLOR_GREEN="\033[32m"
+COLOR_YELLOW="\033[33m"
+COLOR_BLUE="\033[34m"
+COLOR_RED="\033[31m"
+COLOR_RESET="\033[0m"
+
+log_info() {
+    echo -e "${COLOR_BLUE}INFO: $1${COLOR_RESET}"
+}
+
+log_success() {
+    echo -e "${COLOR_GREEN}SUCCESS: $1${COLOR_RESET}"
+}
+
+log_warn() {
+    echo -e "${COLOR_YELLOW}WARN: $1${COLOR_RESET}"
+}
+
+log_error() {
+    echo -e "${COLOR_RED}ERROR: $1${COLOR_RESET}" >&2
+}
+
+# --- 安全与环境检查 ---
+# 必须以 root 或 sudo 权限运行
+if [ "$(id -u)" -ne 0 ]; then
+    log_error "请使用 'sudo' 来运行此脚本。"
+    exit 1
+fi
+
+# 获取真正调用脚本的用户名和家目录
+if [ -n "$SUDO_USER" ]; then
+    REAL_USER="$SUDO_USER"
+    USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+else
+    log_error "无法确定普通用户身份。请使用 'sudo' 运行。"
+    exit 1
+fi
+
+if [ ! -d "$USER_HOME" ]; then
+    log_error "无法找到用户 '$REAL_USER' 的家目录: $USER_HOME"
+    exit 1
+fi
+
+# --- pyenv 和 Python 工具安装 ---
+
+# 函数：为 pyenv 安装系统级依赖
+# 来源: https://github.com/pyenv/pyenv/wiki/Common-build-problems
+install_pyenv_dependencies() {
+    log_info "正在检测系统并安装 'pyenv' 的编译依赖..."
+    if [ -f /etc/debian_version ]; then
+        # Debian/Ubuntu
+        apt-get update
+        apt-get install -y make build-essential libssl-dev zlib1g-dev \
+            libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm \
+            libncurses5-dev libncursesw5-dev xz-utils tk-dev libffi-dev \
+            liblzma-dev python3-openssl git
+    elif [ -f /etc/redhat-release ]; then
+        # RHEL/CentOS/Fedora
+        yum install -y gcc zlib-devel bzip2 bzip2-devel readline-devel \
+            sqlite sqlite-devel openssl-devel xz xz-devel libffi-devel findutils
+    elif [ -f /etc/arch-release ]; then
+        # Arch Linux
+        pacman -Syu --noconfirm base-devel openssl zlib xz tk
+    else
+        log_warn "无法检测到您的 Linux 发行版，将跳过依赖安装。"
+        log_warn "如果 Python 安装失败，请根据 pyenv-installer 的指引手动安装依赖。"
+    fi
+    log_success "pyenv 依赖项处理完毕。"
+}
+
+# 函数：安装 pyenv 并配置 shell
+install_pyenv() {
+    if [ -d "$USER_HOME/.pyenv" ]; then
+        log_info "'pyenv' 已经安装在 $USER_HOME/.pyenv，跳过安装。"
+        return
+    fi
+
+    log_info "正在为用户 '$REAL_USER' 安装 'pyenv'..."
+    git clone https://github.com/pyenv/pyenv.git "$USER_HOME/.pyenv"
+    chown -R "$REAL_USER":"$REAL_USER" "$USER_HOME/.pyenv"
+
+    # 为 .bashrc 和 .zshrc 配置 pyenv
+    log_info "正在为 shell 配置文件（.bashrc, .zshrc）添加 pyenv 初始化代码..."
+
+    local shell_configs=("$USER_HOME/.bashrc" "$USER_HOME/.zshrc")
+    local pyenv_config='\n# pyenv configuration\nexport PYENV_ROOT="$HOME/.pyenv"\nexport PATH="$PYENV_ROOT/bin:$PATH"\nif command -v pyenv 1>/dev/null 2>&1; then\n  eval "$(pyenv init -)"\nfi\n'
+
+    for config_file in "${shell_configs[@]}"; do
+        if [ -f "$config_file" ] || [ "$config_file" == "$USER_HOME/.zshrc" ]; then
+            # 如果文件存在，或者即使不存在也要为zsh创建
+            if ! grep -q 'PYENV_ROOT' "$config_file" 2>/dev/null; then
+                log_info "  -> 正在向 $config_file 添加配置..."
+                echo -e "$pyenv_config" >>"$config_file"
+                # 确保文件属于用户
+                if [ -f "$config_file" ]; then
+                    chown "$REAL_USER":"$REAL_USER" "$config_file"
+                fi
+            else
+                log_warn "  -> $config_file 中已存在 pyenv 配置，跳过。"
+            fi
+        fi
+    done
+    log_success "'pyenv' 安装并配置完毕！"
+}
+
+# 函数：交互式地选择并安装 Python 版本
+select_and_install_python() {
+    # 为了让当前脚本会话能使用 pyenv，需要手动加载
+    export PYENV_ROOT="$USER_HOME/.pyenv"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init -)"
+
+    local major_version
+    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 请输入您想安装的 Python 主版本号 (例如: 3.12, 3.11): ${COLOR_RESET}")" major_version
+
+    if ! [[ "$major_version" =~ ^3\.[0-9]{1,2}$ ]]; then
+        log_error "无效的格式。请输入类似 '3.12' 的版本号。"
+        return 1
+    fi
+
+    log_info "正在查找 ${major_version} 的最新可用稳定版本..."
+    local latest_version
+    # 以用户身份运行pyenv, 使用 awk 精确匹配 'x.y.z' 格式的版本号，避免匹配到 rc, dev 等版本
+    latest_version=$(sudo -u "$REAL_USER" pyenv install --list | awk '/^ *'${major_version}'\.[0-9]+ *$/ {print $1}' | sort -V | tail -n 1)
+
+    if [ -z "$latest_version" ]; then
+        log_error "未找到 ${major_version} 的任何可用稳定版本。请检查版本号或 'pyenv' 的源。"
+        return 1
+    fi
+
+    local choice
+    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 找到的最新版本是 ${latest_version}。是否安装此版本并设为全局默认？(y/N): ${COLOR_RESET}")" choice
+    if ! [[ "$choice" =~ ^[Yy]$ ]]; then
+        log_info "用户取消安装。"
+        return 0
+    fi
+
+    local installed_versions
+    installed_versions=$(sudo -u "$REAL_USER" pyenv versions --bare)
+
+    if echo "$installed_versions" | grep -q "^${latest_version}$"; then
+        log_info "Python 版本 ${latest_version} 已经安装。"
+    else
+        log_info "正在使用 'pyenv' 安装 Python ${latest_version}... (这可能需要几分钟)"
+        if ! sudo -u "$REAL_USER" bash -c "pyenv install ${latest_version}"; then
+            log_error "Python ${latest_version} 安装失败。请检查错误信息。"
+            log_error "您可能需要手动安装更多编译依赖。请参考 https://github.com/pyenv/pyenv/wiki/Common-build-problems"
+            return 1
+        fi
+        log_success "Python ${latest_version} 安装成功！"
+    fi
+
+    log_info "正在将 Python ${latest_version} 设置为全局版本..."
+    sudo -u "$REAL_USER" bash -c "pyenv global ${latest_version}"
+    log_success "全局 Python 版本已设置为 $(sudo -u "$REAL_USER" pyenv global)。"
+}
+
+# 函数：安装 pipx 并通过它安装其他工具
+install_pipx_and_tools() {
+    # 再次确保 pyenv 环境已加载
+    export PYENV_ROOT="$USER_HOME/.pyenv"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    if command -v pyenv 1>/dev/null 2>&1; then eval "$(pyenv init -)"; fi
+
+    # 检查全局 python 版本是否已设置
+    if ! pyenv which python &>/dev/null; then
+        log_error "未找到由 pyenv管理的 Python。请先选择并安装一个 Python 版本。"
+        return 1
+    fi
+
+    log_info "正在为用户 '$REAL_USER' 安装 'pipx'..."
+    if sudo -u "$REAL_USER" bash -c "python -m pip install --user pipx"; then
+        log_success "'pipx' 核心安装成功。"
+    else
+        log_error "'pipx' 安装失败。"
+        return 1
+    fi
+
+    log_info "正在配置 'pipx' 路径..."
+    if sudo -u "$REAL_USER" bash -c "python -m pipx ensurepath"; then
+        log_success "'pipx' 路径配置完毕。"
+        log_info "请注意: 'pipx' 的路径将在下次登录时生效。"
+    else
+        log_error "'pipx' 路径配置失败。"
+    fi
+
+    local tools_to_install=("poetry" "pdm")
+    for tool in "${tools_to_install[@]}"; do
+        read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否要安装 ${tool}？(y/N): ${COLOR_RESET}")" choice
+        if [[ "$choice" =~ ^[Yy]$ ]]; then
+            log_info "正在使用 'pipx' 安装 '${tool}'..."
+            if sudo -u "$REAL_USER" bash -c "python -m pipx install ${tool}"; then
+                log_success "'${tool}' 安装成功！"
+            else
+                log_error "'${tool}' 安装失败。"
+            fi
+        else
+            log_info "跳过安装 '${tool}'。"
+        fi
+    done
+}
+
+# 函数：显示最后的总结信息
+show_summary() {
+    echo -e "\n${COLOR_GREEN}========================================================"
+    echo -e "      🎉 Python 环境配置完成! 🎉"
+    echo -e "--------------------------------------------------------${COLOR_RESET}"
+    echo -e "为确保所有更改完全生效, 请执行以下操作:"
+    echo -e "\n  1. ${COLOR_YELLOW}关闭当前所有的终端窗口。${COLOR_RESET}"
+    echo -e "  2. ${COLOR_YELLOW}重新打开一个新的终端。${COLOR_RESET}"
+    echo -e "\n然后您就可以在新的终端中使用以下命令:"
+    echo -e "  - ${COLOR_BLUE}pyenv versions${COLOR_RESET} (查看已安装的 Python 版本)"
+    echo -e "  - ${COLOR_BLUE}python --version${COLOR_RESET} (查看当前的全局 Python 版本)"
+    echo -e "  - ${COLOR_BLUE}pipx list${COLOR_RESET} (查看已安装的 Python 工具)"
+    echo -e "${COLOR_GREEN}========================================================${COLOR_RESET}\n"
+}
+
+# --- 主逻辑 ---
+main() {
+    log_info "欢迎使用 Python 环境配置向导！"
+    log_info "将为用户 '$REAL_USER' 在 '$USER_HOME' 中配置环境。"
+
+    # 步骤 1: 安装 pyenv 及其依赖
+    install_pyenv_dependencies
+    install_pyenv
+
+    # 步骤 2: 交互式选择并安装 Python 版本
+    select_and_install_python
+
+    # 步骤 3 & 4: 安装 pipx 和其他工具
+    install_pipx_and_tools
+
+    # 步骤 5: 显示最终摘要
+    show_summary
+}
+
+# --- 脚本执行入口 ---
+main "$@"
