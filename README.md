@@ -1,6 +1,6 @@
-# Miose 的脚本小屋 🐾
+# LazyCat-Scripts 懒猫脚本 🐾
 
-这里是 KroMiose 收集和编写的各种常用脚本，希望能让你的生活更轻松！(ฅ'ω'ฅ)
+这里是 KroMiose 收集和编写的各种常用脚本，希望能让聪明的"懒猫"们生活更轻松！(ฅ'ω'ฅ)
 
 ## ⚠️ 免责声明 (Disclaimer)
 
@@ -16,19 +16,33 @@
 
 ## 仓库结构
 
-为了方便管理，所有脚本都按照操作系统分类存放在不同的目录中。
+为了方便管理，所有脚本都按照操作系统和通用性分类存放在不同的目录中。
 
-- `linux/` - 存放适用于 Linux 系统的脚本。
+- `common/` - 存放适用于 Linux 和 macOS 的通用脚本。
+- `linux/` - 存放仅适用于 Linux 系统的专属脚本。
 - `macos/` - (规划中) 存放适用于 macOS 系统的脚本。
 - `windows/` - (规划中) 存放适用于 Windows 系统的脚本。
 
-## 脚本列表
+## 📜 脚本索引 (Script Index)
+
+下表列出了仓库中所有可用的脚本。点击脚本名称即可快速跳转到对应的详细说明和用法。
+
+| 图标 | 脚本名称 (Script)                                    | 主要功能 (Main Function)                              | 平台 (Platform) |
+| :--: | :--------------------------------------------------- | :---------------------------------------------------- | :-------------: |
+|  📂  | [`setup_en_dirs.sh`](#setup_en_dirssh)               | 将中文用户目录（桌面、下载等）重命名为英文。          |      Linux      |
+|  🔑  | [`setup_ssh_access.sh`](#setup_ssh_accesssh)         | 在服务器上一键配置 SSH 免密登录并返回私钥。           |  Linux & macOS  |
+|  ⚙️  | [`add_ssh_config.sh`](#add_ssh_configsh)             | 在本地通过交互式向导添加 SSH 服务器连接配置。         |  Linux & macOS  |
+|  🚀  | [`setup_zsh_p10k.sh`](#setup_zsh_p10ksh)             | 一键配置 Zsh + Oh My Zsh + Powerlevel10k 终端环境。   |  Linux & macOS  |
+|  🔌  | [`setup_proxy_config.sh`](#setup_proxy_configsh)     | 交互式地为 Shell 配置 `proxy` 和 `unproxy` 代理命令。 |  Linux & macOS  |
+|  🛡️  | [`restore_shell_backup.sh`](#restore_shell_backupsh) | 恢复由本仓库脚本创建的 Shell 配置文件备份。           |  Linux & macOS  |
+
+## 📖 脚本详解 (Script Details)
 
 ---
 
 ### 🐧 Linux
 
-#### 📂 `setup_en_dirs.sh`
+#### `setup_en_dirs.sh`
 
 这个脚本可以帮助你在一个全新的、语言设置为中文的 Linux 系统上，将家目录下的"桌面"、"文档"、"下载"等文件夹的名字从中文替换为标准的英文名（如 `Desktop`, `Documents`, `Downloads`），并帮你把旧文件夹里的东西都搬到新家。
 
@@ -61,14 +75,18 @@
   > 你无需克隆本仓库，可以直接在终端中运行以下命令来执行脚本。
 
   ```bash
-  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/setup_en_dirs.sh)"
+  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_en_dirs.sh)"
   ```
 
   脚本会自动检测并为你完成所有配置。完成后，请务必**注销并重新登录**系统，以使所有更改生效！
 
 ---
 
-#### 🔑 `setup_ssh_access.sh`
+### 通用脚本 (Linux & macOS)
+
+---
+
+#### `setup_ssh_access.sh`
 
 在新服务器上为当前用户一键配置好 SSH 免密登录。它会创建一个专用的密钥对，将公钥自动配置好，然后把**私钥**显示出来让你带走。
 
@@ -98,12 +116,12 @@
   > 此脚本不需要 sudo 权限。它会自动为你打理好一切。
 
   ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/setup_ssh_access.sh)"
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_ssh_access.sh)"
   ```
 
 ---
 
-#### ⚙️ `add_ssh_config.sh`
+#### `add_ssh_config.sh`
 
 这是一个在您的**本地计算机**或**控制端**上运行的交互式脚本。它可以帮助您快速地将一个新服务器的连接信息添加到 `~/.ssh/config` 文件中，让您之后可以通过一个简单的别名 (如 `ssh my-server`) 直接登录。
 
@@ -135,12 +153,12 @@
   > 在您的本地计算机上运行此命令，它会引导您完成配置。
 
   ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/add_ssh_config.sh)"
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/add_ssh_config.sh)"
   ```
 
 ---
 
-#### 🚀 `setup_zsh_p10k.sh`
+#### `setup_zsh_p10k.sh`
 
 一键为您配置一个功能强大且外观酷炫的 Zsh 终端环境。它会自动处理 `git`, `curl`, `zsh` 的安装，配置 Oh My Zsh，并**可选地**安装 Powerlevel10k 主题以及两个必备插件。
 
@@ -182,12 +200,12 @@
   > 此脚本不应使用 sudo 运行。它会配置好您当前用户的 Zsh 环境。
 
   ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/setup_zsh_p10k.sh)"
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_zsh_p10k.sh)"
   ```
 
 ---
 
-#### 🔌 `setup_proxy_config.sh`
+#### `setup_proxy_config.sh`
 
 这是一个交互式脚本，可以帮助您快速地为您的 Shell 环境配置代理。您可以选择只在当前终端临时生效，也可以将其永久写入您的 `.bashrc` 或 `.zshrc` 文件中，并生成极其方便的 `proxy` 和 `unproxy` 命令。
 
@@ -221,7 +239,7 @@
   > 此脚本不需要 `sudo` 权限。它会引导您完成对当前用户环境的配置。
 
   ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/setup_proxy_config.sh)"
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_proxy_config.sh)"
   ```
 
   **通过代理执行**
@@ -231,20 +249,20 @@
   - **对于 HTTP 代理:**
 
     ```bash
-    bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/setup_proxy_config.sh --proxy http://your-proxy-host:port)"
+    bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_proxy_config.sh --proxy http://your-proxy-host:port)"
     ```
 
   - **对于 SOCKS5 代理:**
 
     ```bash
-    bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/setup_proxy_config.sh --proxy socks5h://your-proxy-host:port)"
+    bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_proxy_config.sh --proxy socks5h://your-proxy-host:port)"
     ```
 
     > `socks5h` 表示代理会为您解析域名，这通常是您想要的。
 
 ---
 
-#### 🛡️ `restore_shell_backup.sh`
+#### `restore_shell_backup.sh`
 
 这是一个安全工具，旨在帮助您轻松地撤销由本仓库其他脚本对 Shell 环境所做的更改。它会自动扫描、列出所有由我们的脚本创建的备份文件，并允许您选择其中一个进行一键恢复。
 
@@ -273,7 +291,7 @@
   > 如果您想撤销某个脚本的配置，运行此命令即可。
 
   ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/restore_shell_backup.sh)"
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/restore_shell_backup.sh)"
   ```
 
 ---
