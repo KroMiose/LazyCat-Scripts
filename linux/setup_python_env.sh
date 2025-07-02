@@ -108,25 +108,20 @@ install_pyenv() {
 
     chown -R "$REAL_USER":"$REAL_USER" "$USER_HOME/.pyenv"
 
-    # 为 .bashrc 和 .zshrc 配置 pyenv
-    log_info "正在为 shell 配置文件（.bashrc, .zshrc）添加 pyenv 初始化代码..."
+    # 为所有相关的 shell 配置文件添加 pyenv 初始化代码
+    log_info "正在为 shell 配置文件（.profile, .bashrc, .zprofile, .zshrc）添加 pyenv 初始化代码..."
 
-    local shell_configs=("$USER_HOME/.bashrc" "$USER_HOME/.zshrc")
-    local pyenv_config='\n# pyenv configuration\nexport PYENV_ROOT="$HOME/.pyenv"\nexport PATH="$PYENV_ROOT/bin:$PATH"\nif command -v pyenv 1>/dev/null 2>&1; then\n  eval "$(pyenv init -)"\nfi\n'
+    local shell_configs=("$USER_HOME/.profile" "$USER_HOME/.bashrc" "$USER_HOME/.zprofile" "$USER_HOME/.zshrc")
+    local pyenv_config='\n# pyenv configuration\nexport PYENV_ROOT="$HOME/.pyenv"\nexport PATH="$PYENV_ROOT/bin:$PATH"\nif command -v pyenv 1>/dev/null 2>&1; then\n  eval "$(pyenv init --path)"\n  eval "$(pyenv init -)"\nfi\n'
 
     for config_file in "${shell_configs[@]}"; do
-        if [ -f "$config_file" ] || [ "$config_file" == "$USER_HOME/.zshrc" ]; then
-            # 如果文件存在，或者即使不存在也要为zsh创建
-            if ! grep -q 'PYENV_ROOT' "$config_file" 2>/dev/null; then
-                log_info "  -> 正在向 $config_file 添加配置..."
-                echo -e "$pyenv_config" >>"$config_file"
-                # 确保文件属于用户
-                if [ -f "$config_file" ]; then
-                    chown "$REAL_USER":"$REAL_USER" "$config_file"
-                fi
-            else
-                log_warn "  -> $config_file 中已存在 pyenv 配置，跳过。"
-            fi
+        # 即使文件不存在，也要确保为其添加配置
+        if ! grep -q 'PYENV_ROOT' "$config_file" 2>/dev/null; then
+            log_info "  -> 正在向 $config_file 添加配置..."
+            echo -e "$pyenv_config" >>"$config_file"
+            chown "$REAL_USER":"$REAL_USER" "$config_file"
+        else
+            log_warn "  -> $config_file 中已存在 pyenv 配置，跳过。"
         fi
     done
     log_success "'pyenv' 安装并配置完毕！"
