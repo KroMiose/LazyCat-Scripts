@@ -2,10 +2,10 @@
 
 # ==============================================================================
 # 脚本名称: setup_python_env.sh
-# 功    能: 在 Debian/Ubuntu 系统上，通过系统包管理器 (apt) 提供一个交互式向导，
-#           用于安装和配置一个现代化的 Python 开发环境。
-#           支持从官方源或 PPA (deadsnakes) 安装指定版本的 Python,
-#           并可选安装 pipx, poetry, pdm 等流行工具。
+# 功    能: 快速搭建一个基于 pipx 的现代化 Python 工具环境。
+#           本脚本将为您安装 pipx, 并默认安装 poetry 和 pdm。
+#           它不管理 Python 版本，而是使用您系统已有的 python3。
+#           脚本内置了网络代理和 PyPI 镜像的配置向导。
 # 适用系统: 基于 Debian/Ubuntu 的系统。
 # 使用方法: sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_python_env.sh)"
 # ==============================================================================
@@ -34,238 +34,120 @@ log_error() {
 }
 
 # --- 安全与环境检查 ---
-# 必须以 root 或 sudo 权限运行
 if [ "$(id -u)" -ne 0 ]; then
     log_error "请使用 'sudo' 来运行此脚本。"
     exit 1
 fi
 
-# 获取真正调用脚本的用户名和家目录
-if [ -n "$SUDO_USER" ]; then
-    REAL_USER="$SUDO_USER"
-    USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-else
+if [ -z "$SUDO_USER" ]; then
     log_error "无法确定普通用户身份。请使用 'sudo' 运行。"
     exit 1
 fi
-
-if [ ! -d "$USER_HOME" ]; then
-    log_error "无法找到用户 '$REAL_USER' 的家目录: $USER_HOME"
-    exit 1
-fi
+REAL_USER="$SUDO_USER"
 
 # --- 核心辅助函数 ---
-
-# 在模拟的用户真实登录环境中执行命令
-# 用于需要以普通用户身份执行的操作，例如 'pipx'
+# 在普通用户环境中执行命令，并传递网络配置
 run_as_user() {
-    local script_to_run="$1"
-    sudo -i -u "$REAL_USER" bash <<<"set -e; ${script_to_run}"
+    local env_vars="$1"
+    local script_to_run="$2"
+    sudo -i -u "$REAL_USER" bash <<< "set -e; export ${env_vars}; ${script_to_run}"
 }
 
-# --- 系统与依赖检查 ---
+# --- 业务逻辑函数 ---
 
-check_system() {
-    if ! [ -f /etc/debian_version ]; then
-        log_error "此脚本目前仅为基于 Debian/Ubuntu 的系统优化。"
-        log_error "在您的系统上运行可能会导致未知问题。"
-        read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 您确定要继续吗？ (y/N): ${COLOR_RESET}")" choice
-        if [[ ! "$choice" =~ ^[Yy]$ ]]; then
-            log_info "脚本终止。"
-            exit 0
-        fi
-    fi
-}
-
-install_dependencies() {
-    log_info "正在更新软件包列表并安装基础依赖..."
+install_system_dependencies() {
+    log_info "正在更新软件包列表并安装基础依赖 (python3, pip, venv, git, curl)..."
     apt-get update
-    # software-properties-common 用于 add-apt-repository
-    # python3-pip 和 python3-venv 是 Python 环境的基础
-    apt-get install -y software-properties-common python3-pip python3-venv
+    apt-get install -y python3-pip python3-venv git curl
     log_success "基础依赖安装完毕。"
 }
 
-# --- Python 安装与配置 ---
+network_setup() {
+    # 这些变量将在全局范围内被修改
+    PROXY_ENV=""
+    PIP_ENV=""
 
-select_and_install_python_apt() {
-    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否添加 deadsnakes PPA 以获取更多/更新的 Python 版本？(推荐)(Y/n): ${COLOR_RESET}")" choice
-    if [[ ! "$choice" =~ ^[Nn]$ ]]; then
-        log_info "正在添加 deadsnakes PPA..."
-        if add-apt-repository -y ppa:deadsnakes/ppa; then
-            log_success "deadsnakes PPA 添加成功。"
+    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 您是否需要通过代理服务器访问网络？ (y/N): ${COLOR_RESET}")" use_proxy
+    if [[ "$use_proxy" =~ ^[Yy]$ ]]; then
+        read -p "  -> 请输入代理主机 (例如: 127.0.0.1): " proxy_host
+        read -p "  -> 请输入代理端口 (例如: 7890): " proxy_port
+        if [[ -n "$proxy_host" && -n "$proxy_port" ]]; then
+            local proxy_url="http://${proxy_host}:${proxy_port}"
+            log_info "将为本次执行设置网络代理: ${proxy_url}"
+            PROXY_ENV="http_proxy=${proxy_url} https_proxy=${proxy_url}"
         else
-            log_error "添加 deadsnakes PPA 失败。将仅从官方源查找。"
+            log_warn "代理主机或端口为空，跳过代理设置。"
         fi
-        log_info "正在更新软件包列表..."
-        apt-get update
     fi
 
-    log_info "正在查找可用的 Python 版本..."
-    # 查找所有名为 python3.xx 的软件包
-    local available_pythons
-    mapfile -t available_pythons < <(apt-cache pkgnames | grep -E '^python3\.[0-9]{1,2}$' | sort -rV)
-
-    if [ ${#available_pythons[@]} -eq 0 ]; then
-        log_error "未找到可供安装的 'python3.x' 软件包。"
-        log_warn "您可以尝试手动运行 'apt-get update' 或检查您的软件源配置。"
-        return 1
-    fi
-
-    log_info "请选择您希望安装的 Python 版本:"
-    select python_pkg in "${available_pythons[@]}" "退出安装"; do
-        case "$python_pkg" in
-        "退出安装")
-            log_info "用户选择退出安装。"
-            return 0
-            ;;
-        "")
-            log_warn "无效选项，请重新选择。"
-            ;;
-        *)
-            log_info "您选择了 ${python_pkg}."
-            break
-            ;;
-        esac
-    done
-
-    log_info "正在安装 ${python_pkg} 及其 venv 模块..."
-    if ! apt-get install -y "$python_pkg" "${python_pkg}-venv"; then
-        log_error "${python_pkg} 安装失败。请检查 apt 的输出信息。"
-        return 1
-    fi
-    log_success "${python_pkg} 安装成功！"
-
-    configure_python_alternatives
-}
-
-configure_python_alternatives() {
-    log_info "正在配置系统默认的 'python3' 命令..."
-
-    # 查找 /usr/bin 下所有已安装的 python3.x 可执行文件
-    local installed_pythons
-    mapfile -t installed_pythons < <(find /usr/bin/python3.* -maxdepth 0 -type f -executable 2>/dev/null | grep -E 'python3\.[0-9]+$' | sort -rV)
-
-    if [ ${#installed_pythons[@]} -eq 0 ]; then
-        log_error "在 /usr/bin 中未找到任何 'python3.x' 可执行文件。"
-        return 1
-    fi
-
-    # 确保所有找到的 Python 都被注册到 update-alternatives 系统中
-    log_info "将已安装的 Python 版本注册到系统选择中..."
-    for p_path in "${installed_pythons[@]}"; do
-        # 检查该路径是否已作为 python3 的一个候选项存在
-        if ! update-alternatives --display python3 | grep -q -x "$p_path"; then
-            local version_name
-            version_name=$(basename "$p_path")
-            log_info "  -> 正在添加 ${version_name}..."
-            # 使用版本号的数字作为优先级，使得新版本有更高优先级
-            # 例如: python3.11 -> 311
-            local priority
-            priority=$(echo "$version_name" | sed 's/python//' | tr -d '.')
-            update-alternatives --install /usr/bin/python3 python3 "$p_path" "$priority"
-        fi
-    done
-
-    # 通过交互式菜单让用户选择默认版本
-    log_info "您现在可以通过交互式菜单选择默认的 'python3' 版本。"
-    log_warn "请在接下来的菜单中输入您想要的版本的编号，然后按 Enter。"
-    update-alternatives --config python3
-
-    # 验证最终选择
-    local current_python_path
-    current_python_path=$(update-alternatives --query python3 | grep 'Value:' | awk '{print $2}')
-    if [ -n "$current_python_path" ]; then
-        log_success "默认 'python3' 已设置为: $current_python_path"
-        log_info "当前版本: $(${current_python_path} --version)"
-    else
-        log_error "无法确认默认 Python 版本。"
+    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否使用 PyPI 镜像加速下载？(推荐)(Y/n): ${COLOR_RESET}")" use_mirror
+    if [[ ! "$use_mirror" =~ ^[Nn]$ ]]; then
+        local mirror_url="https://pypi.tuna.tsinghua.edu.cn/simple"
+        log_info "将使用清华大学 PyPI 镜像源: ${mirror_url}"
+        PIP_ENV="PIP_INDEX_URL=${mirror_url}"
     fi
 }
 
-# 函数：安装 pipx 并通过它安装其他工具
 install_pipx_and_tools() {
-    if ! command -v python3 &>/dev/null; then
-        log_warn "未找到 'python3' 命令。将跳过 pipx 和相关工具的安装。"
-        return 1
-    fi
+    local env_exports="${PROXY_ENV} ${PIP_ENV}"
 
-    log_info "正在为用户 '$REAL_USER' 安装 'pipx'..."
+    log_info "正在为用户 '$REAL_USER' 安装 pipx..."
     log_info "将使用官方 get-pipx.py 引导脚本以确保最佳兼容性。"
-
-    # 使用 pipx 官方的引导脚本进行安装，避免系统包的各种问题
     local pipx_install_script="
-        export PIPX_HOME=~/.local/pipx
-        export PIPX_BIN_DIR=~/.local/bin
-        curl -sSL https://raw.githubusercontent.com/pypa/pipx/main/get-pipx.py | python3
-        ~/.local/bin/pipx ensurepath
+        curl -sSL https://raw.githubusercontent.com/pypa/pipx/main/get-pipx.py | python3 -
     "
-    if run_as_user "$pipx_install_script"; then
-        log_success "'pipx' 安装和路径配置成功。"
-        log_info "请注意: 'pipx' 的路径将在下次登录时生效。"
-    else
-        log_error "'pipx' 安装失败。请检查以上日志获取详细信息。"
+    if ! run_as_user "$env_exports" "$pipx_install_script"; then
+        log_error "通过引导脚本安装 'pipx' 失败。"
+        log_error "请检查您的网络连接或代理设置。"
         return 1
     fi
+    log_success "'pipx' 安装成功。"
 
-    local tools_to_install=("poetry" "pdm")
-    for tool in "${tools_to_install[@]}"; do
-        read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否要安装 ${tool}？(y/N): ${COLOR_RESET}")" choice
-        if [[ "$choice" =~ ^[Yy]$ ]]; then
-            log_info "正在使用 'pipx' 安装 '${tool}'..."
-            # 使用 run_as_user 来确保在用户的环境中执行
-            if run_as_user "pipx install ${tool}"; then
-                log_success "'${tool}' 安装成功！"
-            else
-                log_error "'${tool}' 安装失败。"
-                # 关键：如果任何一个工具安装失败，则整个函数失败
-                return 1
-            fi
+    log_info "正在将 pipx 添加到您的 Shell 路径中..."
+    if ! run_as_user "$env_exports" "~/.local/bin/pipx ensurepath"; then
+        log_warn "'pipx ensurepath' 执行失败，您可能需要手动将 ~/.local/bin 添加到 PATH。"
+    fi
+
+    local tools=("poetry" "pdm")
+    for tool in "${tools[@]}"; do
+        log_info "正在使用 'pipx' 安装 '${tool}'..."
+        if run_as_user "$env_exports" "pipx install ${tool}"; then
+            log_success "'${tool}' 安装成功！"
         else
-            log_info "跳过安装 '${tool}'。"
+            log_error "'${tool}' 安装失败。"
+            return 1
         fi
     done
-    # 所有工具都成功安装（或跳过）后，函数成功返回
     return 0
 }
 
-# 函数：显示最后的总结信息
 show_summary() {
     echo -e "\n${COLOR_GREEN}========================================================"
-    echo -e "      🎉 Python 环境配置完成! 🎉"
+    echo -e "      🎉 Python 工具环境配置完成! 🎉"
     echo -e "--------------------------------------------------------${COLOR_RESET}"
+    echo -e "已为您安装好 pipx, poetry, pdm。"
     echo -e "为确保所有更改完全生效, 请执行以下操作:"
     echo -e "\n  1. ${COLOR_YELLOW}关闭当前所有的终端窗口。${COLOR_RESET}"
     echo -e "  2. ${COLOR_YELLOW}重新打开一个新的终端。${COLOR_RESET}"
-    echo -e "\n然后您就可以在新的终端中使用以下命令:"
-    echo -e "  - ${COLOR_BLUE}python3 --version${COLOR_RESET} (查看当前的默认 Python 版本)"
-    echo -e "  - ${COLOR_BLUE}update-alternatives --config python3${COLOR_RESET} (随时切换默认版本)"
-    echo -e "  - ${COLOR_BLUE}pipx list${COLOR_RESET} (查看已安装的 Python 工具)"
+    echo -e "\n然后您就可以在新的终端中使用 poetry, pdm 等命令了。"
     echo -e "${COLOR_GREEN}========================================================${COLOR_RESET}\n"
 }
 
 # --- 主逻辑 ---
 main() {
-    log_info "欢迎使用 Python 环境配置向导！"
-    log_info "将为用户 '$REAL_USER' 在系统范围内配置环境。"
-
-    # 步骤 0: 检查系统并安装依赖
-    check_system
-    install_dependencies
-
-    # 步骤 1: 交互式选择并安装 Python 版本
-    select_and_install_python_apt
-
-    # 步骤 2: 安装 pipx 和其他工具
-    # 如果此函数失败，则脚本终止
+    log_info "欢迎使用 Python 工具环境配置向导！"
+    log_info "本脚本将为您安装 pipx, poetry, 和 pdm。"
+    
+    install_system_dependencies
+    
+    network_setup
+    
     if ! install_pipx_and_tools; then
-        log_error "由于工具安装失败，配置流程已中止。"
+        log_error "环境配置过程中发生错误，脚本已中止。"
         exit 1
     fi
-
-    # 步骤 3: 显示最终摘要
+    
     show_summary
 }
 
-# --- 脚本执行入口 ---
 main "$@"
