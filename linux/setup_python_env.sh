@@ -129,8 +129,8 @@ install_pyenv() {
 
 # 函数：交互式地选择并安装 Python 版本
 select_and_install_python() {
-    # 直接定义 pyenv 命令的绝对路径，绕过所有 PATH 问题
-    local PYENV_CMD="$USER_HOME/.pyenv/bin/pyenv"
+    # 使用 pyenv 真实可执行文件的绝对路径，而不是符号链接
+    local PYENV_CMD="$USER_HOME/.pyenv/libexec/pyenv"
 
     local major_version
     read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 请输入您想安装的 Python 主版本号 (例如: 3.12, 3.11): ${COLOR_RESET}")" major_version
@@ -179,8 +179,8 @@ select_and_install_python() {
 
 # 函数：安装 pipx 并通过它安装其他工具
 install_pipx_and_tools() {
-    # 直接定义 pyenv 和其管理的 python 的绝对路径
-    local PYENV_CMD="$USER_HOME/.pyenv/bin/pyenv"
+    # 使用 pyenv 真实可执行文件的绝对路径
+    local PYENV_CMD="$USER_HOME/.pyenv/libexec/pyenv"
     local PYTHON_CMD="$USER_HOME/.pyenv/shims/python"
 
     # 检查全局 python 版本是否已设置
