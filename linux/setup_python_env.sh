@@ -82,7 +82,8 @@ install_dependencies() {
     apt-get update
     # software-properties-common 用于 add-apt-repository
     # python3-pip 和 python3-venv 是 Python 环境的基础
-    apt-get install -y software-properties-common python3-pip python3-venv
+    # pipx 用于管理 python 工具, 通过 apt 安装以避免 'externally-managed-environment' 错误
+    apt-get install -y software-properties-common python3-pip python3-venv pipx
     log_success "基础依赖安装完毕。"
 }
 
@@ -190,17 +191,9 @@ install_pipx_and_tools() {
         return 1
     fi
 
-    log_info "正在为用户 '$REAL_USER' 安装 'pipx'..."
-    # 使用 python3 -m pip 来确保我们使用的是与当前 python3 版本关联的 pip
-    if run_as_user "python3 -m pip install --user pipx"; then
-        log_success "'pipx' 安装成功。"
-    else
-        log_error "'pipx' 安装失败。"
-        return 1
-    fi
-
+    # pipx 已通过 apt 在 install_dependencies 中安装
     log_info "正在为您的 Shell 配置 pipx 路径..."
-    if run_as_user "python3 -m pipx ensurepath"; then
+    if run_as_user "pipx ensurepath"; then
         log_success "'pipx' 路径配置成功。"
     else
         log_error "'pipx' 路径配置失败。"
@@ -212,8 +205,8 @@ install_pipx_and_tools() {
         read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否要安装 ${tool}？(y/N): ${COLOR_RESET}")" choice
         if [[ "$choice" =~ ^[Yy]$ ]]; then
             log_info "正在使用 'pipx' 安装 '${tool}'..."
-            # 使用 python3 -m pipx 来调用，以防 .local/bin 尚未在当前会话的 PATH 中
-            if run_as_user "python3 -m pipx install ${tool}"; then
+            # 使用 run_as_user 来确保在用户的环境中执行
+            if run_as_user "pipx install ${tool}"; then
                 log_success "'${tool}' 安装成功！"
             else
                 log_error "'${tool}' 安装失败。"
