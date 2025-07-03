@@ -182,20 +182,33 @@ fi
 
 # --- 永久写入 ---
 
-# --- 生成配置内容 (使用更兼容的 cat) ---
-PROXY_CONFIG_BLOCK=$(cat <<EOM
+# 询问是否默认开启
+read -p "是否希望每次打开新终端时自动开启代理？ (Y/n): " confirm_default_on
+confirm_default_on=${confirm_default_on:-Y}
+
+# --- 根据用户的选择生成不同的配置内容 ---
+if [[ "$confirm_default_on" =~ ^[Yy]$ ]]; then
+    # --- 默认开启的配置 ---
+    PROXY_CONFIG_BLOCK=$(cat <<'EOM'
 # --- PROXY-START --- Managed by setup_proxy_config.sh
 # https://github.com/KroMiose/scripts
+#
+# 代理已设置为默认开启。您可以运行 'unproxy' 在当前会话中临时关闭它。
 export PROXY_HOST="${PROXY_HOST}"
 export PROXY_PORT="${PROXY_PORT}"
 
+export http_proxy="http://${PROXY_HOST}:${PROXY_PORT}"
+export https_proxy="http://${PROXY_HOST}:${PROXY_PORT}"
+export all_proxy="socks5://${PROXY_HOST}:${PROXY_PORT}"
+export no_proxy="localhost,127.0.0.1,::1,*.local"
+
+# 'proxy' 命令用于在 unproxy 之后重新开启代理
 proxy() {
-    export http_proxy="http://\${PROXY_HOST}:\${PROXY_PORT}"
-    export https_proxy="http://\${PROXY_HOST}:\${PROXY_PORT}"
-    export all_proxy="socks5://\${PROXY_HOST}:\${PROXY_PORT}"
+    export http_proxy="http://${PROXY_HOST}:${PROXY_PORT}"
+    export https_proxy="http://${PROXY_HOST}:${PROXY_PORT}"
+    export all_proxy="socks5://${PROXY_HOST}:${PROXY_PORT}"
     export no_proxy="localhost,127.0.0.1,::1,*.local"
-    
-    echo "✅ 代理已开启: http/https -> http://\${PROXY_HOST}:\${PROXY_PORT} | all -> socks5://\${PROXY_HOST}:\${PROXY_PORT}"
+    echo "✅ 代理已手动开启。"
 }
 
 unproxy() {
@@ -208,6 +221,36 @@ unproxy() {
 # --- PROXY-END ---
 EOM
 )
+else
+    # --- 手动开启的配置 (旧逻辑) ---
+    PROXY_CONFIG_BLOCK=$(cat <<'EOM'
+# --- PROXY-START --- Managed by setup_proxy_config.sh
+# https://github.com/KroMiose/scripts
+#
+# 运行 'proxy' 来开启代理，'unproxy' 来关闭。
+export PROXY_HOST="${PROXY_HOST}"
+export PROXY_PORT="${PROXY_PORT}"
+
+proxy() {
+    export http_proxy="http://${PROXY_HOST}:${PROXY_PORT}"
+    export https_proxy="http://${PROXY_HOST}:${PROXY_PORT}"
+    export all_proxy="socks5://${PROXY_HOST}:${PROXY_PORT}"
+    export no_proxy="localhost,127.0.0.1,::1,*.local"
+    
+    echo "✅ 代理已开启: http/https -> http://${PROXY_HOST}:${PROXY_PORT} | all -> socks5://${PROXY_HOST}:${PROXY_PORT}"
+}
+
+unproxy() {
+    unset http_proxy
+    unset https_proxy
+    unset all_proxy
+    unset no_proxy
+    echo "☑️  代理已关闭。"
+}
+# --- PROXY-END ---
+EOM
+)
+fi
 
 # --- 检测 Shell 配置文件 ---
 SHELL_TYPE=$(basename "$SHELL")
@@ -267,15 +310,23 @@ echo ""
 echo "========================================================================"
 echo "      🎉 代理配置成功写入! 🎉"
 echo "------------------------------------------------------------------------"
-echo "  便捷命令 'proxy' 和 'unproxy' 已添加到 '$PROFILE_FILE'"
+if [[ "$confirm_default_on" =~ ^[Yy]$ ]]; then
+    echo "  代理将在新终端中自动开启。"
+    echo "  您可以运行 'unproxy' 在当前会话中临时关闭它，或运行 'proxy' 重新开启。"
+else
+    echo "  便捷命令 'proxy' 和 'unproxy' 已添加到 '$PROFILE_FILE'"
+    echo "  您可以通过运行 'proxy' 来开启代理。"
+fi
 echo ""
 echo "  请执行最后一步以使配置生效:"
 echo ""
 echo "  👉 运行 'source ${PROFILE_FILE}' 或重启您的终端。"
 echo ""
-echo "  之后，您可以随时通过以下命令来控制代理:"
-echo "    - 开启代理: proxy"
-echo "    - 关闭代理: unproxy"
+if [[ ! "$confirm_default_on" =~ ^[Yy]$ ]]; then
+    echo "  之后，您可以随时通过以下命令来控制代理:"
+    echo "    - 开启代理: proxy"
+    echo "    - 关闭代理: unproxy"
+fi
 echo "========================================================================"
 
 exit 0

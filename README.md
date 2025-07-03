@@ -1,6 +1,6 @@
 # LazyCat-Scripts 懒猫脚本 🐾
 
-这里是 KroMiose 收集和编写的各种常用脚本，希望能让聪明的"懒猫"们生活更轻松！(ฅ'ω'ฅ)
+这里是 KroMiose 收集和编写的各种常用 脚本/命令，希望能让聪明的"懒猫"们生活更轻松！(ฅ'ω'ฅ)
 
 ## ⚠️ 免责声明 (Disclaimer)
 
@@ -25,267 +25,55 @@
 
 ## 📜 脚本索引 (Script Index)
 
-下表列出了仓库中所有可用的脚本。点击脚本名称即可快速跳转到对应的详细说明和用法。
+为了方便您快速找到所需脚本，我们已按功能进行分类。
 
-| 图标 | 脚本名称 (Script)                                    | 主要功能 (Main Function)                              | 平台 (Platform) |
-| :--: | :--------------------------------------------------- | :---------------------------------------------------- | :-------------: |
-|  📂  | [`setup_en_dirs.sh`](#setup_en_dirssh)               | 将中文用户目录（桌面、下载等）重命名为英文。          |      Linux      |
-|  🔑  | [`setup_ssh_access.sh`](#setup_ssh_accesssh)         | 在服务器上一键配置 SSH 免密登录并返回私钥。           |  Linux & macOS  |
-|  ⚙️  | [`add_ssh_config.sh`](#add_ssh_configsh)             | 在本地通过交互式向导添加 SSH 服务器连接配置。         |  Linux & macOS  |
-|  🚀  | [`setup_zsh_p10k.sh`](#setup_zsh_p10ksh)             | 一键配置 Zsh + Oh My Zsh + Powerlevel10k 终端环境。   |  Linux & macOS  |
-|  🔌  | [`setup_proxy_config.sh`](#setup_proxy_configsh)     | 交互式地为 Shell 配置 `proxy` 和 `unproxy` 代理命令。 |  Linux & macOS  |
-|  🛡️  | [`restore_shell_backup.sh`](#restore_shell_backupsh) | 恢复由本仓库脚本创建的 Shell 配置文件备份。           |  Linux & macOS  |
-|  🐍  | [`setup_python_env.sh`](#setup_python_envsh)         | 一键配置现代化的 Python 开发环境 (pyenv + pipx)。     |      Linux      |
-|  ⬢   | [`setup_node_env.sh`](#setup_node_envsh)             | 一键配置 nvm, Node.js, pnpm, yarn 等前端开发环境。    |  Linux & macOS  |
-|  🐳  | [`setup_docker_proxy.sh`](#setup_docker_proxysh)     | 交互式地为 Docker 守护进程配置或移除网络代理。        |      Linux      |
-| ⚡️  | [`setup_sudo_nopasswd.sh`](#setup_sudo_nopasswdsh)   | 为当前用户配置免密 `sudo` (高风险!)。                 |      Linux      |
+### 🚀 基础开发环境 (Essential Development Environment)
+
+| 图标 | 脚本名称 (Script)                            | 主要功能 (Main Function)                                  | 平台 (Platform) |
+| :--: | :------------------------------------------- | :-------------------------------------------------------- | :-------------: |
+|  🚀  | [`setup_zsh_p10k.sh`](#setup_zsh_p10ksh)     | 一键配置 Zsh + Oh My Zsh + Powerlevel10k 终端环境。       |  Linux & macOS  |
+|  🐍  | [`setup_python_env.sh`](#setup_python_envsh) | 一键配置现代化的 Python 开发环境 (pyenv, poetry, uv 等)。 |      Linux      |
+|  ⬢   | [`setup_node_env.sh`](#setup_node_envsh)     | 一键配置 nvm, Node.js, pnpm, yarn 等前端开发环境。        |  Linux & macOS  |
+
+### 🐳 Docker 工具 (Docker Tools)
+
+| 图标 | 脚本名称 (Script)                                      | 主要功能 (Main Function)                           | 平台 (Platform) |
+| :--: | :----------------------------------------------------- | :------------------------------------------------- | :-------------: |
+|  🐳  | [`setup_docker_proxy.sh`](#setup_docker_proxysh)       | 交互式地为 Docker 守护进程配置或移除网络代理。     |      Linux      |
+|  🐳  | [`setup_docker_nopasswd.sh`](#setup_docker_nopasswdsh) | 将当前用户添加到 `docker` 组以实现免 `sudo` 运行。 |      Linux      |
+
+### 🌐 网络与连接 (Network & Connectivity)
+
+| 图标 | 脚本名称 (Script)                                | 主要功能 (Main Function)                              | 平台 (Platform) |
+| :--: | :----------------------------------------------- | :---------------------------------------------------- | :-------------: |
+|  🔌  | [`setup_proxy_config.sh`](#setup_proxy_configsh) | 交互式地为 Shell 配置 `proxy` 和 `unproxy` 代理命令。 |  Linux & macOS  |
+|  🔑  | [`setup_ssh_access.sh`](#setup_ssh_accesssh)     | 在服务器上一键配置 SSH 免密登录并返回私钥。           |  Linux & macOS  |
+|  ⚙️  | [`add_ssh_config.sh`](#add_ssh_configsh)         | 在本地通过交互式向导添加 SSH 服务器连接配置。         |  Linux & macOS  |
+
+### ⚙️ 系统配置 (System Configuration)
+
+| 图标 | 脚本名称 (Script)                                  | 主要功能 (Main Function)                     | 平台 (Platform) |
+| :--: | :------------------------------------------------- | :------------------------------------------- | :-------------: |
+|  📂  | [`setup_en_dirs.sh`](#setup_en_dirssh)             | 将中文用户目录（桌面、下载等）重命名为英文。 |      Linux      |
+| ⚡️  | [`setup_sudo_nopasswd.sh`](#setup_sudo_nopasswdsh) | 为当前用户配置免密 `sudo` (高风险!)。        |      Linux      |
+
+### 🛡️ 维护与恢复 (Maintenance & Recovery)
+
+| 图标 | 脚本名称 (Script)                                    | 主要功能 (Main Function)                    | 平台 (Platform) |
+| :--: | :--------------------------------------------------- | :------------------------------------------ | :-------------: |
+|  🛡️  | [`restore_shell_backup.sh`](#restore_shell_backupsh) | 恢复由本仓库脚本创建的 Shell 配置文件备份。 |  Linux & macOS  |
+
+### 📚 常用命令参考 (Common Commands Reference)
+
+| 图标 | 文档 (Document)              | 描述 (Description)                           |
+| :--: | :--------------------------- | :------------------------------------------- |
+|  📚  | [`COMMANDS.md`](./COMMANDS.md) | 整理了 Git 凭据、Docker 等常用命令的备忘录。 |
 
 ## 📖 脚本详解 (Script Details)
 
 ---
 
-### 🐧 Linux
-
-#### `setup_en_dirs.sh`
-
-这个脚本可以帮助你在一个全新的、语言设置为中文的 Linux 系统上，将家目录下的"桌面"、"文档"、"下载"等文件夹的名字从中文替换为标准的英文名（如 `Desktop`, `Documents`, `Downloads`），并帮你把旧文件夹里的东西都搬到新家。
-
-- **✨ 主要功能:**
-
-  - 自动将主要的 XDG 用户目录从中文重命名为英文。
-  - 迁移旧中文目录下的所有文件到新的英文目录。
-  - 禁用系统在下次登录时自动改回中文目录的功能。
-  - 操作前会智能备份你老的配置文件，很安全哦。
-
-- **💻 支持系统:**
-
-  - 基于 Debian/Ubuntu 的发行版 (例如 Ubuntu, Debian, Linux Mint, Deepin 等)。
-
-- **💣 执行副作用:**
-
-  - **修改用户配置:** 覆盖 `~/.config/user-dirs.dirs` 文件，并将其旧内容备份为 `~/.config/user-dirs.dirs.bak`。
-  - **修改系统配置:** 修改 `/etc/xdg/user-dirs.conf` 文件，将 `enabled=True` 改为 `enabled=False`，以禁止系统自动更新用户目录语言。
-  - **文件与目录操作:**
-    - 在家目录下创建新的英文标准目录（如 `~/Desktop`, `~/Downloads` 等）。
-    - 将旧中文目录下的所有文件和子目录移动到对应的英文目录中。
-    - 移动成功后，删除原先的空中文目录。
-
-- **🔁 可重复执行性:**
-
-  - 本脚本是**可重复执行的**。第一次运行后，所有中文目录将被替换。后续重复运行会检查并发现中文目录已不存在，不会执行任何破坏性操作，因此是完全安全的。
-
-- **🚀 一键执行:**
-
-  > 你无需克隆本仓库，可以直接在终端中运行以下命令来执行脚本。
-
-  ```bash
-  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_en_dirs.sh)"
-  ```
-
-  脚本会自动检测并为你完成所有配置。完成后，请务必**注销并重新登录**系统，以使所有更改生效！
-
-#### `setup_python_env.sh`
-
-这是一个功能强大的交互式配置向导，旨在为您一键搭建一个完整、现代化的 Python 开发环境。它会为您安装并配置好 `pyenv`, `poetry`, `pdm` 和 `uv`。
-
-- **✨ 主要功能:**
-
-  - **完整的工具链:** 一次性为您配齐 Python 开发的四大神器：
-    - **pyenv:** 用于隔离和管理多个 Python 版本。
-    - **poetry & pdm:** 现代化的项目管理与依赖打包工具。
-    - **uv:** 基于 Rust 的极速 Python 包安装器，可作为 `pip` 的替代品。
-  - **交互式版本选择:**
-    - 在安装 `poetry` 时，您可以自由选择安装 **1.8.x (旧版稳定版)** 或 **2.x (最新稳定版)**。
-  - **强大的网络配置:**
-    - 内置交互式的网络代理向导，确保在受限网络环境下也能成功下载。
-    - 支持一键切换到国内 PyPI 镜像源，极大提升依赖下载速度。
-  - **智能 Shell 配置:** 自动将 `pyenv` 和其他工具的环境变量注入到您的 Shell 配置文件 (`.zshrc`, `.bashrc`, `.profile`) 中。
-  - **严格的错误处理:** 任何关键步骤失败都会导致脚本立即中止并报告明确的错误，绝不"假装成功"。
-
-- **💻 支持系统:**
-
-  - 基于 Debian/Ubuntu 的发行版。
-
-- **💣 执行副作用:**
-
-  - **系统级变更:**
-    - 脚本会请求 `sudo` 权限来安装编译 Python 所需的依赖包 (如 `build-essential`, `libssl-dev` 等)。
-  - **用户级变更:**
-    - **pyenv:** 会被安装到您的用户目录 `~/.pyenv` 下。
-    - **poetry, pdm, uv:** 会被安装到您的用户目录 `~/.local/bin` 下。
-    - **Shell 配置文件:** 脚本会自动向您的 Shell 配置文件 (如 `~/.bashrc`, `~/.zshrc` 或 `~/.profile`) 中添加用于初始化 `pyenv` 和 `~/.local/bin` 路径的环境变量。脚本会使用唯一的注释标记来确保此操作的幂等性。
-
-- **🔁 可重复执行性:**
-
-  - 本脚本是**完全可重复执行的**。它会智能地跳过已安装的工具，并更新 Shell 配置块。
-
-- **🚀 一键执行:**
-
-  > 您需要使用 `sudo` 来运行此脚本，因为它需要先安装系统级的编译依赖。脚本后续会智能地切换到您的普通用户身份来完成所有用户级别的安装和配置。
-
-  ```bash
-  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_python_env.sh)"
-  ```
-
-#### `setup_docker_proxy.sh`
-
-这是一个在您的 Linux 服务器上运行的交互式脚本，专门用于为 Docker 守护进程配置或移除 HTTP/HTTPS 代理。当您的服务器需要通过代理才能拉取或推送镜像时，这个脚本将极大地简化您的配置过程。
-
-- **✨ 主要功能:**
-
-  - **交互式向导:** 引导您选择配置代理或移除代理。
-  - **智能默认值:** 自动检测您当前环境变量中的代理设置，并将其作为默认值，简化输入。
-  - **标准 `systemd` 配置:** 通过创建标准的 `systemd` drop-in 配置文件 (`/etc/systemd/system/docker.service.d/http-proxy.conf`) 来设置代理，这是最推荐的官方方式。
-  - **支持 `NO_PROXY`:** 允许您自定义不需要走代理的地址列表。
-  - **自动重载服务:** 在修改配置后，会提示您是否需要自动重载 `systemd` 并重启 Docker 服务，使配置立即生效。
-  - **幂等性与清理:**
-    - 脚本是幂等的，您可以反复运行来更新配置。
-    - 在移除代理配置时，如果配置目录变为空，脚本会自动清理该目录，保持系统整洁。
-
-- **💻 支持系统:**
-
-  - 使用 `systemd` 的主流 Linux 发行版 (Debian, Ubuntu, CentOS, Fedora, Arch 等)。
-  - 系统中必须已安装 Docker。
-
-- **💣 执行副作用:**
-
-  - **系统级变更:**
-    - 脚本需要 `sudo` 权限运行。
-    - 创建、修改或删除位于 `/etc/systemd/system/docker.service.d/` 下的代理配置文件。
-    - 如果用户同意，会重载 `systemd` 守护进程并重启 Docker 服务。
-
-- **🔁 可重复执行性:**
-
-  - 本脚本是**完全可重复执行的**。您可以安全地运行它来更新或移除代理配置，而不会产生意外的副作用。
-
-- **🚀 一键执行:**
-
-  > 您必须使用 `sudo` 来运行此脚本，因为它需要修改系统级的 Docker 服务配置。
-
-  ```bash
-  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_docker_proxy.sh)"
-  ```
-
-#### `setup_sudo_nopasswd.sh`
-
-这是一个存在风险但可能在特定场景下（如自动化脚本、受信任的开发环境）非常有用的工具。它通过交互式向导，帮助您为当前用户安全地启用或禁用免密 `sudo` 权限。
-
-- **🚨 安全第一:**
-
-  - **极度明确的警告:** 脚本在执行前会反复强调此操作的风险。
-  - **严格的用户确认:** 启用免密 `sudo` 前，必须手动输入 `yes` 进行确认，有效防止误操作。
-  - **安全的实现方式:** 脚本严格遵循最佳实践，通过在 `/etc/sudoers.d/` 目录下创建独立的、以用户命名的配置文件来工作，绝不直接修改主 `sudoers` 文件。
-  - **语法预检查:** 在应用任何更改之前，脚本会调用 `visudo -c` 命令来严格检查配置文件的语法。如果语法不正确，它会拒绝应用并自动清理，防止系统被锁。
-
-- **✨ 主要功能:**
-
-  - **交互式菜单:** 清晰地提供"启用"和"移除"两个选项。
-  - **智能用户检测:** 自动识别出通过 `sudo` 执行脚本的普通用户 (`$SUDO_USER`)，并为其进行配置。
-  - **幂等性:** 您可以反复运行此脚本来启用或禁用此功能，脚本状态会正确切换。
-  - **自动清理:** 在移除配置时，它会干净地删除对应的配置文件。
-
-- **💻 支持系统:**
-
-  - 任何使用 `sudo` 并且支持 `/etc/sudoers.d/` 配置目录的主流 Linux 发行版。
-
-- **💣 执行副作用:**
-
-  - **系统级变更:**
-    - 脚本**必须**使用 `sudo` 权限运行。
-    - **核心操作:** 在 `/etc/sudoers.d/` 目录下创建或删除名为 `99-nopasswd-<你的用户名>` 的文件。
-    - **安全模型变更:** 成功执行后，您的用户账户将可以在**不输入密码**的情况下执行所有 `sudo` 命令，这会从根本上改变您系统的安全模型。
-
-- **🔁 可重复执行性:**
-
-  - 本脚本是**完全可重复执行的**。您可以随时运行它来启用或禁用免密 `sudo`。
-
-- **🚀 一键执行:**
-
-  > **警告：** 在执行以下命令前，请确保您完全理解其含义和潜在风险。
-
-  ```bash
-  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_sudo_nopasswd.sh)"
-  ```
-
----
-
-### 通用脚本 (Linux & macOS)
-
----
-
-#### `setup_ssh_access.sh`
-
-在新服务器上为当前用户一键配置好 SSH 免密登录。它会创建一个专用的密钥对，将公钥自动配置好，然后把**私钥**显示出来让你带走。
-
-- **✨ 主要功能:**
-
-  - 创建一个专用的、一次性的 SSH 密钥对 (例如 `~/.ssh/access_key_my-server`)，而不是动你已有的 `id_rsa`。
-  - 自动将新生成的公钥添加到 `~/.ssh/authorized_keys` 文件中。
-  - 保证 SSH 目录和相关文件的权限正确无误 (`700` for `.ssh`, `600` for `authorized_keys`)。
-  - 最后，它会清晰地打印出可用的**私钥**以及详细的登录指令。
-
-- **💻 支持系统:**
-
-  - 所有主流 Linux 发行版及 macOS。
-
-- **💣 执行副作用:**
-
-  - **创建或修改文件:**
-    - 在 `~/.ssh/` 目录下创建 `access_key_<hostname>` (私钥) 和 `access_key_<hostname>.pub` (公钥)，其中 `<hostname>` 是服务器短名称。
-    - 创建或向 `~/.ssh/authorized_keys` 文件追加公钥内容。
-
-- **🔁 可重复执行性:**
-
-  - 本脚本是**完全可重复执行的**。如果专用密钥和授权配置已存在，脚本会跳过创建步骤，直接显示已配置好的私钥和登录信息，不会造成任何影响。
-
-- **🚀 一键执行:**
-
-  > 此脚本不需要 sudo 权限。它会自动为你打理好一切。
-
-  ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_ssh_access.sh)"
-  ```
-
----
-
-#### `add_ssh_config.sh`
-
-这是一个在您的**本地计算机**或**控制端**上运行的交互式脚本。它可以帮助您快速地将一个新服务器的连接信息添加到 `~/.ssh/config` 文件中，让您之后可以通过一个简单的别名 (如 `ssh my-server`) 直接登录。
-
-- **✨ 主要功能:**
-
-  - **交互式向导:** 通过提问引导您输入服务器的别名、IP、用户名和私钥文件路径。
-  - **支持自定义端口:** 会询问服务器端口，默认为 22。
-  - **智能去重:** 在添加前会检查该别名是否已存在，并询问您是否要覆盖，避免重复配置。
-  - **自动配置:** 将您输入的信息格式化为标准的 `Host` 块，并安全地写入 `~/.ssh/config`。
-  - **最佳实践:** 自动添加 `IdentitiesOnly yes` 选项，这是一个很好的安全习惯。
-
-- **💻 支持系统:**
-
-  - 所有主流 Linux 发行版及 macOS。
-
-- **💣 执行副作用:**
-
-  - **创建或修改文件:**
-    - 如果 `~/.ssh/config` 文件不存在，会为您创建它。
-    - 会向 `~/.ssh/config` 文件中追加或覆盖一个 `Host` 配置块。
-    - 在覆盖配置前，会自动创建一个时间戳备份文件 (如 `config.bak.2024-07-26_10-30-00`)。**您可以使用 `restore_shell_backup.sh` 脚本轻松恢复此备份。**
-
-- **🔁 可重复执行性:**
-
-  - 本脚本是**可重复执行的**。您可以反复运行它来添加不同的服务器配置。如果遇到已存在的别名，它会请求您的确认，因此是安全的。
-
-- **🚀 一键执行:**
-
-  > 在您的本地计算机上运行此命令，它会引导您完成配置。
-
-  ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/add_ssh_config.sh)"
-  ```
-
----
-
-#### `setup_zsh_p10k.sh`
+### `setup_zsh_p10k.sh`
 
 一键为您配置一个功能强大且外观酷炫的 Zsh 终端环境。它会自动处理 `git`, `curl`, `zsh` 的安装，配置 Oh My Zsh，并**可选地**安装 Powerlevel10k 主题以及两个必备插件。
 
@@ -332,7 +120,170 @@
 
 ---
 
-#### `setup_proxy_config.sh`
+### `setup_python_env.sh`
+
+这是一个功能强大的交互式配置向导，旨在为您一键搭建一个完整、现代化的 Python 开发环境。它会为您安装并配置好 `pyenv`, `poetry`, `pdm` 和 `uv`。
+
+- **✨ 主要功能:**
+
+  - **完整的工具链:** 一次性为您配齐 Python 开发的四大神器：
+    - **pyenv:** 用于隔离和管理多个 Python 版本。
+    - **poetry & pdm:** 现代化的项目管理与依赖打包工具。
+    - **uv:** 基于 Rust 的极速 Python 包安装器，可作为 `pip` 的替代品。
+  - **交互式版本选择:**
+    - 在安装 `poetry` 时，您可以自由选择安装 **1.8.x (旧版稳定版)** 或 **2.x (最新稳定版)**。
+  - **强大的网络配置:**
+    - 内置交互式的网络代理向导，确保在受限网络环境下也能成功下载。
+    - 支持一键切换到国内 PyPI 镜像源，极大提升依赖下载速度。
+  - **智能 Shell 配置:** 自动将 `pyenv` 和其他工具的环境变量注入到您的 Shell 配置文件 (`.zshrc`, `.bashrc`, `.profile`) 中。
+  - **严格的错误处理:** 任何关键步骤失败都会导致脚本立即中止并报告明确的错误，绝不"假装成功"。
+
+- **💻 支持系统:**
+
+  - 基于 Debian/Ubuntu 的发行版。
+
+- **💣 执行副作用:**
+
+  - **系统级变更:**
+    - 脚本会请求 `sudo` 权限来安装编译 Python 所需的依赖包 (如 `build-essential`, `libssl-dev` 等)。
+  - **用户级变更:**
+    - **pyenv:** 会被安装到您的用户目录 `~/.pyenv` 下。
+    - **poetry, pdm, uv:** 会被安装到您的用户目录 `~/.local/bin` 下。
+    - **Shell 配置文件:** 脚本会自动向您的 Shell 配置文件 (如 `~/.bashrc`, `~/.zshrc` 或 `~/.profile`) 中添加用于初始化 `pyenv` 和 `~/.local/bin` 路径的环境变量。脚本会使用唯一的注释标记来确保此操作的幂等性。
+
+- **🔁 可重复执行性:**
+
+  - 本脚本是**完全可重复执行的**。它会智能地跳过已安装的工具，并更新 Shell 配置块。
+
+- **🚀 一键执行:**
+
+  > 您需要使用 `sudo` 来运行此脚本，因为它需要先安装系统级的编译依赖。脚本后续会智能地切换到您的普通用户身份来完成所有用户级别的安装和配置。
+
+  ```bash
+  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_python_env.sh)"
+  ```
+
+---
+
+### `setup_node_env.sh`
+
+这是一个交互式脚本，可以帮助您在 Linux 和 macOS 上快速搭建一个完整、灵活的 Node.js 开发环境。它使用 `nvm` (Node Version Manager) 来管理 Node.js 版本，并能可选地为您安装 `yarn` 和 `pnpm` 等流行的包管理器。
+
+- **✨ 主要功能:**
+
+  - **智能依赖检查:** 在运行前自动检查 `git` 和 `curl` 是否已安装，如果没有，会给出清晰的安装指引。
+  - **自动化 `nvm` 安装:** 自动从官方源下载并执行 `nvm` 的安装脚本，并将配置无缝写入您的 shell 配置文件 (`.bashrc`, `.zshrc` 等)。
+  - **灵活的 Node.js 版本管理:**
+    - 提供交互式菜单，让您可以选择一键安装最新的 **LTS (长期支持)** 版本，这对于大多数项目来说是最佳选择。
+    - 同时支持安装您手动输入的任意指定版本号。
+    - 自动将您安装的版本设置为全局默认。
+  - **可选的包管理器:** 在 Node.js 安装完毕后，会继续询问您是否需要安装 `yarn` 和 `pnpm`。
+  - **清晰的用户指引:** 脚本的最后会给出一个非常明确的总结，提醒您必须重启终端才能让所有环境生效。
+
+- **💻 支持系统:**
+
+  - 所有主流 Linux 发行版及 macOS。
+
+- **💣 执行副作用:**
+
+  - **文件与目录操作:**
+    - 在 `~/.nvm` 目录下安装 `nvm`。
+    - `npm` 全局安装的包（如 `yarn`, `pnpm`）位于 `~/.nvm` 的对应版本目录下。
+  - **修改用户配置:**
+    - `nvm` 的安装脚本会自动向您的 `.bashrc`, `.zshrc`, `.profile` 等文件中追加用于加载 `nvm` 的代码。
+
+- **🔁 可重复执行性:**
+
+  - 本脚本是**完全可重复执行的**。它会检查 `nvm` 是否已存在，如果存在则跳过安装。您可以随时运行它来安装新的 Node.js 版本或工具，而不会破坏现有配置。
+
+- **🚀 一键执行:**
+
+  > **请不要使用 `sudo` 运行此脚本！** 它是一个用户级别的环境配置工具。请直接在您的普通用户终端下执行以下命令。
+
+  ```bash
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_node_env.sh)"
+  ```
+
+---
+
+### `setup_docker_proxy.sh`
+
+这是一个在您的 Linux 服务器上运行的交互式脚本，专门用于为 Docker 守护进程配置或移除 HTTP/HTTPS 代理。当您的服务器需要通过代理才能拉取或推送镜像时，这个脚本将极大地简化您的配置过程。
+
+- **✨ 主要功能:**
+
+  - **交互式向导:** 引导您选择配置代理或移除代理。
+  - **智能默认值:** 自动检测您当前环境变量中的代理设置，并将其作为默认值，简化输入。
+  - **标准 `systemd` 配置:** 通过创建标准的 `systemd` drop-in 配置文件 (`/etc/systemd/system/docker.service.d/http-proxy.conf`) 来设置代理，这是最推荐的官方方式。
+  - **支持 `NO_PROXY`:** 允许您自定义不需要走代理的地址列表。
+  - **自动重载服务:** 在修改配置后，会提示您是否需要自动重载 `systemd` 并重启 Docker 服务，使配置立即生效。
+  - **幂等性与清理:**
+    - 脚本是幂等的，您可以反复运行来更新配置。
+    - 在移除代理配置时，如果配置目录变为空，脚本会自动清理该目录，保持系统整洁。
+
+- **💻 支持系统:**
+
+  - 使用 `systemd` 的主流 Linux 发行版 (Debian, Ubuntu, CentOS, Fedora, Arch 等)。
+  - 系统中必须已安装 Docker。
+
+- **💣 执行副作用:**
+
+  - **系统级变更:**
+    - 脚本需要 `sudo` 权限运行。
+    - 创建、修改或删除位于 `/etc/systemd/system/docker.service.d/` 下的代理配置文件。
+    - 如果用户同意，会重载 `systemd` 守护进程并重启 Docker 服务。
+
+- **🔁 可重复执行性:**
+
+  - 本脚本是**完全可重复执行的**。您可以安全地运行它来更新或移除代理配置，而不会产生意外的副作用。
+
+- **🚀 一键执行:**
+
+  > 您必须使用 `sudo` 来运行此脚本，因为它需要修改系统级的 Docker 服务配置。
+
+  ```bash
+  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_docker_proxy.sh)"
+  ```
+
+---
+
+### `setup_docker_nopasswd.sh`
+
+这是一个安全便捷的脚本，用于将当前用户添加到 `docker` 用户组，从而允许您在不使用 `sudo` 的情况下直接运行所有 `docker` 命令。
+
+- **✨ 主要功能:**
+
+  - **安全的用户检测:** 自动识别通过 `sudo` 执行脚本的普通用户 (`$SUDO_USER`)，并为其进行配置。
+  - **环境检查:** 在执行操作前，会检查 `docker` 用户组是否存在，如果不存在则会提示 Docker 可能未安装并安全退出。
+  - **幂等性:** 如果用户已经存在于 `docker` 组中，脚本会礼貌地告知并跳过操作，可以安全地重复执行。
+  - **明确的指引:** 操作成功后，会用醒目的提示告诉用户必须**重新登录或重启系统**才能让权限变更生效，避免用户困惑。
+
+- **💻 支持系统:**
+
+  - 任何已安装 Docker 的主流 Linux 发行版。
+
+- **💣 执行副作用:**
+
+  - **系统级变更:**
+    - 脚本需要 `sudo` 权限运行。
+    - 修改系统用户组配置，将当前用户添加到 `docker` 组。
+  - **安全模型变更:** 成功执行后，您的用户账户将拥有直接与 Docker 守护进程通信的权限，这等同于拥有系统的 `root` 访问权限。请确保您了解此操作的安全影响。
+
+- **🔁 可重复执行性:**
+
+  - 本脚本是**完全可重复执行的**。
+
+- **🚀 一键执行:**
+
+  > 您必须使用 `sudo` 来运行此脚本，因为它需要修改系统级的用户和组配置。
+
+  ```bash
+  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_docker_nopasswd.sh)"
+  ```
+
+---
+
+### `setup_proxy_config.sh`
 
 这是一个交互式脚本，可以帮助您快速地为您的 Shell 环境配置代理。您可以选择只在当前终端临时生效，也可以将其永久写入您的 `.bashrc` 或 `.zshrc` 文件中，并生成极其方便的 `proxy` 和 `unproxy` 命令。
 
@@ -389,7 +340,162 @@
 
 ---
 
-#### `restore_shell_backup.sh`
+### `setup_ssh_access.sh`
+
+在新服务器上为当前用户一键配置好 SSH 免密登录。它会创建一个专用的密钥对，将公钥自动配置好，然后把**私钥**显示出来让你带走。
+
+- **✨ 主要功能:**
+
+  - 创建一个专用的、一次性的 SSH 密钥对 (例如 `~/.ssh/access_key_my-server`)，而不是动你已有的 `id_rsa`。
+  - 自动将新生成的公钥添加到 `~/.ssh/authorized_keys` 文件中。
+  - 保证 SSH 目录和相关文件的权限正确无误 (`700` for `.ssh`, `600` for `authorized_keys`)。
+  - 最后，它会清晰地打印出可用的**私钥**以及详细的登录指令。
+
+- **💻 支持系统:**
+
+  - 所有主流 Linux 发行版及 macOS。
+
+- **💣 执行副作用:**
+
+  - **创建或修改文件:**
+    - 在 `~/.ssh/` 目录下创建 `access_key_<hostname>` (私钥) 和 `access_key_<hostname>.pub` (公钥)，其中 `<hostname>` 是服务器短名称。
+    - 创建或向 `~/.ssh/authorized_keys` 文件追加公钥内容。
+
+- **🔁 可重复执行性:**
+
+  - 本脚本是**完全可重复执行的**。如果专用密钥和授权配置已存在，脚本会跳过创建步骤，直接显示已配置好的私钥和登录信息，不会造成任何影响。
+
+- **🚀 一键执行:**
+
+  > 此脚本不需要 sudo 权限。它会自动为你打理好一切。
+
+  ```bash
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_ssh_access.sh)"
+  ```
+
+---
+
+### `add_ssh_config.sh`
+
+这是一个在您的**本地计算机**或**控制端**上运行的交互式脚本。它可以帮助您快速地将一个新服务器的连接信息添加到 `~/.ssh/config` 文件中，让您之后可以通过一个简单的别名 (如 `ssh my-server`) 直接登录。
+
+- **✨ 主要功能:**
+
+  - **交互式向导:** 通过提问引导您输入服务器的别名、IP、用户名和私钥文件路径。
+  - **支持自定义端口:** 会询问服务器端口，默认为 22。
+  - **智能去重:** 在添加前会检查该别名是否已存在，并询问您是否要覆盖，避免重复配置。
+  - **自动配置:** 将您输入的信息格式化为标准的 `Host` 块，并安全地写入 `~/.ssh/config`。
+  - **最佳实践:** 自动添加 `IdentitiesOnly yes` 选项，这是一个很好的安全习惯。
+
+- **💻 支持系统:**
+
+  - 所有主流 Linux 发行版及 macOS。
+
+- **💣 执行副作用:**
+
+  - **创建或修改文件:**
+    - 如果 `~/.ssh/config` 文件不存在，会为您创建它。
+    - 会向 `~/.ssh/config` 文件中追加或覆盖一个 `Host` 配置块。
+    - 在覆盖配置前，会自动创建一个时间戳备份文件 (如 `config.bak.2024-07-26_10-30-00`)。**您可以使用 `restore_shell_backup.sh` 脚本轻松恢复此备份。**
+
+- **🔁 可重复执行性:**
+
+  - 本脚本是**可重复执行的**。您可以反复运行它来添加不同的服务器配置。如果遇到已存在的别名，它会请求您的确认，因此是安全的。
+
+- **🚀 一键执行:**
+
+  > 在您的本地计算机上运行此命令，它会引导您完成配置。
+
+  ```bash
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/add_ssh_config.sh)"
+  ```
+
+---
+
+### `setup_en_dirs.sh`
+
+这个脚本可以帮助你在一个全新的、语言设置为中文的 Linux 系统上，将家目录下的"桌面"、"文档"、"下载"等文件夹的名字从中文替换为标准的英文名（如 `Desktop`, `Documents`, `Downloads`），并帮你把旧文件夹里的东西都搬到新家。
+
+- **✨ 主要功能:**
+
+  - 自动将主要的 XDG 用户目录从中文重命名为英文。
+  - 迁移旧中文目录下的所有文件到新的英文目录。
+  - 禁用系统在下次登录时自动改回中文目录的功能。
+  - 操作前会智能备份你老的配置文件，很安全哦。
+
+- **💻 支持系统:**
+
+  - 基于 Debian/Ubuntu 的发行版 (例如 Ubuntu, Debian, Linux Mint, Deepin 等)。
+
+- **💣 执行副作用:**
+
+  - **修改用户配置:** 覆盖 `~/.config/user-dirs.dirs` 文件，并将其旧内容备份为 `~/.config/user-dirs.dirs.bak`。
+  - **修改系统配置:** 修改 `/etc/xdg/user-dirs.conf` 文件，将 `enabled=True` 改为 `enabled=False`，以禁止系统自动更新用户目录语言。
+  - **文件与目录操作:**
+    - 在家目录下创建新的英文标准目录（如 `~/Desktop`, `~/Downloads` 等）。
+    - 将旧中文目录下的所有文件和子目录移动到对应的英文目录中。
+    - 移动成功后，删除原先的空中文目录。
+
+- **🔁 可重复执行性:**
+
+  - 本脚本是**可重复执行的**。第一次运行后，所有中文目录将被替换。后续重复运行会检查并发现中文目录已不存在，不会执行任何破坏性操作，因此是完全安全的。
+
+- **🚀 一键执行:**
+
+  > 你无需克隆本仓库，可以直接在终端中运行以下命令来执行脚本。
+
+  ```bash
+  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_en_dirs.sh)"
+  ```
+
+  脚本会自动检测并为你完成所有配置。完成后，请务必**注销并重新登录**系统，以使所有更改生效！
+
+---
+
+### `setup_sudo_nopasswd.sh`
+
+这是一个存在风险但可能在特定场景下（如自动化脚本、受信任的开发环境）非常有用的工具。它通过交互式向导，帮助您为当前用户安全地启用或禁用免密 `sudo` 权限。
+
+- **🚨 安全第一:**
+
+  - **极度明确的警告:** 脚本在执行前会反复强调此操作的风险。
+  - **严格的用户确认:** 启用免密 `sudo` 前，必须手动输入 `yes` 进行确认，有效防止误操作。
+  - **安全的实现方式:** 脚本严格遵循最佳实践，通过在 `/etc/sudoers.d/` 目录下创建独立的、以用户命名的配置文件来工作，绝不直接修改主 `sudoers` 文件。
+  - **语法预检查:** 在应用任何更改之前，脚本会调用 `visudo -c` 命令来严格检查配置文件的语法。如果语法不正确，它会拒绝应用并自动清理，防止系统被锁。
+
+- **✨ 主要功能:**
+
+  - **交互式菜单:** 清晰地提供"启用"和"移除"两个选项。
+  - **智能用户检测:** 自动识别出通过 `sudo` 执行脚本的普通用户 (`$SUDO_USER`)，并为其进行配置。
+  - **幂等性:** 您可以反复运行此脚本来启用或禁用此功能，脚本状态会正确切换。
+  - **自动清理:** 在移除配置时，它会干净地删除对应的配置文件。
+
+- **💻 支持系统:**
+
+  - 任何使用 `sudo` 并且支持 `/etc/sudoers.d/` 配置目录的主流 Linux 发行版。
+
+- **💣 执行副作用:**
+
+  - **系统级变更:**
+    - 脚本**必须**使用 `sudo` 权限运行。
+    - **核心操作:** 在 `/etc/sudoers.d/` 目录下创建或删除名为 `99-nopasswd-<你的用户名>` 的文件。
+    - **安全模型变更:** 成功执行后，您的用户账户将可以在**不输入密码**的情况下执行所有 `sudo` 命令，这会从根本上改变您系统的安全模型。
+
+- **🔁 可重复执行性:**
+
+  - 本脚本是**完全可重复执行的**。您可以随时运行它来启用或禁用免密 `sudo`。
+
+- **🚀 一键执行:**
+
+  > **警告：** 在执行以下命令前，请确保您完全理解其含义和潜在风险。
+
+  ```bash
+  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_sudo_nopasswd.sh)"
+  ```
+
+---
+
+### `restore_shell_backup.sh`
 
 这是一个安全工具，旨在帮助您轻松地撤销由本仓库其他脚本对 Shell 环境所做的更改。它会自动扫描、列出所有由我们的脚本创建的备份文件，并允许您选择其中一个进行一键恢复。
 
@@ -419,47 +525,6 @@
 
   ```bash
   bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/restore_shell_backup.sh)"
-  ```
-
----
-
-#### `setup_node_env.sh`
-
-这是一个交互式脚本，可以帮助您在 Linux 和 macOS 上快速搭建一个完整、灵活的 Node.js 开发环境。它使用 `nvm` (Node Version Manager) 来管理 Node.js 版本，并能可选地为您安装 `yarn` 和 `pnpm` 等流行的包管理器。
-
-- **✨ 主要功能:**
-
-  - **智能依赖检查:** 在运行前自动检查 `git` 和 `curl` 是否已安装，如果没有，会给出清晰的安装指引。
-  - **自动化 `nvm` 安装:** 自动从官方源下载并执行 `nvm` 的安装脚本，并将配置无缝写入您的 shell 配置文件 (`.bashrc`, `.zshrc` 等)。
-  - **灵活的 Node.js 版本管理:**
-    - 提供交互式菜单，让您可以选择一键安装最新的 **LTS (长期支持)** 版本，这对于大多数项目来说是最佳选择。
-    - 同时支持安装您手动输入的任意指定版本号。
-    - 自动将您安装的版本设置为全局默认。
-  - **可选的包管理器:** 在 Node.js 安装完毕后，会继续询问您是否需要安装 `yarn` 和 `pnpm`。
-  - **清晰的用户指引:** 脚本的最后会给出一个非常明确的总结，提醒您必须重启终端才能让所有环境生效。
-
-- **💻 支持系统:**
-
-  - 所有主流 Linux 发行版及 macOS。
-
-- **💣 执行副作用:**
-
-  - **文件与目录操作:**
-    - 在 `~/.nvm` 目录下安装 `nvm`。
-    - `npm` 全局安装的包（如 `yarn`, `pnpm`）位于 `~/.nvm` 的对应版本目录下。
-  - **修改用户配置:**
-    - `nvm` 的安装脚本会自动向您的 `.bashrc`, `.zshrc`, `.profile` 等文件中追加用于加载 `nvm` 的代码。
-
-- **🔁 可重复执行性:**
-
-  - 本脚本是**完全可重复执行的**。它会检查 `nvm` 是否已存在，如果存在则跳过安装。您可以随时运行它来安装新的 Node.js 版本或工具，而不会破坏现有配置。
-
-- **🚀 一键执行:**
-
-  > **请不要使用 `sudo` 运行此脚本！** 它是一个用户级别的环境配置工具。请直接在您的普通用户终端下执行以下命令。
-
-  ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_node_env.sh)"
   ```
 
 ---
