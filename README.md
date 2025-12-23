@@ -65,11 +65,14 @@
 
 ### 📚 常用命令参考 (Common Commands Reference)
 
-| 图标 | 文档 (Document)              | 描述 (Description)                           |
-| :--: | :--------------------------- | :------------------------------------------- |
+| 图标 | 文档 (Document)                | 描述 (Description)                           |
+| :--: | :----------------------------- | :------------------------------------------- |
 |  📚  | [`COMMANDS.md`](./COMMANDS.md) | 整理了 Git 凭据、Docker 等常用命令的备忘录。 |
 
 ## 📖 脚本详解 (Script Details)
+
+> ⚠️ 注意: 为了提高国内用户访问可达性，下列所有一键执行命令都使用了 [NekroEndpoint 边缘端点平台](https://ep.nekro.ai) 的代理加速服务。
+> [NekroEndpoint](https://ep.nekro.ai) 是基于 Cloudflare Workers 构建的边缘端点编排平台，支持静态内容返回、代理转发、动态脚本执行三类端点，提供权限组、访问密钥等细粒度权限控制，依托全球 300 + 节点实现毫秒级响应，可用于 API 代理聚合、Webhook 处理等场景。
 
 ---
 
@@ -115,7 +118,7 @@
   > 此脚本不应使用 sudo 运行。它会配置好您当前用户的 Zsh 环境。
 
   ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_zsh_p10k.sh)"
+  bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_zsh_p10k.sh)"
   ```
 
 ---
@@ -160,7 +163,7 @@
   > 您需要使用 `sudo` 来运行此脚本，因为它需要先安装系统级的编译依赖。脚本后续会智能地切换到您的普通用户身份来完成所有用户级别的安装和配置。
 
   ```bash
-  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_python_env.sh)"
+  sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_python_env.sh)"
   ```
 
 ---
@@ -201,7 +204,7 @@
   > **请不要使用 `sudo` 运行此脚本！** 它是一个用户级别的环境配置工具。请直接在您的普通用户终端下执行以下命令。
 
   ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_node_env.sh)"
+  bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_node_env.sh)"
   ```
 
 ---
@@ -242,7 +245,7 @@
   > 您必须使用 `sudo` 来运行此脚本，因为它需要修改系统级的 Docker 服务配置。
 
   ```bash
-  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_docker_proxy.sh)"
+  sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_docker_proxy.sh)"
   ```
 
 ---
@@ -278,7 +281,7 @@
   > 您必须使用 `sudo` 来运行此脚本，因为它需要修改系统级的用户和组配置。
 
   ```bash
-  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_docker_nopasswd.sh)"
+  sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_docker_nopasswd.sh)"
   ```
 
 ---
@@ -317,7 +320,7 @@
   > 此脚本不需要 `sudo` 权限。它会引导您完成对当前用户环境的配置。
 
   ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_proxy_config.sh)"
+  bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_proxy_config.sh)"
   ```
 
   **通过代理执行**
@@ -327,13 +330,13 @@
   - **对于 HTTP 代理:**
 
     ```bash
-    bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_proxy_config.sh --proxy http://your-proxy-host:port)"
+    bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_proxy_config.sh --proxy http://your-proxy-host:port)"
     ```
 
   - **对于 SOCKS5 代理:**
 
     ```bash
-    bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_proxy_config.sh --proxy socks5h://your-proxy-host:port)"
+    bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_proxy_config.sh --proxy socks5h://your-proxy-host:port)"
     ```
 
     > `socks5h` 表示代理会为您解析域名，这通常是您想要的。
@@ -370,7 +373,7 @@
   > 此脚本不需要 sudo 权限。它会自动为你打理好一切。
 
   ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_ssh_access.sh)"
+  bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_ssh_access.sh)"
   ```
 
 ---
@@ -407,7 +410,7 @@
   > 在您的本地计算机上运行此命令，它会引导您完成配置。
 
   ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/add_ssh_config.sh)"
+  bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/add_ssh_config.sh)"
   ```
 
 ---
@@ -445,7 +448,7 @@
   > 你无需克隆本仓库，可以直接在终端中运行以下命令来执行脚本。
 
   ```bash
-  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_en_dirs.sh)"
+  sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_en_dirs.sh)"
   ```
 
   脚本会自动检测并为你完成所有配置。完成后，请务必**注销并重新登录**系统，以使所有更改生效！
@@ -490,7 +493,7 @@
   > **警告：** 在执行以下命令前，请确保您完全理解其含义和潜在风险。
 
   ```bash
-  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_sudo_nopasswd.sh)"
+  sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_sudo_nopasswd.sh)"
   ```
 
 ---
@@ -524,7 +527,7 @@
   > 如果您想撤销某个脚本的配置，运行此命令即可。
 
   ```bash
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/restore_shell_backup.sh)"
+  bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/restore_shell_backup.sh)"
   ```
 
 ---
