@@ -259,6 +259,7 @@ PROFILE_FILE=""
 
 echo "🔍 检测到您的默认 Shell 是: $SHELL_TYPE"
 
+# 首先根据 $SHELL 确定初始选择
 if [ "$SHELL_TYPE" = "zsh" ]; then
     PROFILE_FILE="$HOME/.zshrc"
 elif [ "$SHELL_TYPE" = "bash" ]; then
@@ -307,6 +308,19 @@ if [ -z "$PROFILE_FILE" ]; then
 fi
 
 echo "🔧 将使用配置文件: $PROFILE_FILE"
+
+# 提供交互式确认，让用户可以手动选择
+# 检查是否同时存在 .zshrc 和 .bashrc
+if [ -f "$HOME/.zshrc" ] && [ -f "$HOME/.bashrc" ] && [ "$PROFILE_FILE" != "$HOME/.zshrc" ]; then
+    echo ""
+    echo "⚠️  注意: 检测到您同时拥有 ~/.zshrc 和 ~/.bashrc 文件。"
+    echo "   如果检测结果不正确，您可以手动选择要使用的配置文件。"
+    read -p "是否使用 ~/.zshrc 代替 $PROFILE_FILE？ (y/N): " use_zshrc
+    if [[ "$use_zshrc" =~ ^[Yy]$ ]]; then
+        PROFILE_FILE="$HOME/.zshrc"
+        echo "  -> 已切换到 $PROFILE_FILE"
+    fi
+fi
 
 # --- 写入操作 ---
 read -p "确定要将代理配置写入到 '$PROFILE_FILE' 吗？ (Y/n): " confirm_write

@@ -121,6 +121,8 @@
   bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_zsh_p10k.sh)"
   ```
 
+  > 💡 **提示**：脚本会自动检测您的默认 Shell 并在需要时提示您是否将 Zsh 设置为默认 Shell。
+
 ---
 
 ### `setup_python_env.sh`
@@ -206,6 +208,8 @@
   ```bash
   bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_node_env.sh)"
   ```
+
+  > 💡 **提示**：`nvm` 的安装脚本会自动将配置写入您的 Shell 配置文件（`.bashrc`、`.zshrc` 等）。
 
 ---
 
@@ -319,8 +323,20 @@
 
   > 此脚本不需要 `sudo` 权限。它会引导您完成对当前用户环境的配置。
 
+  **推荐方式（自动检测 Shell）：**
+
   ```bash
   bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_proxy_config.sh)"
+  ```
+
+  > ⚠️ **注意**：脚本会根据 `$SHELL` 环境变量自动检测您的默认 Shell。如果您同时拥有 `.zshrc` 和 `.bashrc` 文件，脚本会在检测到可能的不匹配时提示您手动选择。
+
+  **明确指定 Shell（推荐 Zsh 用户使用）：**
+
+  如果您使用 Zsh 但担心自动检测不准确，可以明确使用 `zsh` 来执行脚本：
+
+  ```bash
+  zsh -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_proxy_config.sh)"
   ```
 
   **通过代理执行**
