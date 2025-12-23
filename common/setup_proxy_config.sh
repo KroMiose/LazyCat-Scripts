@@ -253,29 +253,60 @@ EOM
 fi
 
 # --- 检测 Shell 配置文件 ---
+# 优先使用用户的默认 Shell ($SHELL)，这是用户真正在使用的 Shell
 SHELL_TYPE=$(basename "$SHELL")
 PROFILE_FILE=""
+
+echo "🔍 检测到您的默认 Shell 是: $SHELL_TYPE"
+
 if [ "$SHELL_TYPE" = "zsh" ]; then
     PROFILE_FILE="$HOME/.zshrc"
 elif [ "$SHELL_TYPE" = "bash" ]; then
     PROFILE_FILE="$HOME/.bashrc"
 else
-    echo "⚠️ 警告: 未能自动检测到您的 Shell 类型 ($SHELL_TYPE)。" >&2
+    echo "⚠️ 警告: 未能识别您的 Shell 类型 ($SHELL_TYPE)。" >&2
     echo "脚本将尝试在 ~/.zshrc 和 ~/.bashrc 中寻找。" >&2
     if [ -f "$HOME/.zshrc" ]; then
         PROFILE_FILE="$HOME/.zshrc"
+        echo "  -> 找到 ~/.zshrc，将使用它。"
     elif [ -f "$HOME/.bashrc" ]; then
         PROFILE_FILE="$HOME/.bashrc"
+        echo "  -> 找到 ~/.bashrc，将使用它。"
+    fi
+fi
+
+# 如果检测到的配置文件不存在，提供选择
+if [ -n "$PROFILE_FILE" ] && [ ! -f "$PROFILE_FILE" ]; then
+    echo "⚠️ 警告: 配置文件 $PROFILE_FILE 不存在。" >&2
+    # 尝试查找其他可用的配置文件
+    if [ -f "$HOME/.zshrc" ]; then
+        echo "  -> 找到 ~/.zshrc"
+        read -p "是否使用 ~/.zshrc 代替？ (Y/n): " use_alt
+        use_alt=${use_alt:-Y}
+        if [[ "$use_alt" =~ ^[Yy]$ ]]; then
+            PROFILE_FILE="$HOME/.zshrc"
+        else
+            PROFILE_FILE=""
+        fi
+    elif [ -f "$HOME/.bashrc" ]; then
+        echo "  -> 找到 ~/.bashrc"
+        read -p "是否使用 ~/.bashrc 代替？ (Y/n): " use_alt
+        use_alt=${use_alt:-Y}
+        if [[ "$use_alt" =~ ^[Yy]$ ]]; then
+            PROFILE_FILE="$HOME/.bashrc"
+        else
+            PROFILE_FILE=""
+        fi
     fi
 fi
 
 if [ -z "$PROFILE_FILE" ]; then
-    echo "❌ 错误: 找不到 ~/.zshrc 或 ~/.bashrc 文件。" >&2
+    echo "❌ 错误: 找不到合适的 Shell 配置文件。" >&2
     echo "请您手动将配置添加到您的 Shell 启动文件中。" >&2
     exit 1
 fi
 
-echo "🔧 检测到您的 Shell 配置文件是: $PROFILE_FILE"
+echo "🔧 将使用配置文件: $PROFILE_FILE"
 
 # --- 写入操作 ---
 read -p "确定要将代理配置写入到 '$PROFILE_FILE' 吗？ (Y/n): " confirm_write

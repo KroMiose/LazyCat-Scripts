@@ -245,17 +245,24 @@ echo "✅ .zshrc 配置完成。"
 
 # --- Set Zsh as default shell ---
 # Check if zsh was just installed or if the current shell is not zsh
+CURRENT_SHELL=$(basename "$SHELL")
+echo ""
+echo "🔍 检测到您当前的默认 Shell 是: $CURRENT_SHELL"
+
 if [[ " ${missing_cmds[*]} " =~ " zsh " ]] || [[ "$SHELL" != */zsh ]]; then
     read -p "是否要将 Zsh 设置为您的默认 Shell？ (Y/n): " confirm_chsh
     confirm_chsh=${confirm_chsh:-Y}
     if [[ "$confirm_chsh" =~ ^[Yy]$ ]]; then
         echo "⏳ 正在尝试将默认 Shell 更改为 Zsh。此过程可能需要您的密码。"
         if chsh -s "$(command -v zsh)"; then
-            echo "✅ 默认 Shell 已成功更改。"
+            echo "✅ 默认 Shell 已成功更改为 Zsh。"
+            echo "   注意: 需要注销并重新登录后才会完全生效。"
         else
             echo "⚠️  自动更改默认 Shell 失败。您可以手动运行此命令尝试: chsh -s $(command -v zsh)"
         fi
     fi
+else
+    echo "✅ 您的默认 Shell 已经是 Zsh，无需更改。"
 fi
 
 # --- 完成后提示 ---
