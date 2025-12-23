@@ -5,7 +5,7 @@
 # 功    能: 查找并恢复由本系列脚本创建的 Shell 配置文件备份。
 #           它会列出所有找到的备份文件，并允许用户选择一个进行恢复。
 # 适用系统: 所有主流 Linux 发行版及 macOS
-# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/restore_shell_backup.sh)"
+# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/restore_shell_backup.sh)"
 # ==============================================================================
 
 set -e

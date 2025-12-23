@@ -6,7 +6,7 @@
 #           以及 zsh-autosuggestions 和 zsh-syntax-highlighting 插件。
 #           它会自动处理 git, curl, zsh 的依赖安装。
 # 适用系统: 主流 Linux (Debian/Ubuntu, RHEL/CentOS, Arch) & macOS
-# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/setup_zsh_p10k.sh)"
+# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_zsh_p10k.sh)"
 # ==============================================================================
 
 set -e

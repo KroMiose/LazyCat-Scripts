@@ -6,7 +6,7 @@
 #           将公钥添加到 authorized_keys 中，然后显示私钥，
 #           以便您可以从其他计算机使用此私钥登录。
 # 适用系统: 所有 Linux & macOS 系统
-# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/setup_ssh_access.sh)"
+# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_ssh_access.sh)"
 # ==============================================================================
 
 set -e # 如果任何命令失败，则立即退出

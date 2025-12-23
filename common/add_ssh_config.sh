@@ -5,7 +5,7 @@
 # 功    能: 交互式地将一个新的 SSH 服务器配置添加到 ~/.ssh/config 文件中，
 #           方便用户通过别名快速登录。
 # 适用系统: 所有 Linux & macOS 系统
-# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/scripts/main/linux/add_ssh_config.sh)"
+# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/add_ssh_config.sh)"
 # ==============================================================================
 
 set -e
