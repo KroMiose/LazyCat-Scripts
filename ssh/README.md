@@ -63,7 +63,7 @@ sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/ca/la
 
 #### 3.1 准备配置源 (Gist)
 
-管理员需创建一个 **Secret Gist** (gist.github.com)，文件名为 `lazycat.yaml`，内容示例：
+管理员需创建一个 **Secret Gist** ([gist.new](https://gist.new))，文件名为 `lazycat.yaml`，内容示例：
 
 ```yaml
 version: 1
