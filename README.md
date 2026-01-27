@@ -49,13 +49,14 @@
 |  🔌  | [`setup_proxy_config.sh`](#setup_proxy_configsh) | 交互式地为 Shell 配置 `proxy` 和 `unproxy` 代理命令。 |  Linux & macOS  |
 |  🔑  | [`setup_ssh_access.sh`](#setup_ssh_accesssh)     | 在服务器上一键配置 SSH 免密登录并返回私钥。           |  Linux & macOS  |
 |  ⚙️  | [`add_ssh_config.sh`](#add_ssh_configsh)         | 在本地通过交互式向导添加 SSH 服务器连接配置。         |  Linux & macOS  |
+|  🔐  | [`ssh/`](./ssh/README.md)                        | SSH 管理模块：Gist 同步配置 + 可选 SSH CA。           |  Linux & macOS  |
 
 ### ⚙️ 系统配置 (System Configuration)
 
 | 图标 | 脚本名称 (Script)                                  | 主要功能 (Main Function)                     | 平台 (Platform) |
 | :--: | :------------------------------------------------- | :------------------------------------------- | :-------------: |
 |  📂  | [`setup_en_dirs.sh`](#setup_en_dirssh)             | 将中文用户目录（桌面、下载等）重命名为英文。 |      Linux      |
-| ⚡️  | [`setup_sudo_nopasswd.sh`](#setup_sudo_nopasswdsh) | 为当前用户配置免密 `sudo` (高风险!)。        |      Linux      |
+|  ⚡️  | [`setup_sudo_nopasswd.sh`](#setup_sudo_nopasswdsh) | 为当前用户配置免密 `sudo` (高风险!)。        |      Linux      |
 
 ### 🛡️ 维护与恢复 (Maintenance & Recovery)
 
@@ -74,9 +75,14 @@
 > ⚠️ 注意: 为了提高国内用户访问可达性，下列所有一键执行命令都使用了 [NekroEndpoint 边缘端点平台](https://ep.nekro.ai) 的代理加速服务。
 > [NekroEndpoint](https://ep.nekro.ai) 是基于 Cloudflare Workers 构建的边缘端点编排平台，支持静态内容返回、代理转发、动态脚本执行三类端点，提供权限组、访问密钥等细粒度权限控制，依托全球 300 + 节点实现毫秒级响应，可用于 API 代理聚合、Webhook 处理等场景。
 
+<!-- markdownlint-disable MD033 -->
+
 ---
 
 ### `setup_zsh_p10k.sh`
+
+<details>
+<summary><strong>概述：</strong>一键配置 Zsh + Oh My Zsh + Powerlevel10k（可选），会修改 <code>~/.zshrc</code> 并生成备份。</summary>
 
 一键为您配置一个功能强大且外观酷炫的 Zsh 终端环境。它会自动处理 `git`, `curl`, `zsh` 的安装，配置 Oh My Zsh，并**可选地**安装 Powerlevel10k 主题以及两个必备插件。
 
@@ -123,9 +129,14 @@
 
   > 💡 **提示**：脚本会自动检测您的默认 Shell 并在需要时提示您是否将 Zsh 设置为默认 Shell。
 
+</details>
+
 ---
 
 ### `setup_python_env.sh`
+
+<details>
+<summary><strong>概述：</strong>一键搭建现代 Python 工具链（pyenv/poetry/pdm/uv），会安装系统依赖并写入 Shell 配置。</summary>
 
 这是一个功能强大的交互式配置向导，旨在为您一键搭建一个完整、现代化的 Python 开发环境。它会为您安装并配置好 `pyenv`, `poetry`, `pdm` 和 `uv`。
 
@@ -168,9 +179,14 @@
   sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_python_env.sh)"
   ```
 
+</details>
+
 ---
 
 ### `setup_node_env.sh`
+
+<details>
+<summary><strong>概述：</strong>安装/配置 nvm + Node.js（可选 pnpm/yarn），可能修改 shell 启动文件以加载 nvm（不要用 sudo）。</summary>
 
 这是一个交互式脚本，可以帮助您在 Linux 和 macOS 上快速搭建一个完整、灵活的 Node.js 开发环境。它使用 `nvm` (Node Version Manager) 来管理 Node.js 版本，并能可选地为您安装 `yarn` 和 `pnpm` 等流行的包管理器。
 
@@ -211,9 +227,14 @@
 
   > 💡 **提示**：`nvm` 的安装脚本会自动将配置写入您的 Shell 配置文件（`.bashrc`、`.zshrc` 等）。
 
+</details>
+
 ---
 
 ### `setup_docker_proxy.sh`
+
+<details>
+<summary><strong>概述：</strong>为 Docker 守护进程配置/移除代理（systemd drop-in），会修改 systemd 配置并可能重启 Docker（需 sudo）。</summary>
 
 这是一个在您的 Linux 服务器上运行的交互式脚本，专门用于为 Docker 守护进程配置或移除 HTTP/HTTPS 代理。当您的服务器需要通过代理才能拉取或推送镜像时，这个脚本将极大地简化您的配置过程。
 
@@ -252,9 +273,14 @@
   sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_docker_proxy.sh)"
   ```
 
+</details>
+
 ---
 
 ### `setup_docker_nopasswd.sh`
+
+<details>
+<summary><strong>概述：</strong>把当前用户加入 docker 组实现免 sudo（安全模型变化很大），会修改系统用户组（需 sudo）。</summary>
 
 这是一个安全便捷的脚本，用于将当前用户添加到 `docker` 用户组，从而允许您在不使用 `sudo` 的情况下直接运行所有 `docker` 命令。
 
@@ -288,9 +314,14 @@
   sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_docker_nopasswd.sh)"
   ```
 
+</details>
+
 ---
 
 ### `setup_proxy_config.sh`
+
+<details>
+<summary><strong>概述：</strong>为当前用户生成 proxy/unproxy 命令（可测试代理），会向 <code>~/.zshrc</code>/<code>~/.bashrc</code> 写入可更新的标记块并自动备份。</summary>
 
 这是一个交互式脚本，可以帮助您快速地为您的 Shell 环境配置代理。您可以选择只在当前终端临时生效，也可以将其永久写入您的 `.bashrc` 或 `.zshrc` 文件中，并生成极其方便的 `proxy` 和 `unproxy` 命令。
 
@@ -357,9 +388,14 @@
 
     > `socks5h` 表示代理会为您解析域名，这通常是您想要的。
 
+</details>
+
 ---
 
 ### `setup_ssh_access.sh`
+
+<details>
+<summary><strong>概述：</strong>在服务器上生成 SSH 密钥并写入 authorized_keys，然后把私钥内容直接输出（注意妥善保存私钥）。</summary>
 
 在新服务器上为当前用户一键配置好 SSH 免密登录。它会创建一个专用的密钥对，将公钥自动配置好，然后把**私钥**显示出来让你带走。
 
@@ -392,9 +428,14 @@
   bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_ssh_access.sh)"
   ```
 
+</details>
+
 ---
 
 ### `add_ssh_config.sh`
+
+<details>
+<summary><strong>概述：</strong>交互式向 <code>~/.ssh/config</code> 添加/更新一个 Host（可粘贴私钥并保存），会自动创建时间戳备份。</summary>
 
 这是一个在您的**本地计算机**或**控制端**上运行的交互式脚本。它可以帮助您快速地将一个新服务器的连接信息添加到 `~/.ssh/config` 文件中，让您之后可以通过一个简单的别名 (如 `ssh my-server`) 直接登录。
 
@@ -429,9 +470,44 @@
   bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/add_ssh_config.sh)"
   ```
 
+</details>
+
+---
+
+### `ssh/`（SSH 管理模块）
+
+<details>
+<summary><strong>概述：</strong>用 Secret Gist 的 YAML 管理 SSH 主机清单，控制端同步生成配置；可选短有效期证书自动续期。</summary>
+
+这是一个独立的 SSH 管理模块，提供“**标准 YAML（Secret Gist）作为单一事实源** → **控制端只读同步生成 SSH 配置**”，并可选启用 **SSH CA**（Node 端 TrustedUserCAKeys / CA 端离线签发证书）。
+
+- **📌 使用入口与说明文档：** [`ssh/README.md`](./ssh/README.md)
+- **🚀 控制端一键执行（安装/运行 `lazycat-ssh`）：**
+
+  ```bash
+  bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/client/lazycat-ssh.sh)"
+  ```
+
+- **🚀 被访问端一键执行（Node，需 sudo）：**
+
+  ```bash
+  sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/node/lazycat-ssh-node.sh)"
+  ```
+
+- **⚠️ CA 管理端：** 建议在可信环境运行（会在本机生成并保存 CA 私钥）。
+
+  ```bash
+  bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/ca/lazycat-ssh-ca.sh)"
+  ```
+
+</details>
+
 ---
 
 ### `setup_en_dirs.sh`
+
+<details>
+<summary><strong>概述：</strong>把 Linux 家目录下的中文目录名改成英文（Desktop/Downloads 等），会移动文件并修改相关配置（需 sudo）。</summary>
 
 这个脚本可以帮助你在一个全新的、语言设置为中文的 Linux 系统上，将家目录下的"桌面"、"文档"、"下载"等文件夹的名字从中文替换为标准的英文名（如 `Desktop`, `Documents`, `Downloads`），并帮你把旧文件夹里的东西都搬到新家。
 
@@ -469,9 +545,14 @@
 
   脚本会自动检测并为你完成所有配置。完成后，请务必**注销并重新登录**系统，以使所有更改生效！
 
+</details>
+
 ---
 
 ### `setup_sudo_nopasswd.sh`
+
+<details>
+<summary><strong>概述：</strong>启用/移除免密 sudo（高风险），会写入 <code>/etc/sudoers.d/</code> 并改变系统安全模型（需 sudo）。</summary>
 
 这是一个存在风险但可能在特定场景下（如自动化脚本、受信任的开发环境）非常有用的工具。它通过交互式向导，帮助您为当前用户安全地启用或禁用免密 `sudo` 权限。
 
@@ -512,9 +593,14 @@
   sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_sudo_nopasswd.sh)"
   ```
 
+</details>
+
 ---
 
 ### `restore_shell_backup.sh`
+
+<details>
+<summary><strong>概述：</strong>列出本仓库脚本生成的 .bak 备份，选择一个恢复或清理（会覆盖原文件）。</summary>
 
 这是一个安全工具，旨在帮助您轻松地撤销由本仓库其他脚本对 Shell 环境所做的更改。它会自动扫描、列出所有由我们的脚本创建的备份文件，并允许您选择其中一个进行一键恢复。
 
@@ -546,6 +632,10 @@
   bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/restore_shell_backup.sh)"
   ```
 
+</details>
+
 ---
 
 > ✨ 更多好用的脚本正在制作中，敬请期待！
+
+<!-- markdownlint-enable MD033 -->
