@@ -125,7 +125,11 @@ lc_self_install_if_needed() {
   # 安装 common.sh
   local lib_src=""
   if [[ -n "${BASH_SOURCE[0]:-}" ]] && [[ -f "${BASH_SOURCE[0]}" ]]; then
-    lib_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/common.sh" || true
+    local potential_lib_dir
+    potential_lib_dir="$(dirname "${BASH_SOURCE[0]}")/../lib"
+    if [[ -d "$potential_lib_dir" ]] && [[ -f "$potential_lib_dir/common.sh" ]]; then
+       lib_src="$(cd "$potential_lib_dir" && pwd)/common.sh"
+    fi
   fi
   if [[ -n "$lib_src" ]] && [[ -f "$lib_src" ]]; then
     cp "$lib_src" "${LAZYCAT_SSH_HOME}/lib/common.sh"
@@ -530,7 +534,7 @@ lc_sync_from_raw_url() {
 
   local tmp_yaml
   tmp_yaml="$(mktemp)"
-  trap 'rm -f "$tmp_yaml"' RETURN
+  trap 'rm -f "${tmp_yaml:-}"' RETURN
 
   lc_log "⏳ 正在拉取配置..."
   curl -fsSL "$RAW_URL" -o "$tmp_yaml"
@@ -618,9 +622,19 @@ lc_sync_from_raw_url() {
   lc_backup_file "$SSH_CONFIG"
   lc_remove_marked_block "$SSH_CONFIG" "$LC_MARK_BEGIN_SSH_CONFIG" "$LC_MARK_END_SSH_CONFIG"
 
-  local include_block="Match all
-Include ${LAZYCAT_CONF}"
-  lc_append_marked_block "$SSH_CONFIG" "$LC_MARK_BEGIN_SSH_CONFIG" "$include_block" "$LC_MARK_END_SSH_CONFIG"
+  local include_block="Include ${LAZYCAT_CONF}"
+  
+  # Prepend the block to the top of the file to ensure global scope
+  local tmp_config
+  tmp_config="$(mktemp)"
+  {
+    printf '%s\n' "$LC_MARK_BEGIN_SSH_CONFIG"
+    printf '%s\n' "$include_block"
+    printf '%s\n' "$LC_MARK_END_SSH_CONFIG"
+    cat "$SSH_CONFIG"
+  } > "$tmp_config"
+  mv "$tmp_config" "$SSH_CONFIG"
+  chmod 600 "$SSH_CONFIG"
 
   lc_log "✅ 同步完成："
   lc_log "  - 写入: ${LAZYCAT_CONF}"
