@@ -99,15 +99,24 @@ lc_self_install_if_needed() {
     installed=1
   fi
 
+  # 如果已安装，且当前脚本不是已安装的那一个（说明是通过 curl 或其它路径运行的），则进行更新
   if [[ $installed -eq 1 ]]; then
-    return 0
+     if [[ "${BASH_SOURCE[0]}" != "$target_bin" ]]; then
+       lc_log "🔄 检测到本地已安装脚本，正在更新..."
+     else
+       return 0
+     fi
+  else
+    lc_log "🔧 检测到未安装命令，准备安装到: ${target_bin}"
   fi
 
-  lc_log "🔧 检测到未安装命令，准备安装到: ${target_bin}"
   lc_log "   安装目录: ${LAZYCAT_SSH_HOME}"
 
-  if ! lc_confirm "确认安装到本地用户目录（不会修改系统级文件）？" "Y"; then
-    lc_die "用户取消安装。"
+  # 只有首次安装需要确认，更新默认自动进行（除非用户在上面逻辑中被过滤掉）
+  if [[ $installed -eq 0 ]]; then
+    if ! lc_confirm "确认安装到本地用户目录（不会修改系统级文件）？" "Y"; then
+      lc_die "用户取消安装。"
+    fi
   fi
 
   mkdir -p "${LAZYCAT_SSH_BIN_DIR}"
@@ -135,13 +144,39 @@ lc_self_install_if_needed() {
   fi
   chmod 755 "$target_bin"
 
-  lc_log "✅ 安装完成：${target_bin}"
-  if [[ ":$PATH:" != *":${LAZYCAT_SSH_BIN_DIR}:"* ]]; then
-    lc_log ""
-    lc_log "⚠️  提示：你的 PATH 中似乎不包含 ${LAZYCAT_SSH_BIN_DIR}"
-    lc_log "   你可以重启终端，或手动将其加入 PATH。"
+  if [[ $installed -eq 0 ]]; then
+    lc_log "✅ 安装完成：${target_bin}"
+    if [[ ":$PATH:" != *":${LAZYCAT_SSH_BIN_DIR}:"* ]]; then
+      lc_log ""
+      lc_log "⚠️  提示：你的 PATH 中似乎不包含 ${LAZYCAT_SSH_BIN_DIR}"
+      lc_log "   你可以重启终端，或手动将其加入 PATH。"
+    fi
+  else
+    lc_log "✅ 脚本已更新为最新版本。"
   fi
   lc_log ""
+}
+
+lc_uninstall_all() {
+  lc_require_not_root
+  
+  lc_log "⚠️  即将执行完整卸载操作..."
+  if ! lc_confirm "确认移除 LazyCat SSH 所有配置、证书及后台服务？" "N"; then
+    return 0
+  fi
+
+  lc_uninstall_renew_timer
+  lc_remove_shell_alias
+  lc_uninstall
+
+  if [[ -f "${LAZYCAT_SSH_BIN_DIR}/lazycat-ssh" ]]; then
+    if lc_confirm "是否同时删除命令脚本文件 (${LAZYCAT_SSH_BIN_DIR}/lazycat-ssh)？" "Y"; then
+      rm -f "${LAZYCAT_SSH_BIN_DIR}/lazycat-ssh"
+      lc_log "✅ 已删除脚本文件。"
+    fi
+  fi
+  
+  lc_log "👋 卸载完成。"
 }
 
 lc_meta_write() {
@@ -209,14 +244,21 @@ lc_parse_gist_json_select_file() {
   local gist_base="${gist_url%%#*}"
   gist_base="${gist_base%/}"
 
-  # Gist URL 通常是 https://gist.github.com/<user>/<id>
-  local json_url="${gist_base}.json"
+  # Extract Gist ID: last component of the path
+  local gist_id="${gist_base##*/}"
+  # Remove potential suffixes if user pasted a derived URL
+  gist_id="${gist_id%.json}"
+  gist_id="${gist_id%.git}"
+
+  # Use GitHub API
+  local json_url="https://api.github.com/gists/${gist_id}"
 
   local tmp_json
   tmp_json="$(mktemp)"
   trap 'rm -f "$tmp_json"' RETURN
 
   lc_need_cmd curl
+  lc_log "⏳ 正在获取 Gist 信息..." >&2
   curl -fsSL "$json_url" -o "$tmp_json"
 
   # files: keys
@@ -244,14 +286,14 @@ lc_parse_gist_json_select_file() {
     shown=("${other_files[@]}")
   fi
 
-  lc_log ""
-  lc_log "请选择要使用的配置文件："
+  lc_log "" >&2
+  lc_log "请选择要使用的配置文件：" >&2
   local i=1
   for f in "${shown[@]}"; do
-    lc_log "  ${i}) ${f}"
+    lc_log "  ${i}) ${f}" >&2
     i=$((i + 1))
   done
-  lc_log ""
+  lc_log "" >&2
 
   local choice=""
   read -r -p "请输入编号（直接回车取消）: " choice
@@ -403,18 +445,21 @@ lc_ca_fetch_and_sign_cert() {
   lc_validate_ca_ssh_host "$ca_ssh_host"
 
   # 默认路径：lazycat-ssh-ca 初始化后的默认位置（减少暴露细节）
-  ca_key_path="$(yq -r '.ca.caKeyPath // \"~/.lazycat/ssh-ca/lazycat-ssh-ca\"' "$tmp_yaml")"
+  ca_key_path="$(yq -r '.ca.caKeyPath // "~/.lazycat/ssh-ca/lazycat-ssh-ca"' "$tmp_yaml")"
   lc_validate_remote_path "$ca_key_path"
 
-  ca_principals="$(yq -r '.ca.principals // \"root\"' "$tmp_yaml")"
-  ca_validity="$(yq -r '.ca.validity // \"12h\"' "$tmp_yaml")"
+  ca_principals="$(yq -r '.ca.principals // "root"' "$tmp_yaml")"
+  ca_validity="$(yq -r '.ca.validity // "12h"' "$tmp_yaml")"
 
   lc_validate_principals "$ca_principals"
   lc_validate_validity "$ca_validity"
 
   lc_ensure_ca_keypair
 
-  # 为后台任务保证“无交互”：\n  # - StrictHostKeyChecking=yes：未知主机直接失败（请先手动 ssh 一次写入 known_hosts）\n  # - BatchMode=yes：任何需要交互输入的场景直接失败\n  # - ConnectTimeout：避免长时间卡住\n+  local ssh_base=(ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=10)
+  # - StrictHostKeyChecking=yes：未知主机直接失败（请先手动 ssh 一次写入 known_hosts）
+  # - BatchMode=yes：任何需要交互输入的场景直接失败
+  # - ConnectTimeout：避免长时间卡住
+  local ssh_base=(ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=10)
   ssh_base+=( "${ca_ssh_host}" )
 
   lc_log "⏳ 正在向 CA 服务器请求签发证书（${ca_ssh_host}，有效期：${ca_validity}，principals：${ca_principals}）..."
@@ -446,6 +491,39 @@ lc_sync_from_raw_url() {
   lc_need_cmd curl
 
   lc_meta_load || lc_die "尚未配置 Gist/RAW_URL，请先运行“Gist 引导与配置”。"
+  
+  # 尝试动态解析最新的 RAW_URL (如果有 GIST_URL 和 FILE_NAME)
+  if [[ -n "${GIST_URL:-}" ]] && [[ -n "${FILE_NAME:-}" ]]; then
+    lc_log "🔄 正在检查 Gist 最新版本..."
+    local gist_base="${GIST_URL%%#*}"
+    gist_base="${gist_base%/}"
+    local gist_id="${gist_base##*/}"
+    # Remove potential suffixes
+    gist_id="${gist_id%.json}"
+    gist_id="${gist_id%.git}"
+    
+    local json_url="https://api.github.com/gists/${gist_id}"
+    local tmp_json
+    tmp_json="$(mktemp)"
+    
+    if curl -fsSL "$json_url" -o "$tmp_json"; then
+       local latest_raw_url
+       latest_raw_url="$(FILE_NAME="$FILE_NAME" yq -r '.files[env(FILE_NAME)].raw_url' "$tmp_json")"
+       
+       if [[ -n "$latest_raw_url" ]] && [[ "$latest_raw_url" != "null" ]]; then
+         if [[ "$latest_raw_url" != "$RAW_URL" ]]; then
+           lc_log "   发现新版本，更新 RAW_URL..."
+           RAW_URL="$latest_raw_url"
+           # 更新本地 meta 文件
+           lc_meta_write "$GIST_URL" "$RAW_URL" "$FILE_NAME"
+         fi
+       fi
+    else
+       lc_log "⚠️  无法连接 GitHub API 获取最新版本，将使用本地缓存的 URL。"
+    fi
+    rm -f "$tmp_json"
+  fi
+
   if [[ -z "${RAW_URL:-}" ]]; then
     lc_die "meta.env 中缺少 RAW_URL，请重新配置。"
   fi
@@ -464,7 +542,7 @@ lc_sync_from_raw_url() {
     lc_die "YAML 缺少 version 字段。"
   fi
   local hosts_type
-  hosts_type="$(yq -r 'type(.hosts)' "$tmp_yaml")"
+  hosts_type="$(yq -r '.hosts | tag' "$tmp_yaml")"
   if [[ "$hosts_type" != "!!map" ]]; then
     lc_die "YAML hosts 必须为 map（如：hosts: { alias: {...} }）。"
   fi
@@ -540,7 +618,8 @@ lc_sync_from_raw_url() {
   lc_backup_file "$SSH_CONFIG"
   lc_remove_marked_block "$SSH_CONFIG" "$LC_MARK_BEGIN_SSH_CONFIG" "$LC_MARK_END_SSH_CONFIG"
 
-  local include_block="Include ${LAZYCAT_CONF}"
+  local include_block="Match all
+Include ${LAZYCAT_CONF}"
   lc_append_marked_block "$SSH_CONFIG" "$LC_MARK_BEGIN_SSH_CONFIG" "$include_block" "$LC_MARK_END_SSH_CONFIG"
 
   lc_log "✅ 同步完成："
@@ -712,33 +791,139 @@ lc_uninstall() {
   lc_log "✅ 已移除 LazyCat SSH 配置。"
 }
 
+lc_detect_profile() {
+  local shell_type
+  shell_type="$(basename "$SHELL")"
+  local profile_file=""
+  
+  if [[ "$shell_type" == "zsh" ]]; then
+    profile_file="$HOME/.zshrc"
+  elif [[ "$shell_type" == "bash" ]]; then
+    profile_file="$HOME/.bashrc"
+  elif [[ -f "$HOME/.zshrc" ]]; then
+    profile_file="$HOME/.zshrc"
+  elif [[ -f "$HOME/.bashrc" ]]; then
+    profile_file="$HOME/.bashrc"
+  fi
+  echo "$profile_file"
+}
+
+lc_register_shell_alias() {
+  local profile_file
+  profile_file="$(lc_detect_profile)"
+  
+  if [[ -z "$profile_file" ]]; then
+    lc_err "❌ 未能自动检测到 Shell 配置文件 (.zshrc/.bashrc)，跳过别名注册。"
+    return 1
+  fi
+
+  local sync_cmd="lazycat-ssh sync"
+  # 使用完整路径以防 PATH 问题
+  if [[ -x "${LAZYCAT_SSH_BIN_DIR}/lazycat-ssh" ]]; then
+    sync_cmd="${LAZYCAT_SSH_BIN_DIR}/lazycat-ssh sync"
+  fi
+
+  local alias_name="lazy-ssh-sync"
+  local block_content="alias ${alias_name}='${sync_cmd}'"
+
+  local begin_mark="# >>> LazyCat SSH Alias BEGIN >>>"
+  local end_mark="# <<< LazyCat SSH Alias END <<<"
+
+  lc_backup_file "$profile_file"
+  lc_remove_marked_block "$profile_file" "$begin_mark" "$end_mark"
+  lc_append_marked_block "$profile_file" "$begin_mark" "$block_content" "$end_mark"
+
+  lc_log "✅ 已将快捷命令注册到: $profile_file"
+  lc_log "   命令: ${alias_name}"
+  lc_log "   请运行 'source $profile_file' 或重启终端以生效。"
+}
+
+lc_remove_shell_alias() {
+  local profile_file
+  profile_file="$(lc_detect_profile)"
+
+  if [[ -z "$profile_file" || ! -f "$profile_file" ]]; then
+    return 0
+  fi
+
+  local begin_mark="# >>> LazyCat SSH Alias BEGIN >>>"
+  local end_mark="# <<< LazyCat SSH Alias END <<<"
+
+  if grep -qF "$begin_mark" "$profile_file"; then
+     lc_backup_file "$profile_file"
+     lc_remove_marked_block "$profile_file" "$begin_mark" "$end_mark"
+     lc_log "✅ 已从 $profile_file 移除快捷命令注册。"
+  fi
+}
+
 main_menu() {
   lc_print_header
 
   while true; do
+    # 每次循环重新加载 meta 以获取最新 GIST_URL
+    lc_meta_load >/dev/null 2>&1 || true
+    
+    local gist_option_text="Gist 引导与配置（打开网页指引 + 回填 URL + 选择文件）"
+    if [[ -n "${GIST_URL:-}" ]]; then
+      local gist_id="${GIST_URL##*/}"
+      # 简略显示 ID
+      gist_option_text="更新 Gist 配置 (当前 ID: ${gist_id:0:8}...)"
+    fi
+    
+    local renew_option_text="安装后台自动续期"
+    local renew_installed=0
+    if command -v launchctl >/dev/null 2>&1 && [[ "$(uname)" == "Darwin" ]]; then
+       if [[ -f "$HOME/Library/LaunchAgents/com.lazycat.ssh.renew.plist" ]]; then renew_installed=1; fi
+    elif command -v systemctl >/dev/null 2>&1; then
+       if [[ -f "$HOME/.config/systemd/user/lazycat-ssh-renew.timer" ]]; then renew_installed=1; fi
+    fi
+    
+    if [[ $renew_installed -eq 1 ]]; then
+      renew_option_text="重新安装/更新后台自动续期 (状态: 已安装)"
+    fi
+
+    # 检测 Shell Alias
+    local alias_option_text="注册快捷命令 'lazy-ssh-sync' 到终端"
+    local alias_installed=0
+    local profile_file
+    profile_file="$(lc_detect_profile)"
+    if [[ -n "$profile_file" ]] && [[ -f "$profile_file" ]] && grep -q "# >>> LazyCat SSH Alias BEGIN >>>" "$profile_file"; then
+        alias_installed=1
+        alias_option_text="移除快捷命令 'lazy-ssh-sync' (状态: 已注册)"
+    fi
+
     lc_log "请选择操作："
-    lc_log "  1) Gist 引导与配置（打开网页指引 + 回填 URL + 选择文件）"
-    lc_log "  2) 从 Gist 同步 SSH 配置"
+    lc_log "  1) ${gist_option_text}"
+    lc_log "  2) 同步配置并续签证书"
     lc_log "  3) 查看当前生成的 SSH 配置"
     lc_log "  4) 在浏览器中打开 Gist"
-    lc_log "  5) 证书：立即续期（短有效期）"
-    lc_log "  6) 证书：安装后台自动续期"
-    lc_log "  7) 证书：卸载后台自动续期"
-    lc_log "  8) 卸载 / 移除 LazyCat SSH 配置"
-    lc_log "  9) 退出"
+    lc_log "  5) ${renew_option_text}"
+    lc_log "  6) ${alias_option_text}"
+    lc_log "  7) 卸载 / 移除 LazyCat SSH 所有配置"
     lc_log ""
-    read -r -p "请输入编号: " choice
+    
+    local choice=""
+    read -r -p "请输入编号 (回车退出): " choice
     lc_log ""
+    
+    if [[ -z "$choice" ]]; then
+      exit 0
+    fi
+    
     case "${choice}" in
       1) lc_configure_gist ;;
       2) lc_sync_from_raw_url ;;
       3) lc_show_current ;;
       4) lc_open_gist ;;
-      5) lc_renew_certs ;;
-      6) lc_install_renew_timer ;;
-      7) lc_uninstall_renew_timer ;;
-      8) lc_uninstall ;;
-      9) exit 0 ;;
+      5) lc_install_renew_timer ;;
+      6) 
+         if [[ $alias_installed -eq 0 ]]; then
+           lc_register_shell_alias
+         else
+           lc_remove_shell_alias
+         fi 
+         ;;
+      7) lc_uninstall_all ;;
       *) lc_log "无效选项: ${choice}" ;;
     esac
   done
