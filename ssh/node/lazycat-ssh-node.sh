@@ -119,6 +119,23 @@ lc_paste_ca_pubkey() {
   lc_log "✅ 已写入 CA 公钥: ${CA_PUB_PATH}"
 }
 
+lc_install_with_arg() {
+  local ca_key="$1"
+  if [[ -z "$ca_key" ]]; then
+    lc_die "参数为空，无法配置。"
+  fi
+
+  lc_log "检测到命令行参数，正在自动配置..."
+  
+  # 写入 CA 公钥
+  echo "$ca_key" > "$CA_PUB_PATH"
+  chmod 644 "$CA_PUB_PATH"
+  lc_log "✅ 已写入 CA 公钥: ${CA_PUB_PATH}"
+
+  lc_apply_sshd_config
+  lc_reload_sshd
+}
+
 lc_apply_sshd_config() {
   [[ -f "$SSHD_CONFIG" ]] || lc_die "未找到 sshd_config: ${SSHD_CONFIG}"
 
@@ -241,6 +258,13 @@ main_menu() {
 
 main() {
   lc_require_root
+  
+  # 如果第一个参数看起来像 SSH 公钥，则自动执行
+  if [[ -n "${1:-}" ]] && [[ "$1" == ssh-* ]]; then
+     lc_install_with_arg "$1"
+     exit 0
+  fi
+
   main_menu
 }
 
