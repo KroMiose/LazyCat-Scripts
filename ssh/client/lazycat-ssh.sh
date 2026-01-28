@@ -396,10 +396,10 @@ lc_route_priority() {
   # - default_route=tun：tun > wan > lan
   local route="${1:-lan}"
   case "$route" in
-    lan) printf '%s\n' "lan tun wan" ;;
-    wan) printf '%s\n' "wan tun lan" ;;
-    tun) printf '%s\n' "tun wan lan" ;;
-    *) printf '%s\n' "lan tun wan" ;;
+    lan) printf '%s\n' lan tun wan ;;
+    wan) printf '%s\n' wan tun lan ;;
+    tun) printf '%s\n' tun wan lan ;;
+    *) printf '%s\n' lan tun wan ;;
   esac
 }
 
@@ -442,14 +442,14 @@ lc_pick_best_jump_alias() {
 
   local p=""
   case "$req_route" in
-    lan) p="lan tun wan" ;;
-    wan) p="wan tun lan" ;;
-    tun) p="tun wan lan" ;;
-    *) p="lan tun wan" ;;
+    lan) p="$(printf '%s\n' lan tun wan)" ;;
+    wan) p="$(printf '%s\n' wan tun lan)" ;;
+    tun) p="$(printf '%s\n' tun wan lan)" ;;
+    *) p="$(printf '%s\n' lan tun wan)" ;;
   esac
 
   local r
-  for r in $p; do
+  while IFS= read -r r; do
     local vh=""
     vh="$(VIA="$via_alias" yq -r ".hosts[env(VIA)].${r}_host // .hosts[env(VIA)].${r}Host // .hosts[env(VIA)].${r}.host // \"\"" "$tmp_yaml")"
     [[ "$vh" == "null" ]] && vh=""
@@ -457,7 +457,7 @@ lc_pick_best_jump_alias() {
       printf '%s\n' "${via_alias}-${r}"
       return 0
     fi
-  done
+  done <<<"$p"
 
   printf '%s\n' "$via_alias"
 }
@@ -770,14 +770,14 @@ lc_sync_from_raw_url() {
 
     local base_route=""
     local r
-    for r in $(lc_route_priority "$default_route"); do
+    while IFS= read -r r; do
       case "$r" in
         lan) [[ -n "$lan_host" ]] && base_route="lan" ;;
         wan) [[ -n "$wan_host" ]] && base_route="wan" ;;
         tun) [[ -n "$tun_host" ]] && base_route="tun" ;;
       esac
       [[ -n "$base_route" ]] && break
-    done
+    done < <(lc_route_priority "$default_route")
     if [[ -z "$base_route" ]]; then
       lc_die "hosts.${alias} 未配置任何可用线路：请至少配置 lan_host / wan_host / tun_host 之一。"
     fi
