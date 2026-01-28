@@ -49,10 +49,12 @@ sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/ca/la
 
 2. **在服务器执行**：
    登录到你的目标服务器（如 Ubuntu/CentOS），粘贴并执行该命令：
+
    ```bash
    # 示例（请务必使用 CA 脚本生成的实际命令）
    sudo bash -c "$(curl -fsSL ...)" -- "ssh-ed25519 AAAA..."
    ```
+
    _该操作会自动修改 `/etc/ssh/sshd_config` 添加 `TrustedUserCAKeys` 并重载 sshd。_
 
 ---
@@ -63,28 +65,49 @@ sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/ca/la
 
 #### 3.1 准备配置源 (Gist)
 
-管理员需创建一个 **Secret Gist** ([gist.new](https://gist.new))，文件名为 `lazycat.yaml`，内容示例：
+管理员需创建一个 **Secret Gist**（[gist.new](https://gist.new)）。**文件名不要求固定**（建议：`lazycat-ssh.yaml`），内容示例：
 
 ```yaml
 version: 1
+# 不带后缀的主 alias 默认走哪条线路：lan / wan / tun（默认 lan）
+default_route: lan
 # CA 签发相关配置
 ca:
-  sshHost: my-bastion # 能够 SSH 直连到 CA 管理端的 Host 别名（需提前配好 ~/.ssh/config 或 DNS）
-  sshUser: admin # 连接 CA 端使用的用户
-  caKeyPath: ~/.lazycat/ssh-ca/lazycat-ssh-ca # CA 私钥在远端的路径
+  ssh_host: my-bastion # 能够 SSH 直连到 CA 管理端的 Host 别名（需提前配好 ~/.ssh/config 或 DNS）
+  ca_key_path: ~/.lazycat/ssh-ca/lazycat-ssh-ca # CA 私钥在远端的路径
   principals: root,ubuntu # 证书允许登录的目标用户名
   validity: 12h # 证书有效期
 
 # 服务器列表
 hosts:
   prod-db:
-    host: 192.168.1.10
+    # 只要配置了 lan_host/wan_host/tun_host 之一，就会进入“多线路模式”，自动生成：
+    # - prod-db（不带后缀，受 default_route 影响）
+    # - prod-db-lan / prod-db-wan / prod-db-tun（按你配置的线路生成）
+    lan_host: 192.168.1.10
+    lan_port: 22
+    wan_host: prod-db.example.com
+    wan_port: 2222
     user: root
   web-01:
-    host: 10.0.0.5
+    host: 10.0.0.5 # 兼容旧字段（等同 wan_host）；只配置 host 时不会生成 -lan/-wan/-tun
     user: ubuntu
     via: prod-db # 支持 ProxyJump 跳板
 ```
+
+说明：
+
+- 不带后缀的 `<alias>` 会按 `default_route` 的优先级选择“已配置的线路”生成（**不会**做网络探测自动切换）。
+- 优先级规则：
+  - `default_route: lan`：`lan > tun > wan`
+  - `default_route: wan`：`wan > tun > lan`
+  - `default_route: tun`：`tun > wan > lan`
+- `via` 的语义是“**必要时可通过跳板访问**”，默认不会干涉直连：
+  - 如果你访问的线路本身存在（例如配置了 `lan_host` 且你 `ssh <alias>-lan`），则不会自动添加跳板（除非显式配置了 `lan_via/wan_via/tun_via`）。
+  - 如果你访问的线路不存在、但配置了 `via`（例如仅配置 `lan_host`，你却 `ssh <alias>-tun`），脚本会自动生成“通过跳板访问”的别名：
+    - 目标 HostName 会回退到可用线路（优先 `lan > tun > wan`）
+    - ProxyJump 会优先选择 `via-<线路>`（例如 `via-tun`），否则回退 `via`
+  - 想强制某条线路总走跳板：使用 `lan_via/wan_via/tun_via` 显式指定（例如 `lan_via: bastion-lan`）。
 
 #### 3.2 成员安装与同步
 
@@ -97,16 +120,16 @@ bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/client/laz
 1. 运行 `lazycat-ssh`。
 2. 选择 `1) Gist 引导与配置` -> 填入 Gist URL。
 3. 选择 `2) 从 Gist 同步 SSH 配置`。
-   - 脚本会自动拉取 `lazycat.yaml` 并生成 `~/.ssh/config.d/lazycat.conf`。
-   - 脚本会自动 SSH 连接到 `ca.sshHost` 申请证书。
+   - 脚本会自动读取你选择的 YAML 文件并生成 `~/.ssh/config.d/lazycat.conf`。
+   - 脚本会自动 SSH 连接到 `ca.ssh_host` 申请证书。
 
-**完成！** 现在你可以直接登录：
+完成后，你可以直接登录：
 
 ```bash
 ssh prod-db
 ```
 
-_(无需输入密码，无需手动管理 key)_
+无需输入密码，也无需手动管理 key。
 
 ---
 
@@ -131,7 +154,7 @@ _(无需输入密码，无需手动管理 key)_
 ## 常见问题
 
 **Q: Client 端如何连接 CA 服务器？**
-A: Client 脚本通过标准 SSH 连接 CA 服务器来申请签名。因此，Client 机器必须能够通过 SSH key (authorized_keys) 登录到 CA 服务器所在的机器（即 `ca.sshHost`）。这是信任链的根源。
+A: Client 脚本通过标准 SSH 连接 CA 服务器来申请签名。因此，Client 机器必须能够通过 SSH key (authorized_keys) 登录到 CA 服务器所在的机器（即 `ca.ssh_host`）。这是信任链的根源。
 
 **Q: "principals" 是什么？为什么需要配置它？**
 A: `principals` 是 SSH 证书中的**权限白名单**。它指定了持有该证书的用户**允许以什么系统账号登录目标服务器**。

@@ -216,31 +216,11 @@ lc_gist_open_guide() {
   lc_log "1) 打开 https://gist.new"
   lc_log "2) 选择 Secret Gist"
   lc_log "3) 新建一个文件（文件名任意，建议：lazycat-ssh.yaml）"
-  lc_log "4) 粘贴下面的模板并保存"
+  lc_log "4) 按文档说明填入 YAML 并保存"
   lc_log "5) 复制 Gist 页面 URL（或 raw URL）回填到脚本"
   lc_log ""
-  lc_log "模板（标准 YAML）："
-  cat <<'YAML'
-version: 1
-hosts:
-  bastion:
-    host: 1.2.3.4
-    user: ubuntu
-    port: 22
-  prod:
-    host: 10.0.0.8
-    user: root
-    via: bastion
-YAML
-  lc_log ""
-  lc_log "字段说明："
-  lc_log "- version: 配置版本（当前必须为 1 或存在即可）"
-  lc_log "- hosts: 主机集合（Map by alias）"
-  lc_log "  - <alias>.host: 必填，IP 或域名"
-  lc_log "  - <alias>.user: 可选"
-  lc_log "  - <alias>.port: 可选"
-  lc_log "  - <alias>.via: 可选，跳板 alias（会映射为 ProxyJump）"
-  lc_log "  - <alias>.identityFile: 可选，私钥路径（IdentityFile）"
+  lc_log "文档（包含完整示例与字段解释）："
+  lc_log "https://github.com/KroMiose/LazyCat-Scripts/blob/main/ssh/README.md"
   lc_log ""
 }
 
@@ -398,6 +378,112 @@ lc_validate_alias() {
   fi
 }
 
+lc_validate_default_route() {
+  local route="${1:-}"
+  if [[ -z "$route" ]] || [[ "$route" == "null" ]]; then
+    lc_die "default_route 不能为空（可选：lan / wan / tun）。"
+  fi
+  case "$route" in
+    lan|wan|tun) return 0 ;;
+    *) lc_die "default_route 不合法（可选：lan / wan / tun）：${route}" ;;
+  esac
+}
+
+lc_route_priority() {
+  # 规则约定：
+  # - default_route=lan：lan > tun > wan
+  # - default_route=wan：wan > tun > lan
+  # - default_route=tun：tun > wan > lan
+  local route="${1:-lan}"
+  case "$route" in
+    lan) printf '%s\n' "lan tun wan" ;;
+    wan) printf '%s\n' "wan tun lan" ;;
+    tun) printf '%s\n' "tun wan lan" ;;
+    *) printf '%s\n' "lan tun wan" ;;
+  esac
+}
+
+lc_append_ssh_host_block() {
+  local out_path="$1"
+  local host_alias="$2"
+  local host_name="$3"
+  local user="$4"
+  local port="$5"
+  local via="$6"
+  local identity="$7"
+  local ca_enabled="$8"
+
+  {
+    printf 'Host %s\n' "$host_alias"
+    printf '    HostName %s\n' "$host_name"
+    [[ -n "$user" ]] && printf '    User %s\n' "$user"
+    [[ -n "$port" ]] && printf '    Port %s\n' "$port"
+    [[ -n "$via" ]] && printf '    ProxyJump %s\n' "$via"
+    if [[ -n "$identity" ]]; then
+      printf '    IdentityFile %s\n' "$identity"
+    elif [[ "$ca_enabled" == "1" ]]; then
+      printf '    IdentityFile %s\n' "$CA_KEY_PATH"
+      printf '    CertificateFile %s\n' "$CA_CERT_PATH"
+    fi
+    printf '    IdentitiesOnly yes\n'
+    printf '\n'
+  } >>"$out_path"
+}
+
+lc_pick_best_jump_alias() {
+  # 选择跳板应走哪条线路：
+  # - req=lan：lan > tun > wan
+  # - req=wan：wan > tun > lan
+  # - req=tun：tun > wan > lan
+  # 只要 `via` 存在，就尽量选择 `${via}-<route>`（且 via 主机确实配置了对应线路），否则回退 `${via}`。
+  local tmp_yaml="$1"
+  local via_alias="$2"
+  local req_route="$3"
+
+  local p=""
+  case "$req_route" in
+    lan) p="lan tun wan" ;;
+    wan) p="wan tun lan" ;;
+    tun) p="tun wan lan" ;;
+    *) p="lan tun wan" ;;
+  esac
+
+  local r
+  for r in $p; do
+    local vh=""
+    vh="$(VIA="$via_alias" yq -r ".hosts[env(VIA)].${r}_host // .hosts[env(VIA)].${r}Host // .hosts[env(VIA)].${r}.host // \"\"" "$tmp_yaml")"
+    [[ "$vh" == "null" ]] && vh=""
+    if [[ -n "$vh" ]]; then
+      printf '%s\n' "${via_alias}-${r}"
+      return 0
+    fi
+  done
+
+  printf '%s\n' "$via_alias"
+}
+
+lc_pick_fallback_target_route() {
+  # 当用户请求的线路缺失时，选择目标机实际使用的线路（HostName 取该线路）：
+  # 优先：lan > tun > wan（内网优先，适合“外部通过跳板打进内网”的用法）
+  local lan_host="$1"
+  local tun_host="$2"
+  local wan_host="$3"
+
+  if [[ -n "$lan_host" ]]; then
+    printf '%s\n' "lan"
+    return 0
+  fi
+  if [[ -n "$tun_host" ]]; then
+    printf '%s\n' "tun"
+    return 0
+  fi
+  if [[ -n "$wan_host" ]]; then
+    printf '%s\n' "wan"
+    return 0
+  fi
+  printf '%s\n' ""
+}
+
 lc_validate_principals() {
   # principals: comma-separated usernames, allow A-Za-z0-9._- only
   local principals="$1"
@@ -424,10 +510,10 @@ lc_validate_ca_ssh_host() {
   # 用户必须事先配置好：ssh <sshHost> 能直连 CA 服务器
   local host="$1"
   if [[ -z "$host" ]] || [[ "$host" == "null" ]]; then
-    lc_die "ca.sshHost 不能为空（例如：ca-server）。"
+    lc_die "ca.ssh_host 不能为空（例如：ca-server）。"
   fi
   if ! [[ "$host" =~ ^[A-Za-z0-9._-]+$ ]]; then
-    lc_die "ca.sshHost 含非法字符：${host}"
+    lc_die "ca.ssh_host 含非法字符：${host}"
   fi
 }
 
@@ -435,11 +521,11 @@ lc_validate_remote_path() {
   # 远端路径用于拼接到远端命令行，必须严格限制字符集，避免注入
   local path="$1"
   if [[ -z "$path" ]] || [[ "$path" == "null" ]]; then
-    lc_die "ca.caKeyPath 不能为空。"
+    lc_die "ca.ca_key_path 不能为空。"
   fi
   # 允许 /abs/path 或 ~/.relative/path
   if ! [[ "$path" =~ ^(/|~\/)[A-Za-z0-9._/-]+$ ]]; then
-    lc_die "ca.caKeyPath 不合法（仅允许 /... 或 ~/....，且不含空格/引号等特殊字符）：${path}"
+    lc_die "ca.ca_key_path 不合法（仅允许 /... 或 ~/....，且不含空格/引号等特殊字符）：${path}"
   fi
 }
 
@@ -478,12 +564,12 @@ lc_ca_fetch_and_sign_cert() {
 
   local ca_ssh_host ca_key_path ca_principals ca_validity
   # 约定：用户必须先配置好 `ssh <sshHost>` 能直连 CA 服务器
-  # 推荐字段：ca.sshHost；兼容旧字段：ca.host
-  ca_ssh_host="$(yq -r '.ca.sshHost // .ca.host // ""' "$tmp_yaml")"
+  # 推荐字段：ca.ssh_host；兼容旧字段：ca.sshHost / ca.host
+  ca_ssh_host="$(yq -r '.ca.ssh_host // .ca.sshHost // .ca.host // ""' "$tmp_yaml")"
   lc_validate_ca_ssh_host "$ca_ssh_host"
 
   # 默认路径：lazycat-ssh-ca 初始化后的默认位置（减少暴露细节）
-  ca_key_path="$(yq -r '.ca.caKeyPath // "~/.lazycat/ssh-ca/lazycat-ssh-ca"' "$tmp_yaml")"
+  ca_key_path="$(yq -r '.ca.ca_key_path // .ca.caKeyPath // "~/.lazycat/ssh-ca/lazycat-ssh-ca"' "$tmp_yaml")"
   lc_validate_remote_path "$ca_key_path"
 
   ca_principals="$(yq -r '.ca.principals // "root"' "$tmp_yaml")"
@@ -591,10 +677,17 @@ lc_sync_from_raw_url() {
     lc_die "hosts 为空。"
   fi
 
+  local default_route
+  default_route="$(yq -r '.default_route // .defaultRoute // "lan"' "$tmp_yaml")"
+  if [[ -z "$default_route" ]] || [[ "$default_route" == "null" ]]; then
+    default_route="lan"
+  fi
+  lc_validate_default_route "$default_route"
+
   # 可选 CA：若配置了 ca.host 则启用证书模式，并在 sync 时自动续期一次
   local ca_enabled="0"
   local ca_host
-  ca_host="$(yq -r '.ca.sshHost // .ca.host // ""' "$tmp_yaml")"
+  ca_host="$(yq -r '.ca.ssh_host // .ca.sshHost // .ca.host // ""' "$tmp_yaml")"
   if [[ -n "$ca_host" ]] && [[ "$ca_host" != "null" ]]; then
     ca_enabled="1"
     lc_log "🔐 检测到 CA 配置，将启用证书模式（短有效期推荐安装后台自动续期）。"
@@ -610,38 +703,165 @@ lc_sync_from_raw_url() {
   {
     printf '# Generated by LazyCat SSH (do not edit manually)\n'
     printf '# Source: %s\n' "${RAW_URL}"
+    printf '# default_route: %s\n' "${default_route}"
     printf '\n'
   } >"$out"
 
   while IFS= read -r alias; do
     lc_validate_alias "$alias"
-    local host user port via identity
+    local user via identity
+    local legacy_host legacy_port
+    local lan_host lan_port lan_via
+    local wan_host wan_port wan_via
+    local tun_host tun_port tun_via
 
-    ALIAS="$alias" host="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].host // ""' "$tmp_yaml")"
-    if [[ -z "$host" ]] || [[ "$host" == "null" ]]; then
-      lc_die "hosts.${alias}.host 缺失。"
-    fi
+    legacy_host="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].host // ""' "$tmp_yaml")"
+    [[ "$legacy_host" == "null" ]] && legacy_host=""
+    legacy_port="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].port // ""' "$tmp_yaml")"
+    [[ "$legacy_port" == "null" ]] && legacy_port=""
 
     user="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].user // ""' "$tmp_yaml")"
-    port="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].port // ""' "$tmp_yaml")"
     via="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].via // ""' "$tmp_yaml")"
     identity="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].identityFile // ""' "$tmp_yaml")"
+    [[ "$user" == "null" ]] && user=""
+    [[ "$via" == "null" ]] && via=""
+    [[ "$identity" == "null" ]] && identity=""
 
-    {
-      printf 'Host %s\n' "$alias"
-      printf '    HostName %s\n' "$host"
-      [[ -n "$user" ]] && [[ "$user" != "null" ]] && printf '    User %s\n' "$user"
-      [[ -n "$port" ]] && [[ "$port" != "null" ]] && printf '    Port %s\n' "$port"
-      [[ -n "$via" ]] && [[ "$via" != "null" ]] && printf '    ProxyJump %s\n' "$via"
-      if [[ -n "$identity" ]] && [[ "$identity" != "null" ]]; then
-        printf '    IdentityFile %s\n' "$identity"
-      elif [[ "$ca_enabled" == "1" ]]; then
-        printf '    IdentityFile %s\n' "$CA_KEY_PATH"
-        printf '    CertificateFile %s\n' "$CA_CERT_PATH"
+    lan_host="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].lan_host // .hosts[env(ALIAS)].lanHost // .hosts[env(ALIAS)].lan.host // ""' "$tmp_yaml")"
+    lan_port="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].lan_port // .hosts[env(ALIAS)].lanPort // .hosts[env(ALIAS)].lan.port // ""' "$tmp_yaml")"
+    lan_via="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].lan_via // .hosts[env(ALIAS)].lanVia // .hosts[env(ALIAS)].lan.via // ""' "$tmp_yaml")"
+    [[ "$lan_host" == "null" ]] && lan_host=""
+    [[ "$lan_port" == "null" ]] && lan_port=""
+    [[ "$lan_via" == "null" ]] && lan_via=""
+
+    wan_host="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].wan_host // .hosts[env(ALIAS)].wanHost // .hosts[env(ALIAS)].wan.host // ""' "$tmp_yaml")"
+    wan_port="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].wan_port // .hosts[env(ALIAS)].wanPort // .hosts[env(ALIAS)].wan.port // ""' "$tmp_yaml")"
+    wan_via="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].wan_via // .hosts[env(ALIAS)].wanVia // .hosts[env(ALIAS)].wan.via // ""' "$tmp_yaml")"
+    [[ "$wan_host" == "null" ]] && wan_host=""
+    [[ "$wan_port" == "null" ]] && wan_port=""
+    [[ "$wan_via" == "null" ]] && wan_via=""
+
+    tun_host="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].tun_host // .hosts[env(ALIAS)].tunHost // .hosts[env(ALIAS)].tun.host // ""' "$tmp_yaml")"
+    tun_port="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].tun_port // .hosts[env(ALIAS)].tunPort // .hosts[env(ALIAS)].tun.port // ""' "$tmp_yaml")"
+    tun_via="$(ALIAS="$alias" yq -r '.hosts[env(ALIAS)].tun_via // .hosts[env(ALIAS)].tunVia // .hosts[env(ALIAS)].tun.via // ""' "$tmp_yaml")"
+    [[ "$tun_host" == "null" ]] && tun_host=""
+    [[ "$tun_port" == "null" ]] && tun_port=""
+    [[ "$tun_via" == "null" ]] && tun_via=""
+
+    local multi_mode="0"
+    if [[ -n "$lan_host" ]] || [[ -n "$wan_host" ]] || [[ -n "$tun_host" ]]; then
+      multi_mode="1"
+    fi
+
+    if [[ "$multi_mode" == "0" ]]; then
+      # 单线路模式（兼容旧配置）
+      if [[ -z "$legacy_host" ]]; then
+        lc_die "hosts.${alias}.host 缺失。若要使用多线路模式，请至少配置 lan_host/wan_host/tun_host 之一。"
       fi
-      printf '    IdentitiesOnly yes\n'
-      printf '\n'
-    } >>"$out"
+      lc_append_ssh_host_block "$out" "$alias" "$legacy_host" "$user" "$legacy_port" "$via" "$identity" "$ca_enabled"
+      continue
+    fi
+
+    # 多线路模式：兼容旧字段 host/port -> wan_host/wan_port（仅当 wan_host 未显式配置时）
+    if [[ -z "$wan_host" ]] && [[ -n "$legacy_host" ]]; then
+      wan_host="$legacy_host"
+      [[ -n "$legacy_port" ]] && wan_port="$legacy_port"
+    fi
+
+    local base_route=""
+    local r
+    for r in $(lc_route_priority "$default_route"); do
+      case "$r" in
+        lan) [[ -n "$lan_host" ]] && base_route="lan" ;;
+        wan) [[ -n "$wan_host" ]] && base_route="wan" ;;
+        tun) [[ -n "$tun_host" ]] && base_route="tun" ;;
+      esac
+      [[ -n "$base_route" ]] && break
+    done
+    if [[ -z "$base_route" ]]; then
+      lc_die "hosts.${alias} 未配置任何可用线路：请至少配置 lan_host / wan_host / tun_host 之一。"
+    fi
+
+    local base_host="" base_port="" base_via=""
+    case "$base_route" in
+      lan)
+        base_host="$lan_host"
+        base_port="$lan_port"
+        base_via="$lan_via"
+        ;;
+      wan)
+        base_host="$wan_host"
+        base_port="$wan_port"
+        base_via="$wan_via"
+        ;;
+      tun)
+        base_host="$tun_host"
+        base_port="$tun_port"
+        base_via="$tun_via"
+        ;;
+    esac
+
+    # 不带后缀的主 alias（由 default_route 决定优先线路）
+    lc_append_ssh_host_block "$out" "$alias" "$base_host" "$user" "$base_port" "$base_via" "$identity" "$ca_enabled"
+
+    # 各线路别名（-lan/-wan/-tun）
+    #
+    # 语义：
+    # - 如果该线路存在（lan_host/wan_host/tun_host），则直接走该线路，不自动套 ProxyJump（除非配置了 <route>_via）。
+    # - 如果该线路不存在，但配置了 via，则认为“必要时可通过跳板访问”：
+    #   例如：仅配置 lan_host + via，用户 `ssh <alias>-tun` 时，将自动生成：
+    #   - HostName=<lan_host>
+    #   - ProxyJump=<via>-tun（若 via 主机有 tun 线路）或回退 <via>
+    local req_route=""
+    for req_route in lan wan tun; do
+      local req_host="" req_port="" req_via=""
+      case "$req_route" in
+        lan)
+          req_host="$lan_host"
+          req_port="$lan_port"
+          req_via="$lan_via"
+          ;;
+        wan)
+          req_host="$wan_host"
+          req_port="$wan_port"
+          req_via="$wan_via"
+          ;;
+        tun)
+          req_host="$tun_host"
+          req_port="$tun_port"
+          req_via="$tun_via"
+          ;;
+      esac
+
+      if [[ -n "$req_host" ]]; then
+        # 该线路存在：直连（除非显式配置了 <route>_via）
+        lc_append_ssh_host_block "$out" "${alias}-${req_route}" "$req_host" "$user" "$req_port" "$req_via" "$identity" "$ca_enabled"
+        continue
+      fi
+
+      # 该线路不存在：仅在存在 via 时生成“跳板访问”的别名
+      if [[ -z "$via" ]]; then
+        continue
+      fi
+
+      local fb_route
+      fb_route="$(lc_pick_fallback_target_route "$lan_host" "$tun_host" "$wan_host")"
+      if [[ -z "$fb_route" ]]; then
+        continue
+      fi
+
+      local fb_host="" fb_port=""
+      case "$fb_route" in
+        lan) fb_host="$lan_host"; fb_port="$lan_port" ;;
+        tun) fb_host="$tun_host"; fb_port="$tun_port" ;;
+        wan) fb_host="$wan_host"; fb_port="$wan_port" ;;
+      esac
+
+      local jump_alias
+      jump_alias="$(lc_pick_best_jump_alias "$tmp_yaml" "$via" "$req_route")"
+
+      lc_append_ssh_host_block "$out" "${alias}-${req_route}" "$fb_host" "$user" "$fb_port" "$jump_alias" "$identity" "$ca_enabled"
+    done
   done <<<"$aliases"
 
   umask 077
