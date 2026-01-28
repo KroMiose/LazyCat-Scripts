@@ -30,8 +30,8 @@ REMOTE_LIB_URL="${REMOTE_BASE_URL}/lib/common.sh"
 
 __lc_source_common() {
   local local_candidate=""
-  if [[ -n "${BASH_SOURCE[0]:-}" ]] && [[ -f "${BASH_SOURCE[0]}" ]]; then
-    local_candidate="$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/common.sh" || true
+  if [[ -n "${BASH_SOURCE[0]-}" ]] && [[ -f "${BASH_SOURCE[0]-}" ]]; then
+    local_candidate="$(cd "$(dirname "${BASH_SOURCE[0]-}")/../lib" && pwd)/common.sh" || true
   fi
 
   if [[ -n "$local_candidate" ]] && [[ -f "$local_candidate" ]]; then
@@ -94,6 +94,7 @@ lc_require_not_root() {
 lc_self_install_if_needed() {
   local target_bin="${LAZYCAT_SSH_BIN_DIR}/lazycat-ssh"
   local installed=0
+  local self_path="${BASH_SOURCE[0]-}"
 
   if [[ -x "$target_bin" ]]; then
     installed=1
@@ -101,7 +102,7 @@ lc_self_install_if_needed() {
 
   # 如果已安装，且当前脚本不是已安装的那一个（说明是通过 curl 或其它路径运行的），则进行更新
   if [[ $installed -eq 1 ]]; then
-     if [[ "${BASH_SOURCE[0]}" != "$target_bin" ]]; then
+     if [[ -z "$self_path" ]] || [[ "$self_path" != "$target_bin" ]]; then
        lc_log "🔄 检测到本地已安装脚本，正在更新..."
      else
        return 0
@@ -124,9 +125,9 @@ lc_self_install_if_needed() {
 
   # 安装 common.sh
   local lib_src=""
-  if [[ -n "${BASH_SOURCE[0]:-}" ]] && [[ -f "${BASH_SOURCE[0]}" ]]; then
+  if [[ -n "${BASH_SOURCE[0]-}" ]] && [[ -f "${BASH_SOURCE[0]-}" ]]; then
     local potential_lib_dir
-    potential_lib_dir="$(dirname "${BASH_SOURCE[0]}")/../lib"
+    potential_lib_dir="$(dirname "${BASH_SOURCE[0]-}")/../lib"
     if [[ -d "$potential_lib_dir" ]] && [[ -f "$potential_lib_dir/common.sh" ]]; then
        lib_src="$(cd "$potential_lib_dir" && pwd)/common.sh"
     fi
@@ -140,8 +141,8 @@ lc_self_install_if_needed() {
   chmod 755 "${LAZYCAT_SSH_HOME}/lib/common.sh"
 
   # 安装 client 脚本（本体）
-  if [[ -n "${BASH_SOURCE[0]:-}" ]] && [[ -f "${BASH_SOURCE[0]}" ]] && [[ "${BASH_SOURCE[0]}" != *"/bin/bash" ]]; then
-    cp "${BASH_SOURCE[0]}" "$target_bin"
+  if [[ -n "${BASH_SOURCE[0]-}" ]] && [[ -f "${BASH_SOURCE[0]-}" ]] && [[ "${BASH_SOURCE[0]-}" != *"/bin/bash" ]]; then
+    cp "${BASH_SOURCE[0]-}" "$target_bin"
   else
     lc_need_cmd curl
     curl -fsSL "$REMOTE_CLIENT_URL" -o "$target_bin"
@@ -243,6 +244,35 @@ YAML
   lc_log ""
 }
 
+lc_normalize_gist_input_url() {
+  # 支持用户粘贴：
+  # - Gist 页面 URL： https://gist.github.com/<user>/<id>
+  # - raw URL：      https://gist.githubusercontent.com/.../raw/.../file.yaml
+  # - embed 代码：    <script src="https://gist.github.com/<user>/<id>.js"></script>
+  # - gist js URL：  https://gist.github.com/<user>/<id>.js
+  local input="$1"
+  local url="$input"
+
+  # 去掉首尾空白
+  url="${url#"${url%%[![:space:]]*}"}"
+  url="${url%"${url##*[![:space:]]}"}"
+
+  # 如果是 embed 代码，提取 src
+  if [[ "$url" == *"<script"* ]] && [[ "$url" == *"src="* ]]; then
+    if [[ "$url" =~ src=\"([^\"]+)\" ]]; then
+      url="${BASH_REMATCH[1]}"
+    fi
+  fi
+
+  # 如果是 gist 的 js URL，把它还原成页面 URL
+  # https://gist.github.com/<user>/<id>.js -> https://gist.github.com/<user>/<id>
+  if [[ "$url" =~ ^https?://gist\.github\.com/([^/]+)/([0-9a-fA-F]+)\.js($|\?) ]]; then
+    url="https://gist.github.com/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+  fi
+
+  printf '%s\n' "$url"
+}
+
 lc_parse_gist_json_select_file() {
   local gist_url="$1"
   local gist_base="${gist_url%%#*}"
@@ -251,6 +281,7 @@ lc_parse_gist_json_select_file() {
   # Extract Gist ID: last component of the path
   local gist_id="${gist_base##*/}"
   # Remove potential suffixes if user pasted a derived URL
+  gist_id="${gist_id%.js}"
   gist_id="${gist_id%.json}"
   gist_id="${gist_id%.git}"
 
@@ -263,7 +294,9 @@ lc_parse_gist_json_select_file() {
 
   lc_need_cmd curl
   lc_log "⏳ 正在获取 Gist 信息..." >&2
-  curl -fsSL "$json_url" -o "$tmp_json"
+  if ! curl -fsSL "$json_url" -o "$tmp_json"; then
+    lc_die "无法获取 Gist 信息：${json_url}。请确认你粘贴的是 Gist 页面 URL（不是 embed 代码）。"
+  fi
 
   # files: keys
   local files
@@ -330,6 +363,7 @@ lc_configure_gist() {
     lc_die "用户取消。"
   fi
 
+  url="$(lc_normalize_gist_input_url "$url")"
   url="${url%%[[:space:]]*}"
 
   local raw_url=""
