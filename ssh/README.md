@@ -108,6 +108,7 @@ hosts:
     - 目标 HostName 会回退到可用线路（优先 `lan > tun > wan`）
     - ProxyJump 会优先选择 `via-<线路>`（例如 `via-tun`），否则回退 `via`
   - 想强制某条线路总走跳板：使用 `lan_via/wan_via/tun_via` 显式指定（例如 `lan_via: bastion-lan`）。
+- 为了避免同域名/同端口复用导致 `known_hosts` 冲突，脚本会为每个 Host 自动写入 `HostKeyAlias <alias>`；如果需要清理某个 alias 的旧指纹，可执行 `ssh-keygen -R <alias>`（例如：`ssh-keygen -R your-server-wan`）。
 
 #### 3.2 成员安装与同步
 

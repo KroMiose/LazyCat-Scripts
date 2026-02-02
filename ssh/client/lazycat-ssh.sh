@@ -416,6 +416,8 @@ lc_append_ssh_host_block() {
   {
     printf 'Host %s\n' "$host_alias"
     printf '    HostName %s\n' "$host_name"
+    # 让 known_hosts 以 alias 为主键，避免同域名/同端口复用引发冲突
+    printf '    HostKeyAlias %s\n' "$host_alias"
     [[ -n "$user" ]] && printf '    User %s\n' "$user"
     [[ -n "$port" ]] && printf '    Port %s\n' "$port"
     [[ -n "$via" ]] && printf '    ProxyJump %s\n' "$via"
