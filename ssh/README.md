@@ -141,14 +141,46 @@ ssh prod-db
 证书默认有效期较短（如 12h）。过期后：
 
 - **手动续期**：运行 `lazycat-ssh renew-certs`。
-- **自动续期**：运行 `lazycat-ssh` -> 选择 `6) 安装后台自动续期`（支持 macOS Launchd / Linux Systemd）。
+- **自动续期**：运行 `lazycat-ssh` -> 选择 `5) 安装后台自动续期`（支持 macOS Launchd / Linux Systemd）。
+
+### 查看续签执行状态（macOS / Linux）
+
+若自动续期似乎未生效，可按以下方式排查：
+
+1. **一键查看状态与最近日志**（推荐）  
+   ```bash
+   lazycat-ssh renew-status
+   ```  
+   会输出：是否已安装定时任务、launchd/systemd 状态、以及最近一次续签的标准输出/错误日志路径与内容。
+
+2. **macOS 手动排查**  
+   - 是否已加载 LaunchAgent：  
+     `launchctl list | grep lazycat`  
+     或（macOS 13+ 用户域）：  
+     `launchctl list gui/$(id -u) | grep lazycat`
+   - 续签脚本的标准输出与错误会写入：  
+     - `~/.lazycat/ssh/renew.log`  
+     - `~/.lazycat/ssh/renew.err.log`  
+     可直接查看：  
+     `tail -50 ~/.lazycat/ssh/renew.log`、`cat ~/.lazycat/ssh/renew.err.log`
+
+3. **Linux (systemd) 手动排查**  
+   - 查看 timer 是否在跑：  
+     `systemctl --user status lazycat-ssh-renew.timer`
+   - 查看最近续签日志：  
+     `journalctl --user -u lazycat-ssh-renew.service -n 50`
+
+4. **先确认手动续签是否正常**  
+   若后台续签失败，多半是环境问题（网络、SSH 到 CA 失败等）。先执行一次：  
+   `lazycat-ssh renew-certs`  
+   看终端报错，再根据错误修复（如 CA 不可达、meta.env 缺失等）。
 
 ### 移除配置
 
 所有脚本均提供**一键卸载/回滚**功能：
 
 - **Node 端**：再次运行安装脚本 -> 选择 `3) 移除配置`（回滚 sshd_config）。
-- **Client 端**：运行 `lazycat-ssh` -> `8) 卸载`。
+- **Client 端**：运行 `lazycat-ssh` -> 选择 `8) 卸载`。
 
 ---
 

@@ -31,7 +31,11 @@ REMOTE_LIB_URL="${REMOTE_BASE_URL}/lib/common.sh"
 __lc_source_common() {
   local local_candidate=""
   if [[ -n "${BASH_SOURCE[0]-}" ]] && [[ -f "${BASH_SOURCE[0]-}" ]]; then
-    local_candidate="$(cd "$(dirname "${BASH_SOURCE[0]-}")/../lib" && pwd)/common.sh" || true
+    local lib_dir
+    lib_dir="$(dirname "${BASH_SOURCE[0]-}")/../lib"
+    if [[ -d "$lib_dir" ]] && [[ -f "$lib_dir/common.sh" ]]; then
+      local_candidate="$(cd "$lib_dir" && pwd)/common.sh"
+    fi
   fi
 
   if [[ -n "$local_candidate" ]] && [[ -f "$local_candidate" ]]; then
@@ -946,6 +950,20 @@ lc_install_renew_timer() {
     local plist_path="${plist_dir}/com.lazycat.ssh.renew.plist"
     mkdir -p "$plist_dir"
 
+    # 构建 PATH：包含常见的 yq 安装路径（brew 安装通常在 /opt/homebrew/bin 或 /usr/local/bin）
+    local default_path="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    local homebrew_path=""
+    if [[ -d "/opt/homebrew/bin" ]]; then
+      homebrew_path="/opt/homebrew/bin:/opt/homebrew/sbin"
+    elif [[ -d "/usr/local/bin" ]]; then
+      homebrew_path="/usr/local/bin:/usr/local/sbin"
+    fi
+    local full_path="${homebrew_path:+${homebrew_path}:}${default_path}"
+    # 也包含用户本地 bin（如果存在）
+    if [[ -d "$HOME/.local/bin" ]]; then
+      full_path="$HOME/.local/bin:${full_path}"
+    fi
+
     cat >"${plist_path}.tmp" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -957,6 +975,13 @@ lc_install_renew_timer() {
     <string>${LAZYCAT_SSH_BIN_DIR}/lazycat-ssh</string>
     <string>renew-certs</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>${full_path}</string>
+    <key>HOME</key>
+    <string>${HOME}</string>
+  </dict>
   <key>StartInterval</key><integer>$((interval_minutes * 60))</integer>
   <key>RunAtLoad</key><true/>
   <key>StandardOutPath</key><string>${HOME}/.lazycat/ssh/renew.log</string>

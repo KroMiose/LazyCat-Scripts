@@ -96,8 +96,9 @@
     - 安装 `zsh-autosuggestions` 插件，它会根据历史记录智能提示你可能想输入的命令。
     - 安装 `zsh-syntax-highlighting` 插件，它能让你的命令输入拥有像代码编辑器一样的高亮效果。
   - **智能配置:**
-    - 自动在 `.zshrc` 中启用主题和插件。
-    - 脚本会巧妙地设置，让你在第一次打开 Zsh 时，自动进入 Powerlevel10k 的交互式配置向导。如果需要重新配置，可以随时运行 `p10k configure` 命令。
+    - 使用“托管配置块”（带唯一注释标记）对 `~/.zshrc` 进行**幂等**写入，避免重复/污染用户配置。
+    - 自动启用主题和插件，并确保 Oh My Zsh 的加载顺序正确。
+    - 如需生成/重跑 Powerlevel10k 配置向导，请在 Zsh 里手动执行 `p10k configure`。
   - **清晰的用户指引:** 脚本结束后会告诉你后续步骤，包括如何安装推荐的字体和重载配置。
   - **设置默认 Shell:** 脚本的最后，会询问您是否希望将 Zsh 设置为您的默认登录 Shell。
 
@@ -113,7 +114,7 @@
     - 下载主题和插件到 `~/.oh-my-zsh/custom/` 目录下。
   - **修改用户配置:**
     - 如果您没有 `.zshrc` 文件，Oh My Zsh 的安装过程会创建一个。
-    - 脚本会修改 `~/.zshrc` 文件来设置主题和启用插件，操作前会创建 `.zshrc.bak` 备份。**您可以使用 `restore_shell_backup.sh` 脚本轻松恢复此备份。**
+    - 脚本会在 `~/.zshrc` 中写入一段带标记的“托管配置块”来设置主题/插件并加载 Oh My Zsh；操作前会创建 `.zshrc.bak.*` 备份。**您可以使用 `restore_shell_backup.sh` 脚本轻松恢复此备份。**
 
 - **🔁 可重复执行性:**
 
@@ -125,6 +126,16 @@
 
   ```bash
   bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_zsh_p10k.sh)"
+  ```
+
+  > 🧹 **清理/回滚**（仅清理脚本写入的配置；可选卸载组件目录）：
+
+  ```bash
+  bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_zsh_p10k.sh)" --cleanup
+  ```
+
+  ```bash
+  bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_zsh_p10k.sh)" --cleanup-all
   ```
 
   > 💡 **提示**：脚本会自动检测您的默认 Shell 并在需要时提示您是否将 Zsh 设置为默认 Shell。

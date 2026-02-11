@@ -6,10 +6,42 @@
 #           以及 zsh-autosuggestions 和 zsh-syntax-highlighting 插件。
 #           它会自动处理 git, curl, zsh 的依赖安装。
 # 适用系统: 主流 Linux (Debian/Ubuntu, RHEL/CentOS, Arch) & macOS
-# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_zsh_p10k.sh)"
+# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_zsh_p10k.sh)"
 # ==============================================================================
 
-set -e
+set -euo pipefail
+
+MODE="install"
+ASSUME_YES=0
+CLEAN_REMOVE_INSTALLED_COMPONENTS=0
+CLEAN_REMOVE_LEGACY_LINES=1
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --cleanup)
+            MODE="cleanup"
+            shift
+            ;;
+        --cleanup-all)
+            MODE="cleanup"
+            CLEAN_REMOVE_INSTALLED_COMPONENTS=1
+            shift
+            ;;
+        -y|--yes)
+            ASSUME_YES=1
+            shift
+            ;;
+        *)
+            echo "❌ 未知参数: $1" >&2
+            echo "用法:" >&2
+            echo "  - 安装:   $0" >&2
+            echo "  - 清理:   $0 --cleanup" >&2
+            echo "  - 清理+卸载: $0 --cleanup-all" >&2
+            echo "  - 非交互: $0 -y" >&2
+            exit 1
+            ;;
+    esac
+done
 
 # Function to check for and install missing dependencies
 ensure_dependencies() {
@@ -77,6 +109,95 @@ ensure_dependencies() {
     fi
 }
 
+remove_lazycat_managed_block() {
+    local zshrc_file="$1"
+    local start_marker="# --- LAZYCAT-SCRIPTS ZSH MANAGED START ---"
+    local end_marker="# --- LAZYCAT-SCRIPTS ZSH MANAGED END ---"
+
+    if ! grep -qF -- "$start_marker" "$zshrc_file"; then
+        return 0
+    fi
+
+    local tmp_file
+    tmp_file="$(mktemp)"
+    awk -v start="$start_marker" -v end="$end_marker" '
+        $0 == start { in_block=1; next }
+        $0 == end { in_block=0; next }
+        !in_block { print }
+    ' "$zshrc_file" > "$tmp_file"
+    mv "$tmp_file" "$zshrc_file"
+}
+
+sanitize_zshrc_known_bad_lines() {
+    local zshrc_file="$1"
+    local tmp_file
+    tmp_file="$(mktemp)"
+
+    # 历史版本脚本错误地把 `p10k configure` 写进 .zshrc，导致 zsh 启动时直接报错并中断主题/插件加载。
+    awk '
+        $0 == "# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh." { next }
+        $0 == "[[ ! -f ~/.p10k.zsh ]] && p10k configure" { next }
+        # 历史版本脚本误用单引号 echo '\nZSH_THEME=...'，导致字面量 \n 写入文件。
+        $0 ~ /^\\nZSH_THEME=/ { sub(/^\\n/, "", $0); }
+        { print }
+    ' "$zshrc_file" > "$tmp_file"
+    mv "$tmp_file" "$zshrc_file"
+}
+
+zshrc_has_omz_source() {
+    local zshrc_file="$1"
+    # 匹配常见写法：
+    # - source $ZSH/oh-my-zsh.sh
+    # - . $ZSH/oh-my-zsh.sh
+    # - source ~/.oh-my-zsh/oh-my-zsh.sh
+    grep -qE '^[[:space:]]*(source|\.)[[:space:]]+(\$ZSH|"\$ZSH"|~\/\.oh-my-zsh|\$HOME\/\.oh-my-zsh|"\$HOME\/\.oh-my-zsh")\/oh-my-zsh\.sh([[:space:]]|$)' "$zshrc_file"
+}
+
+inject_lazycat_block_before_omz_source() {
+    local zshrc_file="$1"
+    local block_file="$2"
+    local tmp_file
+    tmp_file="$(mktemp)"
+
+    awk -v block_path="$block_file" '
+        BEGIN {
+            while ((getline line < block_path) > 0) {
+                block = block line "\n"
+            }
+            close(block_path)
+        }
+        !inserted && $0 ~ /^[[:space:]]*(source|\.)[[:space:]]+(\$ZSH|"\$ZSH"|~\/\.oh-my-zsh|\$HOME\/\.oh-my-zsh|"\$HOME\/\.oh-my-zsh")\/oh-my-zsh\.sh([[:space:]]|$)/ {
+            printf "%s", block
+            inserted=1
+        }
+        { print }
+    ' "$zshrc_file" > "$tmp_file"
+    mv "$tmp_file" "$zshrc_file"
+}
+
+append_lazycat_block() {
+    local zshrc_file="$1"
+    local block_file="$2"
+    {
+        echo ""
+        cat "$block_file"
+    } >> "$zshrc_file"
+}
+
+remove_legacy_theme_and_plugin_lines() {
+    local zshrc_file="$1"
+    local tmp_file
+    tmp_file="$(mktemp)"
+
+    awk '
+        # 仅清理历史版本脚本常见注入行（非托管块）。避免误删用户自定义内容。
+        $0 == "ZSH_THEME=\"powerlevel10k/powerlevel10k\"" { next }
+        $0 ~ /^plugins=\(/ && $0 ~ /zsh-autosuggestions/ && $0 ~ /zsh-syntax-highlighting/ { next }
+        { print }
+    ' "$zshrc_file" > "$tmp_file"
+    mv "$tmp_file" "$zshrc_file"
+}
+
 
 # --- 安全检查 ---
 if [ "$(id -u)" -eq 0 ]; then
@@ -86,15 +207,60 @@ if [ "$(id -u)" -eq 0 ]; then
 fi
 
 # --- 依赖处理 ---
-ensure_dependencies
+if [[ "$MODE" == "install" ]]; then
+    ensure_dependencies
+fi
+
+if [[ "$MODE" == "cleanup" ]]; then
+    ZSHRC_FILE="$HOME/.zshrc"
+    echo "🧹 正在清理 Zsh 配置 (由 LazyCat-Scripts 写入的内容)..."
+
+    touch "$ZSHRC_FILE"
+    cp "$ZSHRC_FILE" "${ZSHRC_FILE}.cleanup.bak.$(date +'%Y-%m-%d_%H-%M-%S')"
+    echo "  -> 已创建备份文件: ${ZSHRC_FILE}.cleanup.bak.*"
+
+    sanitize_zshrc_known_bad_lines "$ZSHRC_FILE"
+    remove_lazycat_managed_block "$ZSHRC_FILE"
+    if [[ "$CLEAN_REMOVE_LEGACY_LINES" -eq 1 ]]; then
+        remove_legacy_theme_and_plugin_lines "$ZSHRC_FILE"
+    fi
+
+    if [[ "$CLEAN_REMOVE_INSTALLED_COMPONENTS" -eq 1 ]]; then
+        if [[ "$ASSUME_YES" -eq 1 ]]; then
+            confirm_remove="Y"
+        else
+            read -p "是否同时移除已安装的 Oh My Zsh / Powerlevel10k / 插件目录？(Y/n): " confirm_remove
+            confirm_remove=${confirm_remove:-Y}
+        fi
+
+        if [[ "$confirm_remove" =~ ^[Yy]$ ]]; then
+            echo "  -> 正在移除已安装组件目录..."
+            rm -rf "$HOME/.oh-my-zsh"
+            echo "✅ 已移除: ~/.oh-my-zsh"
+        else
+            echo "ℹ️  已跳过组件卸载，仅完成配置清理。"
+        fi
+    fi
+
+    echo "✅ 清理完成。你现在可以重新运行本脚本进行安装。"
+    exit 0
+fi
 
 # --- 交互式选项 ---
 echo ""
 echo "--- Zsh 环境配置选项 ---"
-read -p "是否要安装 Powerlevel10k 主题？ (Y/n): " confirm_p10k
+if [[ "$ASSUME_YES" -eq 1 ]]; then
+    confirm_p10k="Y"
+else
+    read -p "是否要安装 Powerlevel10k 主题？ (Y/n): " confirm_p10k
+fi
 confirm_p10k=${confirm_p10k:-Y} # 默认为 Yes
 
-read -p "是否要安装 zsh-autosuggestions (自动补全) 和 zsh-syntax-highlighting (语法高亮) 插件？ (Y/n): " confirm_plugins
+if [[ "$ASSUME_YES" -eq 1 ]]; then
+    confirm_plugins="Y"
+else
+    read -p "是否要安装 zsh-autosuggestions (自动补全) 和 zsh-syntax-highlighting (语法高亮) 插件？ (Y/n): " confirm_plugins
+fi
 confirm_plugins=${confirm_plugins:-Y} # 默认为 Yes
 echo ""
 
@@ -143,103 +309,52 @@ fi
 ZSHRC_FILE="$HOME/.zshrc"
 echo "🔧 正在配置 .zshrc 文件..."
 
+# 确保文件存在，否则备份会失败
+touch "$ZSHRC_FILE"
+
 # 创建一个 .zshrc 的备份，更加安全
 cp "$ZSHRC_FILE" "${ZSHRC_FILE}.bak.$(date +'%Y-%m-%d_%H-%M-%S')"
 echo "  -> 已创建备份文件: ${ZSHRC_FILE}.bak.*"
 
-# 根据选择配置 P10k 主题
-if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
-    echo "  -> 正在配置 Powerlevel10k 主题..."
-    # 使用 grep 和 sed 安全地替换或追加主题设置
-    if grep -qE '^\s*ZSH_THEME=' "$ZSHRC_FILE"; then
-        if [[ "$(uname)" == "Darwin" ]]; then
-            sed -i '' 's/^\s*ZSH_THEME=.*/ZSH_THEME="powerlevel10k\/powerlevel10k"/' "$ZSHRC_FILE"
-        else
-            sed -i 's/^\s*ZSH_THEME=.*/ZSH_THEME="powerlevel10k\/powerlevel10k"/' "$ZSHRC_FILE"
-        fi
-    else
-        echo '\nZSH_THEME="powerlevel10k/powerlevel10k"' >> "$ZSHRC_FILE"
-    fi
+# 幂等清理：移除历史版本写入的错误行，以及旧的脚本托管块
+sanitize_zshrc_known_bad_lines "$ZSHRC_FILE"
+remove_lazycat_managed_block "$ZSHRC_FILE"
 
-    # 添加 P10k 首次运行配置
-    P10K_CONFIG_LINE='[[ ! -f ~/.p10k.zsh ]] && p10k configure'
-    if ! grep -qF -- "$P10K_CONFIG_LINE" "$ZSHRC_FILE"; then
-        echo -e "\n# To customize prompt, run \`p10k configure\` or edit ~/.p10k.zsh.\n${P10K_CONFIG_LINE}" >> "$ZSHRC_FILE"
-    fi
-fi
-
-# 根据选择配置插件
+echo "  -> 正在写入托管配置块 (幂等)..."
+PLUGINS_LIST=("git")
 if [[ "$confirm_plugins" =~ ^[Yy]$ ]]; then
-    echo "  -> 正在配置插件..."
-
-    PLUGINS_TO_ADD=("zsh-autosuggestions" "zsh-syntax-highlighting")
-    ZSHRC_FILE="$HOME/.zshrc"
-    
-    # 检查 'plugins=(...)' 行是否存在且未被注释
-    if grep -qE '^\s*plugins=\(.*\)' "$ZSHRC_FILE"; then
-        echo "  -> 找到 'plugins=(...)' 配置，正在检查并添加缺失的插件..."
-        
-        # 获取未注释的 'plugins=(...)' 行
-        plugins_line=$(grep -E '^\s*plugins=\(.*\)' "$ZSHRC_FILE")
-        
-        # 提取括号内的内容
-        current_plugins_str=$(echo "$plugins_line" | sed -E 's/^\s*plugins=\((.*)\).*/\1/')
-        
-        # 用于构建新插件列表的字符串
-        new_plugins_str="$current_plugins_str"
-        
-        for plugin in "${PLUGINS_TO_ADD[@]}"; do
-            # 使用 Bash 的 [[ ]] 和正则表达式来检查插件是否存在
-            if ! [[ " $current_plugins_str " =~ " $plugin " ]]; then
-                echo "    -> 添加插件: ${plugin}"
-                new_plugins_str="$new_plugins_str $plugin"
-            else
-                echo "    -> 插件 '${plugin}' 已存在。"
-            fi
-        done
-        
-        # 清理可能存在的多余空格
-        new_plugins_str=$(echo "$new_plugins_str" | sed 's/^[ \t]*//;s/[ \t]*$//' | sed 's/  */ /g')
-        
-        new_plugins_line="plugins=($new_plugins_str)"
-        
-        # 使用 sed 安全地替换原有的行
-        escaped_plugins_line=$(printf '%s\n' "$plugins_line" | sed 's/[][\\/.^$*]/\\&/g')
-        sed_command="s/$escaped_plugins_line/$new_plugins_line/"
-        
-        if [[ "$(uname)" == "Darwin" ]]; then
-            sed -i '' "$sed_command" "$ZSHRC_FILE"
-        else
-            sed -i "$sed_command" "$ZSHRC_FILE"
-        fi
-        
-    else
-        # 如果 'plugins=(...)' 行不存在，则在 'source .../oh-my-zsh.sh' 之前添加它
-        echo "  -> 未找到 'plugins=(...)' 配置，正在正确位置添加..."
-        plugins_line_to_add="plugins=(git ${PLUGINS_TO_ADD[*]})"
-        
-        source_line_pattern='^\s*source \$ZSH/oh-my-zsh\.sh'
-        
-        if grep -qE "$source_line_pattern" "$ZSHRC_FILE"; then
-            echo "  -> 在 'source \$ZSH/oh-my-zsh.sh' 之前插入插件配置。"
-            insert_text="# Which plugins would you like to load?\n# Standard plugins can be found in \$ZSH/plugins/\n# Custom plugins may be added to \$ZSH_CUSTOM/plugins/\n# Example format: plugins=(rails git textmate ruby lighthouse)\n# Add wisely, as too many plugins slow down shell startup.\n$plugins_line_to_add\n"
-            
-            if [[ "$(uname)" == "Darwin" ]]; then
-                # macOS sed 的 'i' 命令需要在前面加一个反斜杠
-                sed -i '' "/${source_line_pattern}/i\\
-$insert_text
-" "$ZSHRC_FILE"
-            else
-                # GNU sed 可以直接使用 -e 脚本
-                sed -i "/${source_line_pattern}/i $insert_text" "$ZSHRC_FILE"
-            fi
-        else
-            # 作为备用方案，如果找不到 source 行，则追加到文件末尾
-            echo "  -> 警告: 未找到 'source \$ZSH/oh-my-zsh.sh'。插件配置将追加到文件末尾。" >&2
-            echo -e "\n$plugins_line_to_add" >> "$ZSHRC_FILE"
-        fi
-    fi
+    PLUGINS_LIST+=("zsh-autosuggestions" "zsh-syntax-highlighting")
 fi
+
+# --- 关键修复：确保 Oh My Zsh 会被加载，并在其之前注入正确的 p10k 配置加载逻辑 ---
+LAZYCAT_BLOCK_FILE="$(mktemp)"
+{
+    echo "# --- LAZYCAT-SCRIPTS ZSH MANAGED START ---"
+    echo "# 由 LazyCat-Scripts 管理：确保 OMZ / P10k 加载顺序正确且可重复执行。"
+    echo 'export ZSH="$HOME/.oh-my-zsh"'
+    echo "plugins=(${PLUGINS_LIST[*]})"
+    if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
+        echo 'ZSH_THEME="powerlevel10k/powerlevel10k"'
+        echo '[[ ! -f "$HOME/.p10k.zsh" ]] || source "$HOME/.p10k.zsh"'
+        echo "# 如需生成/重跑向导：请在 Zsh 里手动执行 `p10k configure`"
+    fi
+    echo "# --- LAZYCAT-SCRIPTS ZSH MANAGED END ---"
+} > "$LAZYCAT_BLOCK_FILE"
+
+if zshrc_has_omz_source "$ZSHRC_FILE"; then
+    # 已存在 source 行：把托管块插入到 source 之前，确保变量和 p10k 配置生效
+    inject_lazycat_block_before_omz_source "$ZSHRC_FILE" "$LAZYCAT_BLOCK_FILE"
+else
+    # 不存在 source 行：追加一个包含 source 的托管块，保证 OMZ/主题/插件能实际加载
+    LAZYCAT_BLOCK_WITH_SOURCE_FILE="$(mktemp)"
+    {
+        cat "$LAZYCAT_BLOCK_FILE"
+        echo 'source "$ZSH/oh-my-zsh.sh"'
+    } > "$LAZYCAT_BLOCK_WITH_SOURCE_FILE"
+    append_lazycat_block "$ZSHRC_FILE" "$LAZYCAT_BLOCK_WITH_SOURCE_FILE"
+    rm -f "$LAZYCAT_BLOCK_WITH_SOURCE_FILE"
+fi
+rm -f "$LAZYCAT_BLOCK_FILE"
 
 echo "✅ .zshrc 配置完成。"
 
@@ -249,7 +364,7 @@ CURRENT_SHELL=$(basename "$SHELL")
 echo ""
 echo "🔍 检测到您当前的默认 Shell 是: $CURRENT_SHELL"
 
-if [[ " ${missing_cmds[*]} " =~ " zsh " ]] || [[ "$SHELL" != */zsh ]]; then
+if [[ "$SHELL" != */zsh ]]; then
     read -p "是否要将 Zsh 设置为您的默认 Shell？ (Y/n): " confirm_chsh
     confirm_chsh=${confirm_chsh:-Y}
     if [[ "$confirm_chsh" =~ ^[Yy]$ ]]; then

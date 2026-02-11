@@ -125,8 +125,28 @@ lc_open_url() {
 }
 
 lc_install_yq() {
+  # 首先尝试标准 PATH 检测
   if command -v yq >/dev/null 2>&1; then
     return 0
+  fi
+
+  # macOS: 尝试常见的 Homebrew 安装路径（launchd 环境可能 PATH 不完整）
+  if [[ "$(uname)" == "Darwin" ]]; then
+    local yq_candidates=(
+      "/opt/homebrew/bin/yq"
+      "/usr/local/bin/yq"
+      "$HOME/.local/bin/yq"
+      "$HOME/homebrew/bin/yq"
+    )
+    for candidate in "${yq_candidates[@]}"; do
+      if [[ -x "$candidate" ]]; then
+        # 找到 yq，但不在 PATH 中，临时添加到 PATH（仅本次调用有效）
+        export PATH="$(dirname "$candidate"):${PATH}"
+        if command -v yq >/dev/null 2>&1; then
+          return 0
+        fi
+      fi
+    done
   fi
 
   lc_log "🔧 未检测到 yq，正在尝试自动安装..."
