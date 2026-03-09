@@ -147,24 +147,26 @@ ssh prod-db
 
 若自动续期似乎未生效，可按以下方式排查：
 
-1. **一键查看状态与最近日志**（推荐）  
+1. **一键查看状态与最近日志**（推荐）
+
    ```bash
    lazycat-ssh renew-status
-   ```  
+   ```
+
    会输出：是否已安装定时任务、launchd/systemd 状态、以及最近一次续签的标准输出/错误日志路径与内容。
 
-2. **macOS 手动排查**  
+2. **macOS 手动排查**
    - 是否已加载 LaunchAgent：  
      `launchctl list | grep lazycat`  
      或（macOS 13+ 用户域）：  
      `launchctl list gui/$(id -u) | grep lazycat`
-   - 续签脚本的标准输出与错误会写入：  
-     - `~/.lazycat/ssh/renew.log`  
+   - 续签脚本的标准输出与错误会写入：
+     - `~/.lazycat/ssh/renew.log`
      - `~/.lazycat/ssh/renew.err.log`  
-     可直接查看：  
-     `tail -50 ~/.lazycat/ssh/renew.log`、`cat ~/.lazycat/ssh/renew.err.log`
+       可直接查看：  
+       `tail -50 ~/.lazycat/ssh/renew.log`、`cat ~/.lazycat/ssh/renew.err.log`
 
-3. **Linux (systemd) 手动排查**  
+3. **Linux (systemd) 手动排查**
    - 查看 timer 是否在跑：  
      `systemctl --user status lazycat-ssh-renew.timer`
    - 查看最近续签日志：  

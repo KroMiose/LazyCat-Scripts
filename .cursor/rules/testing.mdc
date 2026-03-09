@@ -1,0 +1,123 @@
+---
+description: 脚本测试规范：使用 OrbStack/WSL 创建隔离环境验证脚本功能
+globs: linux/**/*.sh, common/**/*.sh, macos/**/*.sh
+alwaysApply: false
+---
+
+# 脚本测试规范
+
+每个新增或修改的脚本在合并前，**必须**在隔离的虚拟环境中完成端到端测试。
+
+## 测试环境选择
+
+| 开发平台 | 工具                    | 创建命令示例                                |
+| -------- | ----------------------- | ------------------------------------------- |
+| macOS    | OrbStack (`orbctl`)     | `orbctl create ubuntu test-vm`              |
+| Windows  | WSL2 (`wsl`)            | `wsl --install -d Ubuntu` 或 `wsl --import` |
+| Linux    | systemd-nspawn / Docker | `docker run -it --rm ubuntu:latest bash`    |
+
+**macOS 首选 OrbStack**，它比 Docker 更接近真实 Linux 环境（有完整 systemd）。
+
+## OrbStack 测试流程（macOS）
+
+```bash
+# 1. 创建干净的测试虚拟机（用发行版:版本精确指定）
+orbctl create ubuntu:24.04 test-<script-name>
+
+# 2. 将脚本传入虚拟机
+orbctl run -m test-<script-name> -u root bash -c "cat > /tmp/script.sh" < ./linux/script.sh
+orbctl run -m test-<script-name> -u root chmod +x /tmp/script.sh
+
+# 3. 运行脚本（非交互式用 printf 预填答案，\n 代表回车接受默认值）
+orbctl run -m test-<script-name> -u root bash -c "printf '\n\n' | bash /tmp/script.sh"
+
+# 4. 验证功能
+orbctl run -m test-<script-name> -u root <验证命令>
+
+# 5. 测试完成后销毁虚拟机
+orbctl delete test-<script-name>
+```
+
+## WSL 测试流程（Windows）
+
+```powershell
+# 1. 创建新的 WSL 实例（从已有发行版导入一个副本）
+wsl --export Ubuntu ubuntu-base.tar
+wsl --import test-<script-name> C:\wsl\test-<script-name> ubuntu-base.tar
+
+# 2. 进入实例并运行脚本
+wsl -d test-<script-name> -u root -- bash /mnt/path/to/script.sh
+
+# 3. 测试完成后销毁
+wsl --unregister test-<script-name>
+```
+
+> ⚠️ WSL2 默认无完整 systemd，需在 `/etc/wsl.conf` 中启用：
+>
+> ```ini
+> [boot]
+> systemd=true
+> ```
+
+## 必测项清单
+
+每个脚本必须覆盖以下测试项，缺一不可：
+
+- [ ] **首次运行**：在全新环境（无依赖）中能否完整执行
+- [ ] **幂等性**：重复运行第二次，结果是否一致、无副作用
+- [ ] **核心功能**：脚本的主要功能是否符合预期
+- [ ] **权限验证**：需要 root 的脚本，以普通用户运行时是否正确报错退出
+- [ ] **错误暴露**：故意制造错误输入，脚本是否明确报错而非静默失败
+
+## 常见陷阱与修复模式
+
+### 文件权限（chmod 不够，还需 chown）
+
+脚本创建供系统服务读取的文件时，必须同时设置属主：
+
+```bash
+# ❌ 只设权限位，服务用户仍无法读取
+chmod 640 /etc/service/secret.conf
+
+# ✅ 同时设属主，确保服务用户可读
+chown root:serviceuser /etc/service/secret.conf
+chmod 640 /etc/service/secret.conf
+```
+
+> 本项目实例：`setup_squid_proxy.sh` 中 `/etc/squid/passwd` 需要 `chown root:proxy`，
+> 否则 Squid 以 `proxy` 用户运行时会报 `Permission denied`，导致所有认证请求被拒绝。
+
+### 非交互式环境下的 curl 认证
+
+curl 8.x 对非 HTTPS 代理的 Basic Auth 有安全限制，`-x user:pass@host` 写法会被静默忽略。
+验证脚本功能时应使用 `--proxy-user` 参数：
+
+```bash
+# ❌ curl 8.x 在 HTTP 代理下会静默忽略此认证
+curl -x http://user:pass@127.0.0.1:3128 http://example.com
+
+# ✅ 显式传递代理凭据
+curl --proxy-user user:pass -x http://127.0.0.1:3128 http://example.com
+```
+
+### 服务日志是排查认证/权限问题的第一手段
+
+```bash
+# 服务启动后立即检查日志，不要只看 systemctl status
+journalctl -u <service> -n 50 --no-pager
+tail -f /var/log/<service>/error.log
+```
+
+## 测试报告格式
+
+测试完成后，在 PR/commit 描述中附上简要测试报告：
+
+```
+测试环境: OrbStack Ubuntu 24.04 (arm64)
+测试项:
+  ✅ 首次运行 - 自动安装依赖，完整执行
+  ✅ 幂等性   - 重复运行，结果一致
+  ✅ 核心功能 - <具体验证结果>
+  ✅ 权限验证 - 普通用户运行时正确报错
+发现问题: <如有，描述问题和修复方式>
+```

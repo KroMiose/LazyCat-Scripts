@@ -50,6 +50,7 @@
 |  🔑  | [`setup_ssh_access.sh`](#setup_ssh_accesssh)     | 在服务器上一键配置 SSH 免密登录并返回私钥。           |  Linux & macOS  |
 |  ⚙️  | [`add_ssh_config.sh`](#add_ssh_configsh)         | 在本地通过交互式向导添加 SSH 服务器连接配置。         |  Linux & macOS  |
 |  🔐  | [`ssh/`](./ssh/README.md)                        | SSH 管理模块：Gist 同步配置 + 可选 SSH CA。           |  Linux & macOS  |
+|  🦑  | [`setup_squid_proxy.sh`](#setup_squid_proxysh)   | 一键部署带 Basic Auth 认证的 Squid HTTP/HTTPS 代理。  |      Linux      |
 
 ### ⚙️ 系统配置 (System Configuration)
 
@@ -479,6 +480,51 @@
 
   ```bash
   bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/add_ssh_config.sh)"
+  ```
+
+</details>
+
+---
+
+### `setup_squid_proxy.sh`
+
+<details>
+<summary><strong>概述：</strong>在 Ubuntu/Debian 服务器上一键部署带 Basic Auth 认证的 Squid HTTP/HTTPS 代理，自动生成随机账号密码并输出可直接使用的代理 URL。</summary>
+
+这是一个在**服务器端**运行的一键部署脚本。它会自动安装 Squid 及认证工具，生成随机账号密码，写入带匿名化（隐藏源 IP）配置的 Squid 配置文件，并在部署完成后直接输出可用的代理 URL。
+
+- **✨ 主要功能:**
+
+  - **自动安装依赖:** 自动检测并通过 `apt-get` 安装 `squid` 和 `apache2-utils`（提供 `htpasswd`）。
+  - **交互式配置:** 引导您设置监听端口（默认 51938），并支持自动生成随机账号密码或手动指定。
+  - **Basic Auth 认证:** 使用 `htpasswd` 生成密码文件，未认证请求将收到 HTTP 407 拒绝。
+  - **源 IP 匿名化:** 配置 `forwarded_for delete`、`via off` 及多项请求/响应头过滤，隐藏代理特征。
+  - **配置自动备份:** 在覆盖原配置前自动创建带时间戳的备份文件。
+  - **语法验证:** 写入配置后自动运行 `squid -k parse` 验证语法，有错误则立即中止。
+  - **部署结果汇总:** 自动获取服务器公网 IP，部署完成后输出完整代理 URL 及常用管理命令。
+
+- **💻 支持系统:**
+
+  - 基于 Debian/Ubuntu 的 Linux 系统（需要 systemd）。
+
+- **💣 执行副作用:**
+
+  - **系统级变更:** 通过 `apt-get` 安装 `squid`、`apache2-utils` 软件包。
+  - **文件操作:**
+    - 创建认证密码文件 `/etc/squid/passwd`。
+    - 覆盖 `/etc/squid/squid.conf`（原文件备份为 `/etc/squid/squid.conf.bak.<时间戳>`）。
+  - **服务变更:** 重启 `squid` 服务并设置为开机自启（`systemctl enable squid`）。
+
+- **🔁 可重复执行性:**
+
+  - 本脚本是**可重复执行的**。每次运行都会重新生成凭据（或使用您手动指定的凭据）并完整覆盖配置，旧配置会被自动备份。
+
+- **🚀 一键执行:**
+
+  > 需要以 `sudo` 运行，因为脚本需要安装系统软件包并修改系统配置。
+
+  ```bash
+  sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_squid_proxy.sh)"
   ```
 
 </details>
