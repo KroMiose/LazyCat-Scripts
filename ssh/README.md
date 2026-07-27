@@ -48,14 +48,14 @@ sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/ca/la
    Copy 出来的那行命令包含了当前的 CA 公钥。
 
 2. **在服务器执行**：
-   登录到你的目标服务器（如 Ubuntu/CentOS），粘贴并执行该命令：
+   登录到你的目标服务器（如 Ubuntu/CentOS 或 macOS），粘贴并执行该命令：
 
    ```bash
    # 示例（请务必使用 CA 脚本生成的实际命令）
    sudo bash -c "$(curl -fsSL ...)" -- "ssh-ed25519 AAAA..."
    ```
 
-   _该操作会自动修改 `/etc/ssh/sshd_config` 添加 `TrustedUserCAKeys` 并重载 sshd。_
+   _该操作会自动修改 `/etc/ssh/sshd_config` 添加 `TrustedUserCAKeys`。Linux 会尝试重载 sshd；macOS 的 sshd 由 launchd 按需启动，新连接会自动读取最新配置，无需手动重载。_
 
 ---
 

@@ -3,8 +3,8 @@
 # ==============================================================================
 # 脚本名称: lazycat-ssh-node.sh (Node)
 # 功    能: 被访问设备侧启用 SSH CA：写入 CA 公钥、幂等修改 sshd_config，
-#           并 reload sshd。提供移除功能。
-# 适用系统: Linux（需 root）
+#           并使配置生效。提供移除功能。
+# 适用系统: Linux / macOS（需 root）
 # 使用方法: sudo bash -c \"$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/node/lazycat-ssh-node.sh)\"
 # ==============================================================================
 
@@ -69,7 +69,25 @@ lc_require_root() {
   fi
 }
 
+lc_is_macos() {
+  [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]
+}
+
 lc_reload_sshd() {
+  if lc_is_macos; then
+    lc_log "⏳ 检查 macOS launchd 中的 sshd..."
+    if ! command -v launchctl >/dev/null 2>&1; then
+      lc_die "当前系统为 macOS，但未找到 launchctl。请检查系统环境。"
+    fi
+
+    if launchctl print system/com.openssh.sshd >/dev/null 2>&1; then
+      lc_log "✅ sshd 已由 launchd 注册；macOS 会为新连接自动读取最新配置，无需 reload。"
+    else
+      lc_err "⚠️ 未检测到 launchd 服务 com.openssh.sshd；配置已写入，将在启用“远程登录”后生效。"
+    fi
+    return 0
+  fi
+
   lc_log "⏳ 正在尝试 reload sshd..."
   set +e
   local tried=0
@@ -162,7 +180,7 @@ lc_apply_sshd_config() {
 }
 
 lc_remove_config() {
-  if ! lc_confirm "将移除 LazyCat SSH CA 配置并 reload sshd，确认继续？" "N"; then
+  if ! lc_confirm "将移除 LazyCat SSH CA 配置并应用 sshd 配置，确认继续？" "N"; then
     lc_die "用户取消。"
   fi
 
@@ -188,6 +206,20 @@ lc_show_status() {
   lc_log "  - CA 公钥: ${CA_PUB_PATH} $( [[ -f "$CA_PUB_PATH" ]] && echo '(存在)' || echo '(不存在)' )"
   lc_log "  - sshd_config: ${SSHD_CONFIG} $( [[ -f "$SSHD_CONFIG" ]] && echo '(存在)' || echo '(不存在)' )"
   lc_log ""
+
+  if lc_is_macos; then
+    if ! command -v launchctl >/dev/null 2>&1; then
+      lc_err "⚠️ 当前系统为 macOS，但未找到 launchctl。"
+      return 0
+    fi
+
+    if launchctl print system/com.openssh.sshd >/dev/null 2>&1; then
+      lc_log "✅ sshd 已由 launchd 注册（按需启动）。"
+    else
+      lc_err "⚠️ 未检测到 launchd 服务 com.openssh.sshd，请检查“系统设置 → 通用 → 共享 → 远程登录”。"
+    fi
+    return 0
+  fi
 
   set +e
   if command -v systemctl >/dev/null 2>&1; then
@@ -227,7 +259,7 @@ main_menu() {
 
   while true; do
     lc_log "请选择操作："
-    lc_log "  1) 初始化 / 更新（写入 CA 公钥 + 配置 sshd_config + reload）"
+    lc_log "  1) 初始化 / 更新（写入 CA 公钥 + 配置并应用 sshd_config）"
     lc_log "  2) 查看当前 CA 公钥"
     lc_log "  3) 移除 LazyCat SSH CA 配置"
     lc_log "  4) 检查 sshd 状态"
@@ -269,4 +301,3 @@ main() {
 }
 
 main "$@"
-
