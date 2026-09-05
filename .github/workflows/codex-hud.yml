@@ -1,0 +1,176 @@
+name: codex-hud
+
+on:
+  pull_request:
+    paths: ['codex-hud/**', '.github/workflows/codex-hud.yml']
+  push:
+    branches: [main]
+    paths: ['codex-hud/**', '.github/workflows/codex-hud.yml']
+    tags: ['codex-hud-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codex-hud-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: codex-hud
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: codex-hud/go.mod
+          cache-dependency-path: codex-hud/go.sum
+      - name: Format, vet, race tests
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -race -timeout 60s ./...
+      - name: Installer and isolated lifecycle
+        run: |
+          CGO_ENABLED=0 go build -ldflags "-X main.version=codex-hud-v0.1.0" -o /tmp/codex-hud-test .
+          python3 tests/lifecycle.py /tmp/codex-hud-test
+          python3 tests/installer.py /tmp/codex-hud-test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: codex-hud/go.mod
+          cache-dependency-path: codex-hud/go.sum
+      - name: Build versioned release bundle
+        working-directory: codex-hud
+        env:
+          RELEASE_REF: ${{ github.ref_name }}
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/codex-hud-v') }}
+        run: |
+          if [ "$IS_TAG" = true ]; then
+            sh scripts/build-release.sh "$RELEASE_REF"
+          else
+            sh scripts/build-release.sh codex-hud-v0.0.0
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codex-hud-binaries
+          path: codex-hud/dist/*
+
+  draft:
+    if: startsWith(github.ref, 'refs/tags/codex-hud-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: codex-hud-binaries
+          path: dist
+      - name: Create or resume draft (never replace published assets)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if state=$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft'); then
+            test "$state" = true || { echo 'Release already published; use a new tag'; exit 1; }
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* --draft --verify-tag --title "$RELEASE_TAG" --notes-file codex-hud/RELEASE_NOTES.md
+          fi
+
+  draft-smoke:
+    needs: draft
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download actual draft assets and verify on native host
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/hud-release"
+          python3 codex-hud/tests/verify_release.py "$RUNNER_TEMP/hud-release" "$RELEASE_TAG"
+
+  publish:
+    needs: draft-smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish verified draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release edit "$RELEASE_TAG" --draft=false --latest=false
+
+  public-smoke:
+    needs: publish
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test public install URLs without credentials
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 codex-hud/tests/public_install.py "$RELEASE_TAG"
+
+  stable-proposal:
+    needs: public-smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Propose stable pointer after public verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          branch="codex/promote-$RELEASE_TAG"
+          if [ "$(cat codex-hud/stable.txt)" = "$RELEASE_TAG" ]; then exit 0; fi
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git fetch origin "$branch"
+            git checkout -b "$branch" FETCH_HEAD
+          else
+            git checkout -b "$branch"
+          fi
+          printf '%s\n' "$RELEASE_TAG" > codex-hud/stable.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add codex-hud/stable.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "release: promote $RELEASE_TAG to stable"
+          fi
+          git push origin "$branch"
+          printf '%s\n' '该版本的草稿资产、原生安装和公开下载入口均已验证。合并后默认安装入口才指向此版本；请确认没有更新版本已被提升为 stable。' > /tmp/hud-promotion-body.md
+          if [ "$(gh pr list --base main --head "$branch" --state open --json number --jq 'length')" -eq 0 ]; then
+            if ! gh pr create --base main --head "$branch" --title "release: promote $RELEASE_TAG to stable" --body-file /tmp/hud-promotion-body.md; then
+              echo '::warning::Stable PR creation failed; release is published but the stable pointer was NOT changed.'
+              printf 'Stable promotion requires a maintainer PR: https://github.com/%s/compare/main...%s?expand=1\n' "$GH_REPO" "$branch" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
