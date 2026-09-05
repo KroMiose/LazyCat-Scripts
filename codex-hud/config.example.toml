@@ -1,0 +1,15 @@
+format_version = 1
+
+[bark]
+server = "https://api.day.app"
+# 推荐使用 codex-hud config set key 隐藏输入，不要将实际 Key 提交到仓库。
+key = ""
+
+[hud]
+enabled = true
+stop = true
+title_width = 30 # 允许 12–40
+body_width = 72 # 允许 1–80
+
+[projects]
+# "/Users/you/Projects/NekroAgent" = "NekroAgent"

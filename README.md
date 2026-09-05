@@ -22,10 +22,17 @@
 - `linux/` - 存放仅适用于 Linux 系统的专属脚本。
 - `macos/` - (规划中) 存放适用于 macOS 系统的脚本。
 - `windows/` - (规划中) 存放适用于 Windows 系统的脚本。
+- `codex-hud/` - Codex → Bark → iPhone / RayNeo iO 通知工具，提供独立可执行程序。
 
 ## 📜 脚本索引 (Script Index)
 
 为了方便您快速找到所需脚本，我们已按功能进行分类。
+
+### Codex 通知
+
+| 工具 | 功能 | 平台 |
+| :--- | :--- | :--- |
+| [codex-hud](./codex-hud/README.md) | 审批、每轮结束及主动重要事项推送；支持配置 Key、暂停和精确卸载，无语言运行时依赖。首次 Release 发布后可在线安装。 | macOS & Linux |
 
 ### 🚀 基础开发环境 (Essential Development Environment)
 
