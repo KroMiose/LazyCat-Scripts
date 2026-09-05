@@ -142,7 +142,7 @@ func (a *app) notify(o notifyOptions) error {
 		}
 		o.Message = string(b)
 	}
-	body := truncateWidth(singleLine(redact(o.Message)), c.BodyWidth)
+	body := truncateBody(singleLine(redact(o.Message)), c.BodyMaxBytes)
 	if body == "" {
 		return errors.New("通知正文不能为空")
 	}
@@ -152,7 +152,7 @@ func (a *app) notify(o notifyOptions) error {
 			return err
 		}
 	}
-	title := buildTitle(o.Kind, resolveProjectName(a.ctx, o.Cwd, c.Projects), c.TitleWidth)
+	title := buildTitle(o.Kind, a.notificationName(o.Session, o.Cwd, c), c.TitleWidth)
 	if o.DryRun {
 		fmt.Fprintf(a.out, "%s\n%s\n显示宽度：标题 %d，正文 %d\n", title, body, uniseg.StringWidth(title), uniseg.StringWidth(body))
 		return nil
@@ -224,6 +224,9 @@ func (a *app) hook(event string) (map[string]any, error) {
 		if !c.Stop || p.LastMessage == nil {
 			return result, nil
 		}
+		if structuredReply(*p.LastMessage) {
+			return result, nil
+		}
 		kind = "info"
 		body = sanitizeText(*p.LastMessage)
 	} else {
@@ -241,11 +244,11 @@ func (a *app) hook(event string) (map[string]any, error) {
 		}
 		body = "等待批准：" + body
 	}
-	body = truncateWidth(singleLine(redact(body)), c.BodyWidth)
+	body = truncateBody(singleLine(redact(body)), c.BodyMaxBytes)
 	if body == "" {
 		return result, nil
 	}
-	title := buildTitle(kind, resolveProjectName(a.ctx, p.Cwd, c.Projects), c.TitleWidth)
+	title := buildTitle(kind, a.notificationName(p.Session, p.Cwd, c), c.TitleWidth)
 	if event != "stop" {
 		return result, sendBark(a.ctx, c, title, body, kind)
 	}
@@ -269,6 +272,7 @@ success 重要成功；action 等待用户；error 最终受阻；info 重要信
 --cwd PATH                      使用本轮项目目录
 --keep-stop                     过程里程碑仍保留结束提醒
 --dry-run                       预览正文与显示宽度，不发送、不记状态
+标题自动使用对话名，无名称时回退项目名；正文最多 3000 JSON 字节，超限明确标注。
 选项可位于正文前后；手工通知可省略 ID，不参与去重。
 安全传参示例（引号包围 EOF，防止 Shell 展开）：
 codex-hud notify info --stdin --keep-stop <<'EOF'

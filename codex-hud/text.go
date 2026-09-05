@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -78,7 +79,7 @@ func truncateWidth(s string, limit int) string {
 var symbols = map[string]string{"success": "✓", "action": "!", "error": "✗", "info": "◆"}
 
 func buildTitle(kind, project string, limit int) string {
-	return truncateWidth(symbols[kind]+" Codex · "+singleLine(project), limit)
+	return truncateWidth(truncateJSONText(symbols[kind]+" "+singleLine(redact(project)), 256, "…"), limit)
 }
 
 func canonicalPath(p string) string {
@@ -143,4 +144,52 @@ func resolveProjectName(ctx context.Context, cwd string, aliases map[string]stri
 		return filepath.Base(root)
 	}
 	return filepath.Base(cwd)
+}
+
+// Check the raw text before Markdown removal, which can change valid JSON strings.
+func structuredReply(s string) bool {
+	s = strings.TrimSpace(s)
+	lines := strings.Split(s, "\n")
+	if len(lines) >= 3 {
+		first, last := strings.TrimSpace(lines[0]), strings.TrimSpace(lines[len(lines)-1])
+		for _, fence := range []string{"```", "~~~"} {
+			if (first == fence || strings.EqualFold(first, fence+"json")) && last == fence {
+				s = strings.TrimSpace(strings.Join(lines[1:len(lines)-1], "\n"))
+				break
+			}
+		}
+	}
+	return len(s) > 0 && (s[0] == '{' || s[0] == '[') && json.Valid([]byte(s))
+}
+
+const bodyTruncation = "…（内容过长，已截断）"
+
+// Bound the encoded JSON string, including quotes and escape sequences. Reserve
+// room for the rest of the push payload, without splitting Unicode graphemes.
+func truncateBody(s string, limit int) string {
+	return truncateJSONText(s, limit, bodyTruncation)
+}
+
+func truncateJSONText(s string, limit int, marker string) string {
+	encoded, _ := json.Marshal(s)
+	if len(encoded) <= limit {
+		return s
+	}
+	suffix, _ := json.Marshal(marker)
+	budget := limit - len(suffix)
+	if budget < 0 {
+		return ""
+	}
+	var b strings.Builder
+	g := uniseg.NewGraphemes(s)
+	for g.Next() {
+		part, _ := json.Marshal(g.Str())
+		cost := len(part) - 2
+		if cost > budget {
+			break
+		}
+		b.WriteString(g.Str())
+		budget -= cost
+	}
+	return b.String() + marker
 }

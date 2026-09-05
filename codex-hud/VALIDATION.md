@@ -2,6 +2,15 @@
 
 验证日期：2026-09-05。稳定版：[codex-hud 0.1.0](https://github.com/KroMiose/LazyCat-Scripts/releases/tag/codex-hud-v0.1.0)。
 
+## 通知内容回归验证
+
+0.1.1 的 Go 1.24 / 1.27 race 测试、go vet、四平台构建及本地安装包验证通过。新增用例覆盖：
+
+- 整段 JSON 与 JSON 代码块跳过；混合说明文字和主动 JSON 通知保留。
+- 数百字正文不裁剪，旧 body_width 不再生效；JSON 转义、Unicode 组合字符和超限提示计入字节预算。
+- session ID 精确标题匹配、改名、无索引回退、损坏行及有界索引读取。
+- 过滤后仍可发送同轮正常回复，重复 Stop 继续去重。
+
 ## 发布与安装
 
 [公开发布流程](https://github.com/KroMiose/LazyCat-Scripts/actions/runs/33962782414) 已通过 macOS/Linux 测试、四平台构建、草稿资产实际下载验证和公开固定版本安装验证。`stable.txt` 已提升到 0.1.0。

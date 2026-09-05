@@ -44,11 +44,11 @@ func defaultPaths() (paths, error) {
 }
 
 type config struct {
-	Key, Server           string
-	Enabled, Stop         bool
-	TitleWidth, BodyWidth int
-	Projects              map[string]string
-	Raw                   map[string]any
+	Key, Server              string
+	Enabled, Stop            bool
+	TitleWidth, BodyMaxBytes int
+	Projects                 map[string]string
+	Raw                      map[string]any
 }
 
 func table(m map[string]any, name string) map[string]any {
@@ -61,7 +61,7 @@ func table(m map[string]any, name string) map[string]any {
 }
 
 func loadConfig(path string, env bool) (config, error) {
-	c := config{Server: "https://api.day.app", Enabled: true, Stop: true, TitleWidth: 30, BodyWidth: 72, Projects: map[string]string{}, Raw: map[string]any{}}
+	c := config{Server: "https://api.day.app", Enabled: true, Stop: true, TitleWidth: 30, BodyMaxBytes: 3000, Projects: map[string]string{}, Raw: map[string]any{}}
 	b, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return c, err
@@ -86,7 +86,7 @@ func loadConfig(path string, env bool) (config, error) {
 		HUD struct {
 			Enabled, Stop *bool
 			TitleWidth    *int `toml:"title_width"`
-			BodyWidth     *int `toml:"body_width"`
+			BodyMaxBytes  *int `toml:"body_max_bytes"`
 		}
 		Projects map[string]string
 	}
@@ -108,8 +108,8 @@ func loadConfig(path string, env bool) (config, error) {
 	if known.HUD.TitleWidth != nil {
 		c.TitleWidth = *known.HUD.TitleWidth
 	}
-	if known.HUD.BodyWidth != nil {
-		c.BodyWidth = *known.HUD.BodyWidth
+	if known.HUD.BodyMaxBytes != nil {
+		c.BodyMaxBytes = *known.HUD.BodyMaxBytes
 	}
 	if known.Projects != nil {
 		c.Projects = known.Projects
@@ -126,8 +126,8 @@ func loadConfig(path string, env bool) (config, error) {
 }
 
 func (c config) validate() error {
-	if c.TitleWidth < 12 || c.TitleWidth > 40 || c.BodyWidth < 1 || c.BodyWidth > 80 {
-		return errors.New("title_width 应为 12–40，body_width 应为 1–80")
+	if c.TitleWidth < 12 || c.TitleWidth > 40 || c.BodyMaxBytes < 256 || c.BodyMaxBytes > 3000 {
+		return errors.New("title_width 应为 12–40，body_max_bytes 应为 256–3000")
 	}
 	u, err := url.Parse(c.Server)
 	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
@@ -263,7 +263,10 @@ func (a *app) configCommand(args []string) error {
 			server = "配置无效，请检查文件"
 		}
 		b, _ := json.MarshalIndent(c.Projects, "", "  ")
-		fmt.Fprintf(a.out, "配置：%s\nKey：%s [%s]\nServer：%s [%s]\n启用：%t；自动 Stop：%t；标题/正文宽度：%d/%d\n项目 alias：%s\n", a.paths.Config, keyState, source("BARK_KEY"), server, source("BARK_SERVER"), c.Enabled, c.Stop, c.TitleWidth, c.BodyWidth, b)
+		fmt.Fprintf(a.out, "配置：%s\nKey：%s [%s]\nServer：%s [%s]\n启用：%t；自动 Stop：%t；标题宽度：%d；正文 JSON 字节上限：%d\n项目 alias：%s\n", a.paths.Config, keyState, source("BARK_KEY"), server, source("BARK_SERVER"), c.Enabled, c.Stop, c.TitleWidth, c.BodyMaxBytes, b)
+		if _, legacy := table(c.Raw, "hud")["body_width"]; legacy {
+			fmt.Fprintln(a.out, "旧 body_width 已忽略；正文改用 body_max_bytes，默认 3000 JSON 字节。")
+		}
 		return nil
 	case "test":
 		if len(args) != 1 {
@@ -303,7 +306,7 @@ func (a *app) configCommand(args []string) error {
 			if len(args) != 3 {
 				return errors.New("用法：config set server <URL>")
 			}
-			c := config{Server: args[2], TitleWidth: 30, BodyWidth: 72}
+			c := config{Server: args[2], TitleWidth: 30, BodyMaxBytes: 3000}
 			if err := c.validate(); err != nil {
 				return err
 			}
@@ -401,4 +404,4 @@ config show                    显示生效配置与来源，不显示 Key
 config set key [--stdin]        隐藏输入 Key，或从 stdin 读取
 config set server <URL>         修改 Bark 服务器
 config test                    显式发送测试通知
-BARK_KEY / BARK_SERVER 覆盖文件；宽度可在 TOML [hud] 中设置。`
+BARK_KEY / BARK_SERVER 覆盖文件；[hud] title_width 控制标题宽度，body_max_bytes 控制正文 JSON 字节上限。旧 body_width 已停用。`
