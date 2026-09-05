@@ -104,7 +104,7 @@ func TestConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	c, err := loadConfig(a.paths.Config, false)
-	if err != nil || c.Key != "private-key" || c.Server != "https://example.com/bark" || c.BodyWidth != 60 {
+	if err != nil || c.Key != "private-key" || c.Server != "https://example.com/bark" || c.BodyMaxBytes != 3000 {
 		t.Fatalf("%+v %v", c, err)
 	}
 	if err := a.run([]string{"disable"}); err != nil {
@@ -166,7 +166,7 @@ func TestSendBark(t *testing.T) {
 		fmt.Fprint(w, `{"code":200}`)
 	}))
 	defer s.Close()
-	c := config{Key: "secret", Server: s.URL + "/prefix", TitleWidth: 30, BodyWidth: 72}
+	c := config{Key: "secret", Server: s.URL + "/prefix", TitleWidth: 30, BodyMaxBytes: 3000}
 	if err := sendBark(context.Background(), c, "title", "body", "action"); err != nil {
 		t.Fatal(err)
 	}

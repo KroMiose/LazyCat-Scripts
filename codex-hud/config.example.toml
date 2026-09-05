@@ -9,7 +9,7 @@ key = ""
 enabled = true
 stop = true
 title_width = 30 # 允许 12–40
-body_width = 72 # 允许 1–80
+body_max_bytes = 3000 # 正文 JSON 编码字节上限，允许 256–3000；旧 body_width 不再生效
 
 [projects]
 # "/Users/you/Projects/NekroAgent" = "NekroAgent"
