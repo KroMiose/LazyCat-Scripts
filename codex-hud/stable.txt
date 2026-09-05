@@ -1,1 +1,1 @@
-unreleased
+codex-hud-v0.1.0
