@@ -1,6 +1,6 @@
 # 验证记录
 
-验证日期：2026-09-05。稳定版：[codex-hud 0.1.0](https://github.com/KroMiose/LazyCat-Scripts/releases/tag/codex-hud-v0.1.0)。
+验证日期：2026-09-05。稳定版：[codex-hud 0.1.1](https://github.com/KroMiose/LazyCat-Scripts/releases/tag/codex-hud-v0.1.1)。
 
 ## 通知内容回归验证
 
@@ -12,6 +12,10 @@
 - 过滤后仍可发送同轮正常回复，重复 Stop 继续去重。
 
 ## 发布与安装
+
+0.1.1 [发布流程](https://github.com/KroMiose/LazyCat-Scripts/actions/runs/33973288070)已通过四平台构建、macOS/Linux 草稿下载和公开安装验证。默认安装入口已切换到 0.1.1。
+
+### 0.1.0 首次发布记录
 
 [公开发布流程](https://github.com/KroMiose/LazyCat-Scripts/actions/runs/33962782414) 已通过 macOS/Linux 测试、四平台构建、草稿资产实际下载验证和公开固定版本安装验证。`stable.txt` 已提升到 0.1.0。
 

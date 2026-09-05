@@ -116,7 +116,7 @@ codex-hud uninstall --purge              # 卸载并删除本工具配置
 指定版本安装：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/codex-hud/install.sh | sh -s -- --version v0.1.0
+curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/codex-hud/install.sh | sh -s -- --version v0.1.1
 ```
 
 安装器支持 `--install-dir /absolute/path` 自定义目录，以及 `--no-setup` 仅安装程序。更换已有安装的目录或 `CODEX_HOME` 前，应先卸载旧集成。回退旧版本需要配置格式兼容，程序会拒绝覆盖不支持的格式。
@@ -136,7 +136,7 @@ curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/codex
 cd codex-hud
 go vet ./...
 go test -race -timeout 60s ./...
-CGO_ENABLED=0 go build -ldflags "-X main.version=codex-hud-v0.1.0" -o /tmp/codex-hud-test .
+CGO_ENABLED=0 go build -ldflags "-X main.version=codex-hud-v0.1.1" -o /tmp/codex-hud-test .
 python3 tests/lifecycle.py /tmp/codex-hud-test
 python3 tests/installer.py /tmp/codex-hud-test
 ```
