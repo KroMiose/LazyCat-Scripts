@@ -16,12 +16,12 @@
 
 ## 仓库结构
 
-为了方便管理，所有脚本都按照操作系统和通用性分类存放在不同的目录中。
+脚本和工具按用途与平台组织。
 
 - `common/` - 存放适用于 Linux 和 macOS 的通用脚本。
 - `linux/` - 存放仅适用于 Linux 系统的专属脚本。
-- `macos/` - (规划中) 存放适用于 macOS 系统的脚本。
-- `windows/` - (规划中) 存放适用于 Windows 系统的脚本。
+- `ssh/` - SSH 配置同步、证书签发和节点管理。
+- `shadowrocket/` - Shadowrocket 代理配置。
 - `codex-hud/` - Codex → Bark → iPhone / RayNeo iO 通知工具，提供独立可执行程序。
 
 ## 📜 脚本索引 (Script Index)
@@ -32,7 +32,7 @@
 
 | 工具 | 功能 | 平台 |
 | :--- | :--- | :--- |
-| [codex-hud](./codex-hud/README.md) | 审批、每轮结束及主动重要事项推送；支持配置 Key、暂停和精确卸载，无语言运行时依赖。首次 Release 发布后可在线安装。 | macOS & Linux |
+| [codex-hud](./codex-hud/README.md) | 将 Codex 审批、结束和重要事项通过 Bark 推送到手机与眼镜，支持一键安装、配置和卸载。 | macOS & Linux |
 
 ### 🚀 基础开发环境 (Essential Development Environment)
 

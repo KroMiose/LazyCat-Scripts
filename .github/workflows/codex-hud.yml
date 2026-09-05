@@ -32,10 +32,19 @@ jobs:
       run:
         working-directory: codex-hud
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
-          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
-      - uses: actions/setup-go@v5
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Prepare PR merge from fixed commits
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags origin "$PR_BASE_SHA"
+          git -c user.name=CI -c user.email=ci@example.invalid merge --no-commit --no-ff "$PR_BASE_SHA"
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: codex-hud/go.mod
           cache-dependency-path: codex-hud/go.sum
@@ -54,10 +63,19 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
-          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
-      - uses: actions/setup-go@v5
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Prepare PR merge from fixed commits
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags origin "$PR_BASE_SHA"
+          git -c user.name=CI -c user.email=ci@example.invalid merge --no-commit --no-ff "$PR_BASE_SHA"
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: codex-hud/go.mod
           cache-dependency-path: codex-hud/go.sum
@@ -72,10 +90,21 @@ jobs:
           else
             sh scripts/build-release.sh codex-hud-v0.0.0
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.1
         with:
           name: codex-hud-binaries
           path: codex-hud/dist/*
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: codex-hud-binaries
+          path: ${{ runner.temp }}/hud-bundle-check
+      - name: Verify uploaded artifact round trip
+        env:
+          RELEASE_REF: ${{ inputs.release_tag || github.ref_name }}
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/codex-hud-v') || inputs.release_tag != '' }}
+        run: |
+          if [ "$IS_TAG" != true ]; then RELEASE_REF=codex-hud-v0.0.0; fi
+          python3 codex-hud/tests/verify_release.py "$RUNNER_TEMP/hud-bundle-check" "$RELEASE_REF"
 
   draft:
     if: startsWith(github.ref, 'refs/tags/codex-hud-v') || inputs.release_tag != ''
@@ -84,10 +113,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
-          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
-      - uses: actions/download-artifact@v4
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/download-artifact@v8.0.1
         with:
           name: codex-hud-binaries
           path: dist
@@ -114,9 +143,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
-          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.event.pull_request.head.sha || github.sha }}
       - name: Download actual draft assets and verify on native host
         env:
           GH_TOKEN: ${{ github.token }}
@@ -146,9 +175,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
-          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.ref }}
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.event.pull_request.head.sha || github.sha }}
       - name: Test public install URLs without credentials
         env:
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
@@ -161,7 +190,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           ref: main
       - name: Propose stable pointer after public verification
