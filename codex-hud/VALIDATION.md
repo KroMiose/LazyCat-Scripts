@@ -22,7 +22,7 @@ Ubuntu 测试使用本次创建的 OrbStack 隔离虚拟机，完成后已删除
 
 复现命令见 [README](README.md#开发和验证)。最终本地程序位于被 Git 忽略的 `dist/`；仓库分发依赖 Release 工作流生成产物，不提交二进制。
 
-## 尚未验证或执行
+## 首次本地验证时尚未覆盖
 
 - 尚未在 GitHub 实际运行发布工作流、创建标签或发布 Release。
 - 尚未在真实 Codex 桌面任务中信任并运行本工具 Hooks；测试使用官方格式的 payload，不能替代客户端端到端验收。
@@ -41,3 +41,13 @@ Ubuntu 测试使用本次创建的 OrbStack 隔离虚拟机，完成后已删除
 - 四种程序、固定版本安装器与许可文件均进入完整 SHA-256 清单。
 
 这些是本地发布包测试，不代表 GitHub 资产已经发布。远程草稿、公开安装和 stable 提升以 [Actions](https://github.com/KroMiose/LazyCat-Scripts/actions/workflows/codex-hud.yml) 记录及 `stable.txt` 为准。
+
+## 0.1.0 公开发布验收
+
+随后已完成 [codex-hud-v0.1.0](https://github.com/KroMiose/LazyCat-Scripts/releases/tag/codex-hud-v0.1.0) 正式发布，`stable.txt` 已提升到该版本。
+
+- [发布流程](https://github.com/KroMiose/LazyCat-Scripts/actions/runs/33962782414) 全部通过：macOS/Linux 测试、四平台构建、草稿资产实际下载验证、公开固定版本安装。
+- 首次草稿验证发现只读令牌无法访问未公开 Release；已将权限限定修复到草稿验证作业，并用指定原标签的恢复入口完成发布，未移动标签。
+- 已从 GitHub raw 下载默认入口，在临时 HOME/CODEX_HOME 中不带 `--version` 完成安装，程序报告 `codex-hud-v0.1.0`。
+- 仓库不允许 Actions 自动创建 PR，因此由维护者补建并合并 stable 提升 PR，没有改变仓库权限。
+- 尚未部署 NekroEndpoint 的完整二进制镜像；当前默认使用 GitHub 官方源。真实手机与眼镜显示仍需用户验收。
