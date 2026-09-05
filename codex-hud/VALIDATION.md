@@ -1,53 +1,39 @@
-# 第一版验证记录
+# 验证记录
 
-验证日期：2026-09-05。全部使用临时 HOME/CODEX_HOME、伪 Key 和本地 HTTP 服务；未修改开发者的真实 Codex 集成，未向真实 Bark/设备发送消息。
+验证日期：2026-09-05。稳定版：[codex-hud 0.1.0](https://github.com/KroMiose/LazyCat-Scripts/releases/tag/codex-hud-v0.1.0)。
+
+## 发布与安装
+
+[公开发布流程](https://github.com/KroMiose/LazyCat-Scripts/actions/runs/33962782414) 已通过 macOS/Linux 测试、四平台构建、草稿资产实际下载验证和公开固定版本安装验证。`stable.txt` 已提升到 0.1.0。
+
+此外，已从 GitHub raw 下载默认入口，在临时 HOME/CODEX_HOME 中不带 `--version` 完成安装，确认程序版本为 `codex-hud-v0.1.0`。这些测试没有修改用户的真实 Codex 配置。
 
 | 验证项 | 结果 |
 | --- | --- |
-| macOS ARM64，Go 1.27.1：格式、`go vet`、`go test -race -timeout 60s ./...` | 通过 |
-| 最低声明版本 Go 1.24.0：`go test -race -timeout 60s ./...` | 通过 |
-| 中文/ASCII/组合字符、Markdown 清理、命令符号、敏感参数遮蔽 | 通过 |
-| Bark POST、timeSensitive、HTTP/业务失败、超时、禁止重定向 | 通过，本地 HTTP fixture |
-| session/turn 隔离、重复 Stop、`--keep-stop`、失败不抑制 Stop、过期状态 | 通过 |
-| macOS ARM64 与 Ubuntu 24.04 ARM64：独立 CLI 的多进程去重 | 通过 |
-| 两种系统：真实伪终端隐藏 Key、无终端报错、stdin 配置、配置权限 | 通过 |
-| 两种系统：setup 幂等、含空格路径、既有 Hooks/规则/Computer Use notify 保留 | 通过 |
-| 两种系统：暂停/恢复、卸载、purge、重装 | 通过 |
-| 修改过的集成保留、文件写入失败回滚、卸载中断后重试 | 通过 |
-| 两种系统：安装器首次安装、重复升级、校验错误/文件缺失时保留旧程序 | 通过，本地 Release fixture |
-| macOS/Linux × ARM64/AMD64，`CGO_ENABLED=0` 构建 | 四种构建均通过；AMD64 仅构建，未在原生机器运行 |
-| POSIX Shell 语法、工作流 YAML 解析、Git diff 空白检查 | 通过 |
+| Go 1.24.0 / 1.27.1，go vet 和 race 测试 | 通过 |
+| macOS/Linux × ARM64/AMD64 独立程序构建 | 四种构建通过 |
+| macOS、Linux 的草稿下载和公开安装 | 远程 CI 通过 |
+| macOS ARM64、Ubuntu 24.04 ARM64 的本地发布包验证 | 通过 |
+| 中文、ASCII、组合字符、省略号与 Markdown 清理 | 通过 |
+| Bark POST、优先级、业务错误、超时及重定向处理 | 本地服务测试通过 |
+| Key 隐藏输入、stdin 配置、文件权限、无终端操作 | 通过 |
+| session/turn 隔离、进程间去重、失败后保留 Stop 提醒 | 通过 |
+| 重复 setup、原有 Hooks 和 Computer Use notify 保留 | 通过 |
+| 暂停恢复、卸载、purge、卸载清理失败后重试 | 通过 |
+| 固定版本、稳定指针、完整镜像链路、文件和版本校验 | 通过 |
+| 不兼容格式拒绝覆盖、写入失败回滚 | 通过 |
+| 内置许可及发布清单完整性 | 通过 |
 
-Ubuntu 测试使用本次创建的 OrbStack 隔离虚拟机，完成后已删除；没有修改已有虚拟机。Linux 程序为静态链接 ELF，机器未安装 Go/Node。Python 仅用于驱动测试脚本，不是程序依赖。
+Ubuntu 本地测试使用独立 OrbStack 虚拟机，完成后已删除。Python 仅用于驱动测试，不是程序运行依赖。复现命令见 [README](README.md#开发和验证)。
 
-复现命令见 [README](README.md#开发和验证)。最终本地程序位于被 Git 忽略的 `dist/`；仓库分发依赖 Release 工作流生成产物，不提交二进制。
+## 发布中发现并处理的问题
 
-## 首次本地验证时尚未覆盖
+草稿下载曾因只读令牌不可见而失败。已将所需权限限定到草稿验证作业，并通过指定原标签的恢复入口完成发布，没有移动标签或替换已公开资产。
 
-- 尚未在 GitHub 实际运行发布工作流、创建标签或发布 Release。
-- 尚未在真实 Codex 桌面任务中信任并运行本工具 Hooks；测试使用官方格式的 payload，不能替代客户端端到端验收。
-- 尚未使用真实 Bark Key 验证 iPhone 和 RayNeo iO 通知转发、可见宽度及显示时间。
-- 不承诺操作系统崩溃或网络结果不确定时严格一次送达。
+仓库禁止 Actions 自动创建 PR，因此维护者补建并合并了稳定版提升 PR，没有扩大仓库权限。
 
-## 分发改进的本地验证
+## 验证范围
 
-同日完成 Go 1.24.0 race 测试、Go vet，以及 macOS ARM64 / 隔离 Ubuntu 24.04 ARM64 的发布整包验证：
+自动化发送测试使用伪 Key 和本地 HTTP 服务；手机、眼镜的通知权限、转发设置及实际显示应通过 `config test` 在用户设备上确认。Codex Hook 是否已加载和信任，需要在客户端确认。
 
-- stable 指针、指定版本绕过指针、显式镜像覆盖版本解析和全部下载。
-- 安装器和程序校验和、安装器版本及程序报告版本不匹配时拒绝安装。
-- 已有托管集成在非交互升级中保留；无效或不兼容格式拒绝覆盖。
-- 程序和集成写入失败保留旧状态；Go 测试覆盖变更写入后的回滚。
-- 内置许可、格式版本 1 以及无版本开发记录兼容。
-- 四种程序、固定版本安装器与许可文件均进入完整 SHA-256 清单。
-
-这些是本地发布包测试，不代表 GitHub 资产已经发布。远程草稿、公开安装和 stable 提升以 [Actions](https://github.com/KroMiose/LazyCat-Scripts/actions/workflows/codex-hud.yml) 记录及 `stable.txt` 为准。
-
-## 0.1.0 公开发布验收
-
-随后已完成 [codex-hud-v0.1.0](https://github.com/KroMiose/LazyCat-Scripts/releases/tag/codex-hud-v0.1.0) 正式发布，`stable.txt` 已提升到该版本。
-
-- [发布流程](https://github.com/KroMiose/LazyCat-Scripts/actions/runs/33962782414) 全部通过：macOS/Linux 测试、四平台构建、草稿资产实际下载验证、公开固定版本安装。
-- 首次草稿验证发现只读令牌无法访问未公开 Release；已将权限限定修复到草稿验证作业，并用指定原标签的恢复入口完成发布，未移动标签。
-- 已从 GitHub raw 下载默认入口，在临时 HOME/CODEX_HOME 中不带 `--version` 完成安装，程序报告 `codex-hud-v0.1.0`。
-- 仓库不允许 Actions 自动创建 PR，因此由维护者补建并合并 stable 提升 PR，没有改变仓库权限。
-- 尚未部署 NekroEndpoint 的完整二进制镜像；当前默认使用 GitHub 官方源。真实手机与眼镜显示仍需用户验收。
+官方分发使用 GitHub；镜像协议已通过本地测试，但没有将未经验证的 NekroEndpoint 二进制地址作为安装入口。网络结果不确定或进程被强制终止时，不保证严格一次送达。
