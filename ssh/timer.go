@@ -324,8 +324,21 @@ func removeTimerWithChanges(p paths, clientChanges []change) error {
 	}
 	id, e := commit(p.Ops, changes)
 	if e != nil {
-		e = errors.Join(e, restorePrevious())
-	} else if len(clientChanges) > 0 {
+		return errors.Join(e, restorePrevious())
+	}
+	if runtime.GOOS == "linux" {
+		_, e = timerCommand(ctx, "daemon-reload")
+	} else if launchSaved != nil {
+		var current *launchState
+		current, e = readLaunchState(launchSaved.Domain)
+		if e == nil && (current.Loaded || current.Disabled != launchSaved.Disabled) {
+			e = errors.New("launchd task removal did not preserve expected registration state")
+		}
+	}
+	if e != nil {
+		return errors.Join(e, rollback(p.Ops, id), restorePrevious())
+	}
+	if len(clientChanges) > 0 {
 		fmt.Println("Detached managed SSH configuration and renewal task; keys and backups retained. Operation:", id)
 	}
 	return e

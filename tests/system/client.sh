@@ -152,6 +152,7 @@ client uninstall
 [[ ! -e "$home/.ssh/config.d/lazycat.conf" ]]
 [[ ! -e "$home/.local/bin/lazycat-ssh" ]]
 [[ "$(user_systemctl show lazycat-ssh-renew.timer --property=ActiveState --value)" == inactive ]]
+[[ "$(user_systemctl show lazycat-ssh-renew.timer --property=LoadState --value)" == not-found ]]
 [[ ! -L "$home/.config/systemd/user/timers.target.wants/lazycat-ssh-renew.timer" ]]
 sha256sum -c /tmp/cert-before-timer
 python3 - "$home" <<'PY'
