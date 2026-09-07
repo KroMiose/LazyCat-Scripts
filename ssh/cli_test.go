@@ -87,6 +87,39 @@ func TestCLIConfigurationLifecycle(t *testing.T) {
 	if e = json.Unmarshal([]byte(call(0, "doctor", "--json")), &report); e != nil {
 		t.Fatal(e)
 	}
+	// Invalid task metadata is an inert sentinel: neither platform can reach a
+	// native manager. Client ownership conflicts must be found before task work.
+	timerPath := filepath.Join(home, ".lazycat/ssh/timer.json")
+	if e = os.WriteFile(timerPath, []byte("invalid-task-sentinel"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	for _, path := range []string{generated, binary} {
+		original, e := os.ReadFile(path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		edited := append(append([]byte(nil), original...), []byte("\n# user edit\n")...)
+		if e = os.WriteFile(path, edited, 0600); e != nil {
+			t.Fatal(e)
+		}
+		for _, command := range []string{"uninstall", "purge"} {
+			call(3, command)
+			got, e := os.ReadFile(path)
+			if e != nil || string(got) != string(edited) {
+				t.Fatal("refused uninstall changed user file", e)
+			}
+			got, e = os.ReadFile(timerPath)
+			if e != nil || string(got) != "invalid-task-sentinel" {
+				t.Fatal("refused uninstall changed task receipt", e)
+			}
+		}
+		if e = os.WriteFile(path, original, 0600); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if e = os.Remove(timerPath); e != nil {
+		t.Fatal(e)
+	}
 	call(0, "uninstall")
 	if _, e = os.Stat(generated); !os.IsNotExist(e) {
 		t.Fatal("uninstall left generated configuration")

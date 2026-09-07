@@ -247,6 +247,10 @@ func installTimer(p paths, args []string) error {
 	return nil
 }
 func removeTimer(p paths) error {
+	return removeTimerWithChanges(p, nil)
+}
+
+func removeTimerWithChanges(p paths, clientChanges []change) error {
 	b, e := os.ReadFile(timerReceiptPath(p))
 	if os.IsNotExist(e) {
 		return &migrationConflict{"no owned timer receipt; existing task is preserved"}
@@ -274,7 +278,7 @@ func removeTimer(p paths) error {
 			return e
 		}
 	}
-	var changes []change
+	changes := append([]change(nil), clientChanges...)
 	for path, expected := range r.Files {
 		s, e := state(path)
 		if e != nil {
@@ -318,9 +322,11 @@ func removeTimer(p paths) error {
 	if e != nil {
 		return errors.Join(e, restorePrevious())
 	}
-	_, e = commit(p.Ops, changes)
+	id, e := commit(p.Ops, changes)
 	if e != nil {
 		e = errors.Join(e, restorePrevious())
+	} else if len(clientChanges) > 0 {
+		fmt.Println("Detached managed SSH configuration and renewal task; keys and backups retained. Operation:", id)
 	}
 	return e
 }

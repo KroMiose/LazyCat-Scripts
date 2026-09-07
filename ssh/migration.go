@@ -186,11 +186,6 @@ func migrate(ctx context.Context, p paths, apply bool) error {
 }
 func uninstall(p paths, purge bool) error {
 	// No broad rm -rf: credentials and unknown resources are never removed.
-	if _, e := os.Stat(timerReceiptPath(p)); e == nil {
-		if e = removeTimer(p); e != nil {
-			return e
-		}
-	}
 	s, e := state(p.Config)
 	if e != nil {
 		return e
@@ -236,6 +231,16 @@ func uninstall(p paths, purge bool) error {
 		if s.Exists {
 			changes = append(changes, change{path, s, fileState{}})
 		}
+	}
+	// Validate every client resource before touching the native renewal task.
+	// A single file transaction also restores task files if client removal fails.
+	if _, e := state(timerReceiptPath(p)); e != nil {
+		return e
+	}
+	if _, e := os.Stat(timerReceiptPath(p)); e == nil {
+		return removeTimerWithChanges(p, changes)
+	} else if !os.IsNotExist(e) {
+		return e
 	}
 	id, e := commit(p.Ops, changes)
 	if e == nil {
