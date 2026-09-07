@@ -11,8 +11,8 @@ make check
 make test
 make test-migration
 python3 tests/run.py --seed 123 --output artifacts/reproduction
-python3 tests/system/vm.py --image openwrt --suite core
-python3 tests/system/vm.py --image ubuntu --suite core --fresh-download
+python3 tests/system/vm.py --image openwrt --suite core --package-lock tests/system/opkg/openwrt.lock.json
+python3 tests/system/vm.py --image ubuntu --suite docker --package-lock tests/system/apt/ubuntu.lock.json --fresh-download
 make test-full
 ```
 
@@ -23,7 +23,7 @@ make test-full
 - Python 回归：临时 HOME、环境变量白名单、真实 Bash/BSD 工具；部分用例提取函数，不能替代完整入口验证。历史失败样本固定在 tests/fixtures/legacy，provenance.json 记录来源。
 - Zsh：真实脚本入口、模拟已安装 OMZ 的明确文件样本、真实新交互 Zsh；检查自定义插件保留、仅加载一次、重复运行无备份增长、清理保留 OMZ。没有验证真实 OMZ 下载、主题视觉或系统依赖首次安装。
 - SSH 节点快速测试：服务命令使用模拟，独立标为适配测试。
-- Go SSH：配置/路由、拒绝危险输入、受限元数据解析、事务/冲突/回滚；Linux 旧任务已有真实迁移/触发/卸载证据，macOS 任务迁移与公共 rollback 的任务状态恢复仍待完成。
+- Go SSH：配置/路由、拒绝危险输入、受限元数据解析、事务/冲突/回滚；Linux 旧任务已有真实迁移/触发/卸载证据，macOS 专用账户定时触发和 GUI 历史任务定义采纳已有原生证据；公共 rollback 的任务状态恢复及完整旧客户端升级仍待完成。
 - HUD：本地 HTTP 服务、慢响应、并发 Stop、超时后不自动重发；不向真实设备发送，不验证眼镜/手机显示。
 - QEMU：校验锁定镜像后创建独立 overlay；Ubuntu/Debian 使用真实 systemd，OpenWrt 使用真实 procd。Ubuntu 与 Debian 已有受限网络＋锁定本地 apt 源；真实上游另行验证。OpenWrt 新增原始签名索引快照及固定 IPK 锁，已在独立断网 TCG 生命周期验证；托管 KVM 的同锁验证已在 run 34161071064 通过。真实 opkg 软件源另行运行，不混称固定输入覆盖。源码复制进客体 /work 后只读挂载，本地包源同样只读，测试观察者与声明前置依赖写入日志。
 
@@ -35,13 +35,13 @@ OpenWrt 固件可能在 gzip 后附加 fwtool 签名：先验证整个文件摘�
 
 reliability 工作流统一编排 quality、behavior、system、weekly-full 和 required-checks。PR 使用 pull_request 和只读权限，checkout 不保留令牌。第三方 Action 固定 SHA，Dependabot 提交更新。北京时间每周日 03:00 对应 `0 19 * * 6`；实际启动时间记录在报告。
 
-required-checks 对映射为必需的作业要求 success；skipped、cancelled、failure 都不满足。仓库分支保护仍需在 GitHub 设置中登记此检查，写入 YAML 不会自动改变仓库保护规则。
+required-checks 对映射为必需的作业要求 success；skipped、cancelled、failure 都不满足。main 分支保护已登记此检查，并要求分支与 main 同步，管理员也适用。新工作流仍在草稿 PR 内；其他 PR 需包含该工作流才能产生检查，每周调度要在工作流进入 main 后才生效。
 
 Python 与 Go race 都输出 JSON、JUnit 和独立时间戳目录；Go 另存原始事件及 stderr，跳过或未完成测试不算通过。成功 artifact 申请保留 14 天，失败申请 90 天；平台实际限制仍需运行后核实。
 
 ## 尚未完成的可信度要求
 
-固定离线包源、完整资源允许变更清单、全部历史安装样本、发布实际产物升级/回退、ARM64 原生系统场景及所有脚本的失败恢复尚未全部落地。随机顺序已有入口；全面变异检查和每个高优先级缺陷的旧失败/新通过证据仍需补齐。
+三套系统已有基础固定包源，但 Node/Python 等外部安装器的完整固定输入、全部资源允许变更清单、历史安装样本、发布实际产物升级/回退、ARM64 原生系统场景及所有脚本的失败恢复尚未全部落地。随机顺序已有入口；全面变异检查和每个高优先级缺陷的旧失败/新通过证据仍需补齐。
 
 不要运行 system/guest.sh 到个人机器。guest.sh 只供驱动创建的测试客体；测试中会安装包、写入 SSH/sudoers、启动服务、创建虚构用户。
 
@@ -51,7 +51,7 @@ Python 与 Go race 都输出 JSON、JUnit 和独立时间戳目录；Go 另存�
 
 `python3 tests/package.py --assets artifacts/my-candidate` 从实际归档安装独立候选，再由系统 `ssh -G` 检查其渲染结果。此处只解析测试自己生成的最小配置，不读取用户的 Match exec。使用临时目录，不切换用户命令或任务。
 
-`candidate-assets` 可手动触发，也由 reliability 作为可复用工作流调用，构建同一提交的产物，再由四类 Linux/macOS runner 下载运行；其结果进入 required-checks。它没有发布权限；绿色只表示原生暂存和渲染通过。完整离线回归、升级/回退与无凭据公开安装仍是独立门槛，当前不能提升 stable。
+`candidate-assets` 可手动触发，也由 reliability 作为可复用工作流调用，构建同一提交的产物，再由四类 Linux/macOS runner 下载运行；其结果进入 required-checks。它没有发布权限；绿色表示已登记的原生暂存、渲染及 macOS 任务场景通过。完整离线回归、升级/回退与无凭据公开安装仍是独立门槛，当前不能提升 stable。
 
 `release_check.py` 拒绝开发构建、脏源码、缺失计数、跳过场景和错误提交。安装/升级/回退证据还必须绑定实际候选产物摘要。已加入已知成功与故意破坏证据的门禁测试；这些测试不是产品发布证据。
 
@@ -81,3 +81,6 @@ python3 tests/system/vm.py --image ubuntu --suite docker --package-lock tests/sy
 
 
 macOS launchd 已在 run 34159699770 的 ARM64 和 AMD64 原生 runner 分别验证 Background 新账户与 GUI 历史任务。JSON、JUnit 与 Job Summary 按场景报告；中途失败后的场景记为 not_run/skip，不隐藏。GUI fixture 先确认精确资源缺失，使用账户真实 HOME，仅清理自己创建的路径和任务，不注销 runner 的 GUI 域。此测试只允许在一次性 GitHub macOS runner 运行，不能拿本机修改 HOME 来替代。
+
+
+旧 Shell 客户端的续签入口在 Linux VM 内使用真实 yq、SSH 和 CA。`tests/tools/go.mod`/`go.sum` 固定 yq 及其依赖，驱动在客体外编译并记录摘要，放入只读测试输入。场景明确预置这些运行依赖，不声称覆盖无依赖首次安装。旧脚本和旧公共库来自 4f5080d 的原始样本；旧成功文案后的 RETURN trap 失败及 .tmp 文件覆盖均保留为缺陷证据，再测试修复后的权限、证书、失败和重跑行为。

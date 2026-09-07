@@ -101,6 +101,25 @@
         "explicit absent fixture paths in actual runner HOME",
         "fixture launchd registration only"
       ]
+    },
+    {
+      "id": "legacy-client-renewal",
+      "level": "full-system-qemu",
+      "initial": "fresh Linux VM and dedicated legacy user; real Bash/OpenSSH/curl and host-built locked yq; existing CA key; original c8ffb57 and pre-temp-fix 4f5080d snapshots; declared certificate and user-file state",
+      "entrypoint": "python3 tests/system/vm.py --image ubuntu --suite core --package-lock tests/system/apt/ubuntu.lock.json",
+      "preserve": [
+        "client key and public key",
+        "known_hosts",
+        "existing private key and certificate modes",
+        "unmanaged certificate .tmp file",
+        "certificate on CA failure",
+        "symlink target and partial key pair"
+      ],
+      "mutations": [
+        "dedicated fixture account",
+        "owned certificate and temporary resources",
+        "fixture CA availability during explicit failure injection"
+      ]
     }
   ]
 }

@@ -30,7 +30,8 @@
         "linux-system",
         "native-package",
         "ssh-launchd",
-        "ssh-launchd-gui"
+        "ssh-launchd-gui",
+        "legacy-client-renewal"
       ]
     },
     "shell-proxy": {

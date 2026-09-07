@@ -42,6 +42,20 @@ key="$home/.ssh/lazycat_ca_ed25519"
 cert="${key}-cert.pub"
 sha256sum "$key" "${key}.pub" "$home/.ssh/known_hosts" > /tmp/legacy-preserved.sha256
 cp -p "$home/.ssh/known_hosts" /tmp/legacy-known-hosts-before
+# The original default-path defect is tested with the original client AND lib.
+# The CA key demonstrably exists; only the old quoted-tilde handling is broken.
+test -f "$ca"
+install -o legacy-fixture -g legacy-fixture -m 644 tests/fixtures/legacy-default-ca-common.sh "$home/.local/share/lazycat-ssh/lib/common.sh"
+install -o legacy-fixture -g legacy-fixture -m 755 tests/fixtures/legacy-default-ca-client.sh "$home/.local/bin/lazycat-ssh"
+sha256sum "$cert" > /tmp/legacy-before-default-path.sha256
+if legacy > /tmp/legacy-default-path-before.log 2>&1; then
+    echo 'original default CA path unexpectedly worked';exit 1
+fi
+cat /tmp/legacy-default-path-before.log
+grep -F '~/.lazycat/ssh-ca/lazycat-ssh-ca' /tmp/legacy-default-path-before.log
+sha256sum -c /tmp/legacy-before-default-path.sha256
+echo 'EXPECTED ORIGINAL DEFECT: existing default CA key cannot be addressed'
+install -o legacy-fixture -g legacy-fixture -m 644 tests/fixtures/legacy-common-before.sh "$home/.local/share/lazycat-ssh/lib/common.sh"
 # Same actual entrypoint test on the frozen pre-fix implementation must expose
 # the predictable temporary filename overwriting an unrelated existing file.
 install -o legacy-fixture -g legacy-fixture -m 755 tests/fixtures/legacy-client-before.sh "$home/.local/bin/lazycat-ssh"
