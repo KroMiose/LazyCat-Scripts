@@ -23,8 +23,10 @@ import urllib.request
 import xml.etree.ElementTree as ET
 if __package__:
     from .packages import materialize, record_export
+    from . import opkg
 else:
     from packages import materialize, record_export
+    import opkg
 
 ROOT=Path(__file__).resolve().parents[2]
 
@@ -55,7 +57,6 @@ def extract_image(source, destination):
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--image',choices=['ubuntu','debian','openwrt'],required=True);parser.add_argument('--suite',choices=['core','upstream','docker'],default='core');parser.add_argument('--fresh-download',action='store_true');parser.add_argument('--package-lock',type=Path);parser.add_argument('--fresh-packages',action='store_true');parser.add_argument('--export-package-lock',type=Path);args=parser.parse_args()
-    if (args.package_lock or args.export_package_lock) and args.image=='openwrt':parser.error('apt package locks support Linux cloud images only')
     if args.package_lock and args.export_package_lock:parser.error('cannot use and create a package lock together')
     if args.fresh_packages and not args.package_lock:parser.error('--fresh-packages requires --package-lock')
     if args.package_lock and args.suite=='upstream':parser.error('real-upstream suite cannot use a network-restricted guest')
@@ -94,8 +95,8 @@ def main():
             package_archive=None
             if args.package_lock:
                 package_archive=work/'packages.tar'
-                report['package_lock_sha256']=materialize(args.package_lock,lock,ROOT/'.test-cache/packages',package_archive,fresh=args.fresh_packages)
-                report['network']='guest network restricted by QEMU; exact locked packages via local apt repository'
+                report['package_lock_sha256']=(opkg.materialize if args.image=='openwrt' else materialize)(args.package_lock,lock,ROOT/'.test-cache/packages',package_archive,fresh=args.fresh_packages)
+                report['network']='guest network restricted by QEMU; exact locked packages via local '+('signed opkg feeds' if args.image=='openwrt' else 'apt repository')
             key=work/'key';execute(['ssh-keygen','-q','-t','ed25519','-N','','-C','lazycat-fixture','-f',str(key)])
             pub=key.with_suffix('.pub').read_text().strip();base=compressed
             if lock.get('gzip'):
@@ -152,11 +153,11 @@ def main():
                 with archive.open('rb') as f:execute(ssh+['mkdir -p /work; tar -xf - -C /work'],stdin=f)
                 if package_archive:
                     with package_archive.open('rb') as stream:execute(ssh+['mkdir -p /opt/lazycat-offline; tar -xf - -C /opt/lazycat-offline'],stdin=stream)
-                    execute(ssh+['cd /work && bash tests/system/activate-offline.sh'])
+                    execute(ssh+['cd /work && sh tests/system/activate-offline-opkg.sh' if args.image=='openwrt' else 'cd /work && bash tests/system/activate-offline.sh'])
                 report['phase']='prerequisites'
                 # OpenWrt starts without Bash: install the script runtime separately
                 # and record this as a declared prerequisite, not dependency coverage.
-                if args.image=='openwrt':execute(ssh+['opkg update && opkg install bash'],stdout=(out/'prerequisites.log').open('wb'),stderr=subprocess.STDOUT)
+                if args.image=='openwrt' and not args.export_package_lock:execute(ssh+['opkg update && opkg install bash'],stdout=(out/'prerequisites.log').open('wb'),stderr=subprocess.STDOUT)
                 def freeze_inputs():
                     roots='/work /opt/lazycat-offline' if package_archive else '/work'
                     command='for target in '+roots+'; do mount -o bind "$target" "$target" && mount -o remount,bind,ro "$target" || exit 1; if touch "$target/.lazycat-write-probe"; then echo "fixture input unexpectedly writable"; exit 1; fi; done'
@@ -169,7 +170,7 @@ def main():
                 report['phase']='test';report['status']='product-failure'
                 cmd='cd /work && bash tests/system/guest.sh '+shlex.quote(args.image)+' '+shlex.quote(args.suite)
                 if args.export_package_lock:
-                    cmd='cd /work && bash tests/system/export-packages.sh';report['status']='environment-error'
+                    cmd='cd /work && '+('sh tests/system/export-opkg.sh' if args.image=='openwrt' else 'bash tests/system/export-packages.sh');report['status']='environment-error'
                 try:
                     with (out/'test.log').open('wb') as f:r=subprocess.run(ssh+[cmd],stdout=f,stderr=subprocess.STDOUT,timeout=1200)
                 except subprocess.TimeoutExpired:
@@ -196,7 +197,7 @@ def main():
                 if args.export_package_lock:
                     exported=out/'package-export.tar'
                     with exported.open('wb') as stream:execute(ssh+['tar -cf - -C /tmp/lazycat-package-export .'],stdout=stream)
-                    record_export(exported,lock,ROOT/'.test-cache/packages',args.export_package_lock)
+                    (opkg.record_export if args.image=='openwrt' else record_export)(exported,lock,ROOT/'.test-cache/packages',args.export_package_lock)
                     report['status']='environment-prepared';report['phase']='package-lock-created'
                     return 0
                 if args.image=='openwrt':

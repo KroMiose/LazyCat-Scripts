@@ -6,15 +6,17 @@ on:
       - '.github/workflows/environment-locks.yml'
       - 'tests/system/export-packages.sh'
       - 'tests/system/packages.py'
+      - 'tests/system/opkg.py'
+      - 'tests/system/export-opkg.sh'
       - 'tests/system/images.lock.json'
 permissions:
   contents: read
 jobs:
-  proposed-apt-lock:
+  proposed-package-lock:
     strategy:
       fail-fast: false
       matrix:
-        image: [ubuntu, debian]
+        image: [ubuntu, debian, openwrt]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -33,7 +35,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: proposed-apt-${{ matrix.image }}
+          name: proposed-packages-${{ matrix.image }}
           path: artifacts/
           retention-days: 90
           if-no-files-found: error
