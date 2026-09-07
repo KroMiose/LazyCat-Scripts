@@ -9,6 +9,7 @@ from pathlib import Path
 import platform
 import plistlib
 import pwd
+import re
 import secrets
 import subprocess
 import sys
@@ -117,9 +118,10 @@ def main():
             if read(plist)!=first:raise AssertionError('repeat changed task')
             user(['/bin/launchctl','bootout',domain+'/'+LABEL]);client('install-renew','2')
             user(['/bin/launchctl','print',domain+'/'+LABEL],expected=113)
-            user(['/bin/launchctl','disable',domain+'/'+LABEL]);client('install-renew','3')
+            user(['/bin/launchctl','disable',domain+'/'+LABEL])
+            user(['/bin/launchctl','print-disabled',domain]);client('install-renew','3')
             disabled=user(['/bin/launchctl','print-disabled',domain]).stdout
-            if '"'+LABEL+'" => true' not in disabled:raise AssertionError('update enabled disabled task')
+            if not re.search(r'"'+re.escape(LABEL)+r'"\s*=>\s*(true|disabled)\s*$',disabled,re.M):raise AssertionError('update enabled disabled task')
             client('uninstall-renew')
             run(['sudo','test','-e',plist],expected=1)
             passed('repeat-unloaded-disabled-update-and-removal')

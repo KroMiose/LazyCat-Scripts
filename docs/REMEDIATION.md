@@ -131,3 +131,6 @@ VM 驱动增加只读 bind mount 与 root 写入拒绝探测；源码和离线�
 
 
 run 34157931567 与 34158692299 的 Ubuntu/Debian/OpenWrt 系统作业通过，包含源码只读挂载与 SSH agent 隔离；总体仍因 macOS 原生注册失败而失败。后者独立最小任务证明：新账户 user/<uid> 域默认 plist 返回 5，显式 Background 会话任务返回 0。新任务据此声明 Background，已有 GUI/历史任务保持设置；更新间隔也保留历史 PATH、RunAtLoad 和日志。后台新账户与 runner GUI 旧任务采纳分开记录，修复后原生结果待取得，不计为通过。
+
+
+run 34159367995 的 macOS Background 任务首次安装和真实间隔触发已通过，随后在保持停用偏好的场景失败，整轮仍不算通过。原生 launchctl 输出使用 enabled/disabled 字样，解析器先前只接受 true/false；已补充明确格式、拒绝未知状态及原生断言。GUI 历史迁移尚未执行，不记为通过。

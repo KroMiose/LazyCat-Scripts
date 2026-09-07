@@ -135,12 +135,12 @@ func parseLaunchDisabled(b []byte) (bool, error) {
 	if !strings.Contains(string(b), "disabled services = {") {
 		return false, &migrationConflict{"unrecognized launchd disabled-state output"}
 	}
-	pattern := regexp.MustCompile(`(?m)^\s*"` + regexp.QuoteMeta(launchLabel) + `"\s*=>\s*(true|false)\s*$`)
+	pattern := regexp.MustCompile(`(?m)^\s*"` + regexp.QuoteMeta(launchLabel) + `"\s*=>\s*(true|false|enabled|disabled)\s*$`)
 	matches := pattern.FindAllSubmatch(b, -1)
 	if len(matches) > 1 || (strings.Contains(string(b), `"`+launchLabel+`"`) && len(matches) != 1) {
 		return false, &migrationConflict{"ambiguous launchd disabled state"}
 	}
-	return len(matches) == 1 && string(matches[0][1]) == "true", nil
+	return len(matches) == 1 && (string(matches[0][1]) == "true" || string(matches[0][1]) == "disabled"), nil
 }
 
 func (s *launchState) pause() error {

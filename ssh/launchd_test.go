@@ -51,6 +51,8 @@ func TestLaunchdCleanAccountAndDisabledOverrides(t *testing.T) {
 	}{
 		{"\n\tdisabled services = (no disabled services)\n", false},
 		{"disabled services = {\n}\n", false},
+		{"disabled services = {\n\t\"com.lazycat.ssh.renew\" => disabled\n}\n", true},
+		{"disabled services = {\n\t\"com.lazycat.ssh.renew\" => enabled\n}\n", false},
 		{"disabled services = {\n\t\"com.lazycat.ssh.renew\" => true\n}\n", true},
 		{"disabled services = {\n\t\"com.lazycat.ssh.renew\" => false\n}\n", false},
 	} {
