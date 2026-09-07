@@ -24,7 +24,7 @@ def main():
         parser.error('this account-creation fixture runs only on disposable GitHub macOS runners')
     manifest=json.loads((args.assets/'manifest.json').read_text())
     out=ROOT/'artifacts/package'/('launchd-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ'));out.mkdir(parents=True)
-    report=dict(format_version=1,commit=manifest['commit'],source_tree_sha256=manifest['source_tree_sha256'],scope='dedicated-account-launchd-lifecycle',level='native-platform',platform=platform.platform(),status='failed',scenarios=[],skipped=0,flaky=0,environment_errors=0)
+    report=dict(format_version=1,commit=manifest['commit'],source_tree_sha256=manifest['source_tree_sha256'],scope='dedicated-account-launchd-lifecycle',level='native-platform',platform=platform.platform(),status='failed',phase='prepare',scenarios=[],skipped=0,flaky=0,environment_errors=0)
     name='lazycatci'+secrets.token_hex(4);home='/Users/'+name;domain=None;created=False
     log=(out/'commands.jsonl').open('w')
     def run(argv,expected=0,timeout=45):
@@ -69,6 +69,7 @@ def main():
             source=args.assets/item
             if item in hashes and hashlib.sha256(source.read_bytes()).hexdigest()!=hashes[item]:raise RuntimeError('candidate artifact mismatch')
             run(['sudo','install','-o',name,'-g',str(account.pw_gid),'-m','600',source,home+'/incoming/'+item])
+        report['phase']='product'
         user(['/bin/bash',home+'/incoming/install-ssh.sh','--source-dir',home+'/incoming','--version',manifest['versions']['ssh'],'--bin-dir',home+'/.local/bin'])
         candidate=home+'/.local/bin/lazycat-ssh-candidate';binary=home+'/.local/bin/lazycat-ssh'
         def client(*argv,expected=0):return user([candidate]+list(argv),expected)
@@ -81,6 +82,7 @@ def main():
         client('trust-ca',fingerprint);client('sync','--config-only');client('migrate','--apply')
         key_before=user(['/usr/bin/shasum','-a','256',home+'/.ssh/lazycat_ca_ed25519']).stdout.split()[0]
         cert_before=read(home+'/.ssh/lazycat_ca_ed25519-cert.pub')
+        user(['/bin/launchctl','print-disabled',domain])
         client('install-renew','1')
         receipt=json.loads(read(home+'/.lazycat/ssh/timer.json'))
         if receipt['Domain']!=domain:raise AssertionError('task installed in another login domain')
@@ -122,7 +124,9 @@ def main():
         if user(['/usr/bin/shasum','-a','256',home+'/.ssh/lazycat_ca_ed25519']).stdout.split()[0]!=key_before:raise AssertionError('task lifecycle changed key')
         passed('user-task-edit-conflict-and-key-preservation')
         report['status']='passed'
-    except Exception as error:report['error']=str(error)
+    except Exception as error:
+        report['error']=str(error)
+        if report['phase']=='prepare':report['environment_errors']+=1
     finally:
         if created:
             try:
@@ -131,11 +135,14 @@ def main():
                     if state.returncode==0:run(['sudo','/bin/launchctl','bootout',domain])
                     elif state.returncode!=112:raise RuntimeError('cannot inspect domain during cleanup')
                 run(['sudo','/usr/sbin/sysadminctl','-deleteUser',name],timeout=90)
-                try:pwd.getpwnam(name)
-                except KeyError:pass
-                else:raise RuntimeError('fixture account remains after cleanup')
-                if Path(home).exists():raise RuntimeError('fixture home remains after cleanup')
-            except Exception as error:report['status']='failed';report['cleanup_error']=str(error)
+                deadline=time.monotonic()+20
+                while True:
+                    records=run(['dscl','.','-list','/Users','UniqueID']).stdout
+                    exists=any(line.split() and line.split()[0]==name for line in records.splitlines())
+                    if not exists and not Path(home).exists():break
+                    if time.monotonic()>deadline:raise RuntimeError('fixture account or home remains after cleanup')
+                    time.sleep(.5)
+            except Exception as error:report['status']='failed';report['cleanup_error']=str(error);report['environment_errors']+=1
         log.close();(out/'result.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
     return 0 if report['status']=='passed' else 1
 
