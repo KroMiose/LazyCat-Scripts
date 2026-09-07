@@ -124,3 +124,7 @@ Debian 包锁导出首轮因无关翻译索引超时失败（20260907T190111.174
 托管 runner 的 environment-locks（run 34156222825）已完成 Ubuntu/Debian 两套元数据解析和包摘要验证。Debian 候选锁 55 包、106146924 字节，锁摘要 ec31cc9694f32d7b656b5d45a7ce7b6be8bd4f0206014f927301cede209f4714；来自 PR 合并测试提交 429f32e3a5c5cdeb304f84972cab91f9685db36b（包含分支提交 10876a5）。已接入新的 Debian 断网 Docker/核心生命周期作业，待实际验证，不将环境准备成功当作产品通过。
 
 macOS 候选增加实际账户 HOME 校验、当前 launchd 域选择及已加载旧任务的域保留。只采纳历史 Shell 精确生成的 plist；保留间隔、PATH、HOME、RunAtLoad 与日志路径，仅增加 --scheduled。未知、自定义、未加载而无法确认原域的旧任务保持冲突。对应专用账户 native runner 场景验证真实触发、停用偏好、旧任务采纳和冲突；原生结果尚待取得。这仍不是完整旧 Shell 客户端与依赖升级验证。
+
+Debian 固定包源已通过全新断网 KVM 的完整 Docker/SSH/Squid/sudo/续签任务生命周期（run 34157169780，合并测试提交 08faf111ef53b0483a28823701995712adbeaf7d，包锁摘要 ec31cc9694f32d7b656b5d45a7ce7b6be8bd4f0206014f927301cede209f4714）。此轮总体仍失败：macOS 专用新账户返回 `disabled services = (no disabled services)`，客户端原先不识别而安全拒绝。run 34157530082 增补原始输出并确认两架构相同，账户清理也改为查询真实目录记录；失败未覆盖。现已增加该明确格式的解析与回归。
+
+VM 驱动增加只读 bind mount 与 root 写入拒绝探测；源码和离线软件源在测试期间不可写，OpenWrt 重启后重新建立只读挂载。驱动 SSH 只使用生成的测试密钥，明确禁用继承的 agent。此隔离加固等待下一轮完整系统验证。

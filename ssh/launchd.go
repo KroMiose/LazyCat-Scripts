@@ -93,15 +93,11 @@ func readLaunchState(domain string) (*launchState, error) {
 	if e != nil {
 		return nil, e
 	}
-	if !strings.Contains(string(b), "disabled services = {") {
-		return nil, &migrationConflict{"unrecognized launchd disabled-state output"}
+	disabled, e := parseLaunchDisabled(b)
+	if e != nil {
+		return nil, e
 	}
-	pattern := regexp.MustCompile(`(?m)^\s*"` + regexp.QuoteMeta(launchLabel) + `"\s*=>\s*(true|false)\s*$`)
-	matches := pattern.FindAllSubmatch(b, -1)
-	if len(matches) > 1 || (strings.Contains(string(b), `"`+launchLabel+`"`) && len(matches) != 1) {
-		return nil, &migrationConflict{"ambiguous launchd disabled state"}
-	}
-	s := &launchState{Domain: domain, Disabled: len(matches) == 1 && string(matches[0][1]) == "true"}
+	s := &launchState{Domain: domain, Disabled: disabled}
 	b, e = launchCommand("print", domain+"/"+launchLabel)
 	if e == nil {
 		s.Loaded = true
@@ -124,6 +120,23 @@ func readLaunchState(domain string) (*launchState, error) {
 		return s, nil
 	}
 	return nil, fmt.Errorf("cannot determine launchd task state: %w", e)
+}
+
+func parseLaunchDisabled(b []byte) (bool, error) {
+	// macOS 15 native clean-account evidence: no override database produces
+	// this literal sentinel, rather than an empty dictionary.
+	if strings.TrimSpace(string(b)) == "disabled services = (no disabled services)" {
+		return false, nil
+	}
+	if !strings.Contains(string(b), "disabled services = {") {
+		return false, &migrationConflict{"unrecognized launchd disabled-state output"}
+	}
+	pattern := regexp.MustCompile(`(?m)^\s*"` + regexp.QuoteMeta(launchLabel) + `"\s*=>\s*(true|false)\s*$`)
+	matches := pattern.FindAllSubmatch(b, -1)
+	if len(matches) > 1 || (strings.Contains(string(b), `"`+launchLabel+`"`) && len(matches) != 1) {
+		return false, &migrationConflict{"ambiguous launchd disabled state"}
+	}
+	return len(matches) == 1 && string(matches[0][1]) == "true", nil
 }
 
 func (s *launchState) pause() error {

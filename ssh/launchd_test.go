@@ -43,3 +43,25 @@ func TestLaunchdIdentityDoesNotTrustOverriddenHOME(t *testing.T) {
 		t.Fatal("accepted another domain")
 	}
 }
+
+func TestLaunchdCleanAccountAndDisabledOverrides(t *testing.T) {
+	for _, sample := range []struct {
+		data     string
+		disabled bool
+	}{
+		{"\n\tdisabled services = (no disabled services)\n", false},
+		{"disabled services = {\n}\n", false},
+		{"disabled services = {\n\t\"com.lazycat.ssh.renew\" => true\n}\n", true},
+		{"disabled services = {\n\t\"com.lazycat.ssh.renew\" => false\n}\n", false},
+	} {
+		got, e := parseLaunchDisabled([]byte(sample.data))
+		if e != nil || got != sample.disabled {
+			t.Fatal(got, e)
+		}
+	}
+	for _, data := range []string{"", "unknown response", "disabled services = {\n\"com.lazycat.ssh.renew\" => unsupported\n}", "disabled services = {\n\"com.lazycat.ssh.renew\" => true\n\"com.lazycat.ssh.renew\" => false\n}"} {
+		if _, e := parseLaunchDisabled([]byte(data)); e == nil {
+			t.Fatal("accepted unknown/ambiguous state")
+		}
+	}
+}

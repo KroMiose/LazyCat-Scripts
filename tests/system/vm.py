@@ -119,7 +119,7 @@ def main():
             serial=out/'serial.log'
             with serial.open('wb') as log:
                 proc=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=log,stderr=subprocess.STDOUT)
-                ssh=['ssh','-F','/dev/null','-i',str(key),'-p',str(port),'-o','BatchMode=yes','-o','ConnectTimeout=3','-o','StrictHostKeyChecking=accept-new','-o',f'UserKnownHostsFile={work}/known_hosts','root@127.0.0.1']
+                ssh=['ssh','-F','/dev/null','-i',str(key),'-p',str(port),'-o','IdentitiesOnly=yes','-o','IdentityAgent=none','-o','ForwardAgent=no','-o','BatchMode=yes','-o','ConnectTimeout=3','-o','StrictHostKeyChecking=accept-new','-o',f'UserKnownHostsFile={work}/known_hosts','root@127.0.0.1']
                 report['phase']='boot';deadline=time.monotonic()+600;bootstrapped=False;pressed=False
                 while time.monotonic()<deadline:
                     if proc.poll() is not None:raise RuntimeError('QEMU exited during boot')
@@ -157,6 +157,15 @@ def main():
                 # OpenWrt starts without Bash: install the script runtime separately
                 # and record this as a declared prerequisite, not dependency coverage.
                 if args.image=='openwrt':execute(ssh+['opkg update && opkg install bash'],stdout=(out/'prerequisites.log').open('wb'),stderr=subprocess.STDOUT)
+                def freeze_inputs():
+                    roots='/work /opt/lazycat-offline' if package_archive else '/work'
+                    command='for target in '+roots+'; do mount -o bind "$target" "$target" && mount -o remount,bind,ro "$target" || exit 1; if touch "$target/.lazycat-write-probe"; then echo "fixture input unexpectedly writable"; exit 1; fi; done'
+                    with (out/'input-isolation.log').open('ab') as stream:
+                        execute(ssh+[command],stdout=stream,stderr=subprocess.STDOUT,timeout=30)
+                report['phase']='input-isolation'
+                freeze_inputs()
+                report['source_mount']='read-only bind mount; root write probe rejected'
+                if package_archive:report['package_mount']='read-only bind mount; root write probe rejected'
                 report['phase']='test';report['status']='product-failure'
                 cmd='cd /work && bash tests/system/guest.sh '+shlex.quote(args.image)+' '+shlex.quote(args.suite)
                 if args.export_package_lock:
@@ -202,6 +211,8 @@ def main():
                             if ready.returncode==0:break
                         time.sleep(2)
                     else:raise RuntimeError('OpenWrt did not recover after reboot')
+                    freeze_inputs()
+                    report['source_readonly_after_reboot']=True
                     with (out/'reboot.log').open('wb') as f:
                         execute(ssh+['cd /work && bash tests/system/guest.sh openwrt core after-reboot'],stdout=f,stderr=subprocess.STDOUT,timeout=60)
                 report['status']='passed';report['phase']='complete'

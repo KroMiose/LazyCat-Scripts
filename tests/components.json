@@ -27,7 +27,9 @@
       "scenarios": [
         "shell-regressions",
         "ssh-node-adapters",
-        "linux-system"
+        "linux-system",
+        "native-package",
+        "ssh-launchd"
       ]
     },
     "shell-proxy": {
@@ -146,7 +148,9 @@
       ],
       "scenarios": [
         "shell-regressions",
-        "linux-system"
+        "linux-system",
+        "native-package",
+        "ssh-launchd"
       ]
     }
   },
