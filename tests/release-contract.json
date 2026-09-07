@@ -1,0 +1,1134 @@
+{
+  "format_version": 1,
+  "description": "Minimum release acceptance contract, not a claim that these scenarios are implemented or have passed. IDs identify required evidence; additional coverage may be reported separately.",
+  "requirements": [
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-client-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-ca-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-node-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "squid-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "sudoers-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "docker-proxy-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "docker-group-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "python-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "node-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "xdg-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "shell-proxy-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "zsh-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-access-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-host-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "backup-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "checker-lifecycle-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-client-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-ca-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-node-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "squid-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "sudoers-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "docker-proxy-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "docker-group-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "python-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "node-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "xdg-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "shell-proxy-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "zsh-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-access-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-host-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "backup-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "checker-lifecycle-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-client-lifecycle-macos-15-arm64",
+      "environment": "macos-15-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "node-lifecycle-macos-15-arm64",
+      "environment": "macos-15-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "shell-proxy-lifecycle-macos-15-arm64",
+      "environment": "macos-15-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "zsh-lifecycle-macos-15-arm64",
+      "environment": "macos-15-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-access-lifecycle-macos-15-arm64",
+      "environment": "macos-15-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-host-lifecycle-macos-15-arm64",
+      "environment": "macos-15-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "backup-lifecycle-macos-15-arm64",
+      "environment": "macos-15-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "checker-lifecycle-macos-15-arm64",
+      "environment": "macos-15-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-client-lifecycle-macos-15-amd64",
+      "environment": "macos-15-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "node-lifecycle-macos-15-amd64",
+      "environment": "macos-15-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "shell-proxy-lifecycle-macos-15-amd64",
+      "environment": "macos-15-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "zsh-lifecycle-macos-15-amd64",
+      "environment": "macos-15-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-access-lifecycle-macos-15-amd64",
+      "environment": "macos-15-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-host-lifecycle-macos-15-amd64",
+      "environment": "macos-15-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "backup-lifecycle-macos-15-amd64",
+      "environment": "macos-15-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "checker-lifecycle-macos-15-amd64",
+      "environment": "macos-15-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "ssh-node-lifecycle-openwrt-24.10.3-x86_64",
+      "environment": "openwrt-24.10.3-x86_64",
+      "level": "full-system",
+      "assertions": [
+        "baseline-verified",
+        "first-install-functional",
+        "existing-config-preserved",
+        "repeat-idempotent",
+        "failure-recovery",
+        "side-effects-allowlisted"
+      ]
+    },
+    {
+      "scope": "real-upstream",
+      "id": "upstream-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "official-download",
+        "dependency-install",
+        "node-exec",
+        "python-venv",
+        "original-attempt-recorded"
+      ]
+    },
+    {
+      "scope": "real-upstream",
+      "id": "upstream-debian-12-amd64",
+      "environment": "debian-12-amd64",
+      "level": "full-system",
+      "assertions": [
+        "official-download",
+        "dependency-install",
+        "node-exec",
+        "python-venv",
+        "original-attempt-recorded"
+      ]
+    },
+    {
+      "scope": "real-upstream",
+      "id": "upstream-openwrt",
+      "environment": "openwrt-24.10.3-x86_64",
+      "level": "full-system",
+      "assertions": [
+        "opkg-install",
+        "procd-lifecycle",
+        "certificate-login",
+        "reboot-persistence",
+        "original-attempt-recorded"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "launchd-macos-15-arm64",
+      "environment": "macos-15-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "background-interval-trigger",
+        "gui-legacy-adoption",
+        "disabled-preference-preserved",
+        "key-preserved"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "launchd-macos-15-amd64",
+      "environment": "macos-15-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "background-interval-trigger",
+        "gui-legacy-adoption",
+        "disabled-preference-preserved",
+        "key-preserved"
+      ]
+    },
+    {
+      "scope": "upgrade",
+      "id": "ssh-upgrade-linux-amd64",
+      "environment": "linux-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "actual-old-release-installed",
+        "candidate-archive-installed",
+        "effective-ssh-equivalence",
+        "credentials-preserved",
+        "task-identity-preserved",
+        "real-connection",
+        "renewal"
+      ]
+    },
+    {
+      "scope": "upgrade",
+      "id": "ssh-upgrade-linux-arm64",
+      "environment": "linux-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "actual-old-release-installed",
+        "candidate-archive-installed",
+        "effective-ssh-equivalence",
+        "credentials-preserved",
+        "task-identity-preserved",
+        "real-connection",
+        "renewal"
+      ]
+    },
+    {
+      "scope": "upgrade",
+      "id": "ssh-upgrade-darwin-amd64",
+      "environment": "darwin-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "actual-old-release-installed",
+        "candidate-archive-installed",
+        "effective-ssh-equivalence",
+        "credentials-preserved",
+        "task-identity-preserved",
+        "real-connection",
+        "renewal"
+      ]
+    },
+    {
+      "scope": "upgrade",
+      "id": "ssh-upgrade-darwin-arm64",
+      "environment": "darwin-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "actual-old-release-installed",
+        "candidate-archive-installed",
+        "effective-ssh-equivalence",
+        "credentials-preserved",
+        "task-identity-preserved",
+        "real-connection",
+        "renewal"
+      ]
+    },
+    {
+      "scope": "upgrade",
+      "id": "scripts-upgrade",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "exact-shell-archive",
+        "compatibility-entrypoints",
+        "managed-files-preserved",
+        "functional",
+        "failure-propagated"
+      ]
+    },
+    {
+      "scope": "failure-recovery",
+      "id": "ssh-failure-recovery-linux-amd64",
+      "environment": "linux-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "download-failure",
+        "write-failure",
+        "commit-interruption",
+        "service-switch-failure",
+        "old-program-and-task-restored",
+        "rerun-functional",
+        "concurrent-edit-preserved"
+      ]
+    },
+    {
+      "scope": "failure-recovery",
+      "id": "ssh-failure-recovery-linux-arm64",
+      "environment": "linux-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "download-failure",
+        "write-failure",
+        "commit-interruption",
+        "service-switch-failure",
+        "old-program-and-task-restored",
+        "rerun-functional",
+        "concurrent-edit-preserved"
+      ]
+    },
+    {
+      "scope": "failure-recovery",
+      "id": "ssh-failure-recovery-darwin-amd64",
+      "environment": "darwin-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "download-failure",
+        "write-failure",
+        "commit-interruption",
+        "service-switch-failure",
+        "old-program-and-task-restored",
+        "rerun-functional",
+        "concurrent-edit-preserved"
+      ]
+    },
+    {
+      "scope": "failure-recovery",
+      "id": "ssh-failure-recovery-darwin-arm64",
+      "environment": "darwin-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "download-failure",
+        "write-failure",
+        "commit-interruption",
+        "service-switch-failure",
+        "old-program-and-task-restored",
+        "rerun-functional",
+        "concurrent-edit-preserved"
+      ]
+    },
+    {
+      "scope": "failure-recovery",
+      "id": "scripts-failure-recovery",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "exact-shell-archive",
+        "compatibility-entrypoints",
+        "managed-files-preserved",
+        "functional",
+        "failure-propagated"
+      ]
+    },
+    {
+      "scope": "rollback",
+      "id": "ssh-rollback-linux-amd64",
+      "environment": "linux-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "actual-old-release-restored",
+        "subsequent-edit-conflict",
+        "real-connection",
+        "task-functional",
+        "credentials-preserved"
+      ]
+    },
+    {
+      "scope": "rollback",
+      "id": "ssh-rollback-linux-arm64",
+      "environment": "linux-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "actual-old-release-restored",
+        "subsequent-edit-conflict",
+        "real-connection",
+        "task-functional",
+        "credentials-preserved"
+      ]
+    },
+    {
+      "scope": "rollback",
+      "id": "ssh-rollback-darwin-amd64",
+      "environment": "darwin-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "actual-old-release-restored",
+        "subsequent-edit-conflict",
+        "real-connection",
+        "task-functional",
+        "credentials-preserved"
+      ]
+    },
+    {
+      "scope": "rollback",
+      "id": "ssh-rollback-darwin-arm64",
+      "environment": "darwin-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "actual-old-release-restored",
+        "subsequent-edit-conflict",
+        "real-connection",
+        "task-functional",
+        "credentials-preserved"
+      ]
+    },
+    {
+      "scope": "rollback",
+      "id": "scripts-rollback",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "exact-shell-archive",
+        "compatibility-entrypoints",
+        "managed-files-preserved",
+        "functional",
+        "failure-propagated"
+      ]
+    },
+    {
+      "scope": "artifact-install",
+      "id": "ssh-artifact-install-linux-amd64",
+      "environment": "linux-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "archive-checksum",
+        "installer-entrypoint",
+        "version",
+        "functional"
+      ]
+    },
+    {
+      "scope": "artifact-install",
+      "id": "ssh-artifact-install-linux-arm64",
+      "environment": "linux-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "archive-checksum",
+        "installer-entrypoint",
+        "version",
+        "functional"
+      ]
+    },
+    {
+      "scope": "artifact-install",
+      "id": "ssh-artifact-install-darwin-amd64",
+      "environment": "darwin-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "archive-checksum",
+        "installer-entrypoint",
+        "version",
+        "functional"
+      ]
+    },
+    {
+      "scope": "artifact-install",
+      "id": "ssh-artifact-install-darwin-arm64",
+      "environment": "darwin-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "archive-checksum",
+        "installer-entrypoint",
+        "version",
+        "functional"
+      ]
+    },
+    {
+      "scope": "artifact-install",
+      "id": "scripts-artifact-install",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "exact-shell-archive",
+        "compatibility-entrypoints",
+        "managed-files-preserved",
+        "functional",
+        "failure-propagated"
+      ]
+    },
+    {
+      "scope": "public-install",
+      "id": "ssh-public-install-linux-amd64",
+      "environment": "linux-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "anonymous-download",
+        "official-entrypoint",
+        "version",
+        "checksum",
+        "functional"
+      ]
+    },
+    {
+      "scope": "public-install",
+      "id": "ssh-public-install-linux-arm64",
+      "environment": "linux-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "anonymous-download",
+        "official-entrypoint",
+        "version",
+        "checksum",
+        "functional"
+      ]
+    },
+    {
+      "scope": "public-install",
+      "id": "ssh-public-install-darwin-amd64",
+      "environment": "darwin-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "anonymous-download",
+        "official-entrypoint",
+        "version",
+        "checksum",
+        "functional"
+      ]
+    },
+    {
+      "scope": "public-install",
+      "id": "ssh-public-install-darwin-arm64",
+      "environment": "darwin-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "anonymous-download",
+        "official-entrypoint",
+        "version",
+        "checksum",
+        "functional"
+      ]
+    },
+    {
+      "scope": "public-install",
+      "id": "scripts-public-install",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "full-system",
+      "assertions": [
+        "exact-shell-archive",
+        "compatibility-entrypoints",
+        "managed-files-preserved",
+        "functional",
+        "failure-propagated"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "hud-ubuntu-24.04-amd64",
+      "environment": "ubuntu-24.04-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "existing-key-and-hooks-preserved",
+        "local-bark-request",
+        "concurrent-stop-dedupe",
+        "slow-request-total-budget",
+        "uncertain-delivery-no-retry",
+        "uninstall-owned-resources-only"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "hud-macos-15-arm64",
+      "environment": "macos-15-arm64",
+      "level": "native-platform",
+      "assertions": [
+        "existing-key-and-hooks-preserved",
+        "local-bark-request",
+        "concurrent-stop-dedupe",
+        "slow-request-total-budget",
+        "uncertain-delivery-no-retry",
+        "uninstall-owned-resources-only"
+      ]
+    },
+    {
+      "scope": "fixed-environment",
+      "id": "hud-macos-15-amd64",
+      "environment": "macos-15-amd64",
+      "level": "native-platform",
+      "assertions": [
+        "existing-key-and-hooks-preserved",
+        "local-bark-request",
+        "concurrent-stop-dedupe",
+        "slow-request-total-budget",
+        "uncertain-delivery-no-retry",
+        "uninstall-owned-resources-only"
+      ]
+    }
+  ]
+}

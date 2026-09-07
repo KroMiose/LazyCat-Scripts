@@ -17,6 +17,8 @@ def main():
     # actual parser/error diagnostics are a hard gate from the first rollout.
     subprocess.run(['shellcheck','--severity=error',*[str(p) for p in files]],check=True)
     graph()
+    from test_release_gate import gate
+    gate.release_contract()
     manifest=json.loads((ROOT/'tests/scenarios.json').read_text())
     for scene in manifest['scenarios']:
         assert scene['level'] and scene['initial'] and scene['preserve'] and scene['entrypoint']

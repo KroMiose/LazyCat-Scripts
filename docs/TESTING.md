@@ -73,3 +73,8 @@ python3 tests/system/vm.py --image ubuntu --suite docker --package-lock tests/sy
 包源更新使用单独的准备步骤：`python3 tests/system/vm.py --image ubuntu --export-package-lock artifacts/proposed.lock.json`。它仅下载、不安装包，结果是 environment-prepared，不能算产品验证。审阅原始来源和摘要，再用新的独立场景验证后才能更新仓库锁文件。`--fresh-packages` 重新从锁定 URL 下载且校验；每周第一轮执行它，以发现旧包入口失效。
 
 候选产物工作流采用 GitHub 官方的 ubuntu-24.04、ubuntu-24.04-arm、macos-15-intel、macos-15 四类 runner，并断言实际架构。官方标签表见 https://docs.github.com/en/actions/reference/runners/github-hosted-runners 。尚未远程执行的矩阵不计为已通过。
+
+
+发布最低覆盖要求由 `tests/release-contract.json` 维护；这是必须取得的证据清单，不是已通过列表。`scripts/release_check.py` 核对每个必测 ID 的平台、真实执行级别、行为/副作用断言，以及相对于报告的观察日志路径和 SHA-256。报告必须绑定当前清单摘要、候选提交和冻结源码摘要；产物必须包括四平台 SSH 包、Shell 包、安装器和一致的 SHA256SUMS。缺平台、只编译、任意名称的绿色场景、空日志及过期清单均不能通过。
+
+门禁单元测试使用明确标注的合成日志验证这些拒绝路径，不能当作对应产品场景已执行。当前完整发布证据仍缺失，42 项验收台账也尚未全部完成，因此稳定版发布保持阻断。
