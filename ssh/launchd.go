@@ -26,7 +26,11 @@ type launchState struct {
 func launchCommand(args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return exec.CommandContext(ctx, "/bin/launchctl", args...).CombinedOutput()
+	b, e := exec.CommandContext(ctx, "/bin/launchctl", args...).CombinedOutput()
+	if e != nil {
+		return b, fmt.Errorf("launchctl %s: %w: %s", args[0], e, strings.TrimSpace(string(b)))
+	}
+	return b, nil
 }
 
 func launchIdentity(p paths) error {

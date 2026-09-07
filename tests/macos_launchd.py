@@ -127,6 +127,18 @@ def main():
     except Exception as error:
         report['error']=str(error)
         if report['phase']=='prepare':report['environment_errors']+=1
+        if report['phase']=='product' and created and domain:
+            try:
+                for session in ('default','background'):
+                    control=home+'/Library/LaunchAgents/com.lazycat.control.'+session+'.plist'
+                    marker=home+'/control-'+session
+                    data={'Label':'com.lazycat.control.'+session,'ProgramArguments':['/usr/bin/touch',marker],'RunAtLoad':True}
+                    if session=='background':data['LimitLoadToSessionType']='Background'
+                    write(control,plistlib.dumps(data).decode())
+                    result=user(['/bin/launchctl','bootstrap',domain,control],expected=None)
+                    report.setdefault('control_launches',{})[session]=result.returncode
+                run(['sudo','log','show','--last','3m','--style','compact','--predicate','process == "launchd" AND eventMessage CONTAINS "com.lazycat"'],expected=None,timeout=30)
+            except Exception as diagnostic:report['diagnostic_error']=str(diagnostic)
     finally:
         if created:
             try:
