@@ -20,10 +20,10 @@
     {
       "id": 3,
       "title": "默认 CA 路径无法按设计展开",
-      "status": "部分实现，验收未完成",
-      "decision": "",
+      "status": "原审阅结论被真实运行反证，修正回归待验证",
+      "decision": "原版 c8ffb57 的真实入口在默认 CA 路径签发成功；ssh-keygen 自行展开带引号的 ~。撤回仅根据 Shell 引号推导路径必然失败的结论。保留原版 RETURN 清理故障的独立记录。",
       "release_complete": false,
-      "evidence_summary": "Go 默认 CA 路径已有 Ubuntu QEMU 真实签发/登录证据；旧 Shell 入口回归仍需补齐。"
+      "evidence_summary": "run 34164160269 的 Debian test.log 614–618 行记录原版签发成功后 tmp_yaml 未绑定；整场失败来自错误的默认路径断言。修正场景将独立验证签发身份和新连接，完成前本项仍不标最终验收。"
     },
     {
       "id": 4,

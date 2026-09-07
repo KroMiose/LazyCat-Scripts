@@ -42,19 +42,20 @@ key="$home/.ssh/lazycat_ca_ed25519"
 cert="${key}-cert.pub"
 sha256sum "$key" "${key}.pub" "$home/.ssh/known_hosts" > /tmp/legacy-preserved.sha256
 cp -p "$home/.ssh/known_hosts" /tmp/legacy-known-hosts-before
-# The original default-path defect is tested with the original client AND lib.
-# The CA key demonstrably exists; only the old quoted-tilde handling is broken.
+# Original client AND lib: ssh-keygen itself expands the quoted tilde. The
+# real-system observation disproves the review's proposed default-path defect.
+# Keep the independent signing/login assertions separate from the RETURN bug.
 test -f "$ca"
 install -o legacy-fixture -g legacy-fixture -m 644 tests/fixtures/legacy-default-ca-common.sh "$home/.local/share/lazycat-ssh/lib/common.sh"
 install -o legacy-fixture -g legacy-fixture -m 755 tests/fixtures/legacy-default-ca-client.sh "$home/.local/bin/lazycat-ssh"
-sha256sum "$cert" > /tmp/legacy-before-default-path.sha256
-if legacy > /tmp/legacy-default-path-before.log 2>&1; then
-    echo 'original default CA path unexpectedly worked';exit 1
-fi
+default_status=0
+legacy > /tmp/legacy-default-path-before.log 2>&1 || default_status=$?
 cat /tmp/legacy-default-path-before.log
-grep -F '~/.lazycat/ssh-ca/lazycat-ssh-ca' /tmp/legacy-default-path-before.log
-sha256sum -c /tmp/legacy-before-default-path.sha256
-echo 'EXPECTED ORIGINAL DEFECT: existing default CA key cannot be addressed'
+test "$default_status" -ne 0
+grep -F 'tmp_yaml: unbound variable' /tmp/legacy-default-path-before.log
+ssh-keygen -L -f "$cert" | grep -F 'lazycat-ssh-legacy-fixture@lazycat-fixture'
+runuser -u legacy-fixture -- ssh -F "$home/.ssh/config" -o BatchMode=yes -o UpdateHostKeys=no fixture-ca true
+echo 'DISPROVED REVIEW FINDING: original quoted default CA path signs a usable certificate; RETURN cleanup still fails'
 install -o legacy-fixture -g legacy-fixture -m 644 tests/fixtures/legacy-common-before.sh "$home/.local/share/lazycat-ssh/lib/common.sh"
 # Same actual entrypoint test on the frozen pre-fix implementation must expose
 # the predictable temporary filename overwriting an unrelated existing file.
