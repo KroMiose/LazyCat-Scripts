@@ -155,6 +155,12 @@ func installTimer(p paths, args []string) error {
 			return &migrationConflict{"existing launchd registration or disablement requires migration review"}
 		}
 	}
+	if runtime.GOOS == "darwin" {
+		files, e = launchTimerFiles(files, previous, launchDomain, minutes)
+		if e != nil {
+			return e
+		}
+	}
 	var changes []change
 	for path, data := range files {
 		c, e := prepare(path, []byte(data), 0600)

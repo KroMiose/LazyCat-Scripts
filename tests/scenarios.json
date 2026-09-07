@@ -79,12 +79,27 @@
         "unrelated accounts and homes",
         "fixture client key",
         "valid certificate",
-        "legacy task interval/environment/logs",
         "disabled and unloaded choices"
       ],
       "mutations": [
         "dedicated fixture account and its user domain",
         "owned task files and SSH fixtures"
+      ]
+    },
+    {
+      "id": "ssh-launchd-gui",
+      "level": "native-platform",
+      "initial": "disposable macOS 15 runner GUI account; all fixture paths and task registration confirmed absent",
+      "entrypoint": "python3 tests/macos_launchd.py --assets <candidate> --session gui",
+      "preserve": [
+        "existing runner resources",
+        "legacy task domain, interval, environment and logs",
+        "fixture key",
+        "hand-edited task"
+      ],
+      "mutations": [
+        "explicit absent fixture paths in actual runner HOME",
+        "fixture launchd registration only"
       ]
     }
   ]

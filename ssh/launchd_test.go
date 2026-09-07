@@ -65,3 +65,29 @@ func TestLaunchdCleanAccountAndDisabledOverrides(t *testing.T) {
 		}
 	}
 }
+
+func TestLaunchTimerSessionAndPreferencePreservation(t *testing.T) {
+	data, e := os.ReadFile("../tests/fixtures/legacy-launchd.plist")
+	if e != nil {
+		t.Fatal(e)
+	}
+	fresh := map[string]string{"task": "<key>StartInterval</key><integer>60</integer><key>RunAtLoad</key><false/>"}
+	background, e := launchTimerFiles(fresh, timerReceipt{}, "user/502", 1)
+	if e != nil || !strings.Contains(background["task"], "<key>LimitLoadToSessionType</key><string>Background</string>") {
+		t.Fatal(background, e)
+	}
+	gui, e := launchTimerFiles(fresh, timerReceipt{}, "gui/502", 1)
+	if e != nil || gui["task"] != fresh["task"] {
+		t.Fatal(gui, e)
+	}
+	for _, domain := range []string{"gui/502", "user/502"} {
+		updated, e := launchTimerFiles(fresh, timerReceipt{Files: map[string]string{"task": string(data)}}, domain, 2)
+		expected := strings.Replace(string(data), "<integer>1800</integer>", "<integer>120</integer>", 1)
+		if e != nil || updated["task"] != expected {
+			t.Fatal("changed historical preferences", updated, e)
+		}
+	}
+	if _, e = launchTimerFiles(fresh, timerReceipt{Files: map[string]string{"task": "broken"}}, "gui/502", 2); e == nil {
+		t.Fatal("accepted damaged interval")
+	}
+}

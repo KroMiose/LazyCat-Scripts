@@ -8,7 +8,7 @@
 
 | 阶段 | 已落地 | 尚需完成 |
 |---|---|---|
-| A 基线 | 历史失败样本、统一 Make 入口、Actions 汇总门禁、QEMU 驱动及镜像摘要 | 组件映射已落地但系统场景仍较粗；Ubuntu 固定包源已验证；Debian/OpenWrt 离线源待补、全场景允许变更清单、门禁变异验证 |
+| A 基线 | 历史失败样本、统一 Make 入口、Actions 汇总门禁、QEMU 驱动及镜像摘要 | 组件映射已落地但系统场景仍较粗；Ubuntu/Debian 固定包源已验证；OpenWrt 离线源待补、全场景允许变更清单、门禁变异验证 |
 | B 高风险修复 | 代理结果、Squid 解析/双文件恢复、sudoers 候选校验、Node 错误传播、Python 执行边界、Zsh 托管与插件保留 | 完整入口故障复现、并发与中断、SSH 旧客户端全字段验证 |
 | C 迁移基础 | Go 同目录提交、操作记录、后续修改冲突保护、真实第二份文件失败恢复 | 检查器已覆盖部分 Shell 操作；全部历史发现、ACL/中断恢复仍待补 |
 | D Go SSH | YAML 规范化、路由、独立配置/续签、CLI 初版、受限 meta.env 解析 | Linux 旧任务的完整迁移/触发/卸载已通过；macOS 采纳、任务回滚和完整卸载待补 |
@@ -128,3 +128,6 @@ macOS 候选增加实际账户 HOME 校验、当前 launchd 域选择及已加�
 Debian 固定包源已通过全新断网 KVM 的完整 Docker/SSH/Squid/sudo/续签任务生命周期（run 34157169780，合并测试提交 08faf111ef53b0483a28823701995712adbeaf7d，包锁摘要 ec31cc9694f32d7b656b5d45a7ce7b6be8bd4f0206014f927301cede209f4714）。此轮总体仍失败：macOS 专用新账户返回 `disabled services = (no disabled services)`，客户端原先不识别而安全拒绝。run 34157530082 增补原始输出并确认两架构相同，账户清理也改为查询真实目录记录；失败未覆盖。现已增加该明确格式的解析与回归。
 
 VM 驱动增加只读 bind mount 与 root 写入拒绝探测；源码和离线软件源在测试期间不可写，OpenWrt 重启后重新建立只读挂载。驱动 SSH 只使用生成的测试密钥，明确禁用继承的 agent。此隔离加固等待下一轮完整系统验证。
+
+
+run 34157931567 与 34158692299 的 Ubuntu/Debian/OpenWrt 系统作业通过，包含源码只读挂载与 SSH agent 隔离；总体仍因 macOS 原生注册失败而失败。后者独立最小任务证明：新账户 user/<uid> 域默认 plist 返回 5，显式 Background 会话任务返回 0。新任务据此声明 Background，已有 GUI/历史任务保持设置；更新间隔也保留历史 PATH、RunAtLoad 和日志。后台新账户与 runner GUI 旧任务采纳分开记录，修复后原生结果待取得，不计为通过。

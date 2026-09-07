@@ -29,7 +29,8 @@
         "ssh-node-adapters",
         "linux-system",
         "native-package",
-        "ssh-launchd"
+        "ssh-launchd",
+        "ssh-launchd-gui"
       ]
     },
     "shell-proxy": {
@@ -150,7 +151,8 @@
         "shell-regressions",
         "linux-system",
         "native-package",
-        "ssh-launchd"
+        "ssh-launchd",
+        "ssh-launchd-gui"
       ]
     }
   },

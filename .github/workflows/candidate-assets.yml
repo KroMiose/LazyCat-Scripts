@@ -74,6 +74,9 @@ jobs:
       - name: Real launchd lifecycle in a dedicated account
         if: runner.os == 'macOS'
         run: python3 tests/macos_launchd.py --assets artifacts/candidate
+      - name: Historical task adoption in the runner GUI session
+        if: runner.os == 'macOS'
+        run: python3 tests/macos_launchd.py --assets artifacts/candidate --session gui
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

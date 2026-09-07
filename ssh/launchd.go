@@ -212,3 +212,23 @@ func receiptLaunchDomain(r timerReceipt) string {
 	// Preserve receipts produced by the first Go candidate, which used gui.
 	return fmt.Sprintf("gui/%d", os.Getuid())
 }
+
+// Preserve adopted task preferences when changing only the renewal interval.
+// New Background registrations need an explicit session type: launchd otherwise
+// assumes Aqua and rejects bootstrap in user/<uid> with EIO.
+func launchTimerFiles(fresh map[string]string, previous timerReceipt, domain string, minutes int) (map[string]string, error) {
+	result := make(map[string]string, len(fresh))
+	interval := regexp.MustCompile(`(<key>StartInterval</key>\s*<integer>)[0-9]+(</integer>)`)
+	for path, data := range fresh {
+		if old, ok := previous.Files[path]; ok {
+			if len(interval.FindAllStringIndex(old, -1)) != 1 {
+				return nil, &migrationConflict{"owned launchd interval is ambiguous; task preserved"}
+			}
+			data = interval.ReplaceAllString(old, "${1}"+strconv.Itoa(minutes*60)+"${2}")
+		} else if strings.HasPrefix(domain, "user/") {
+			data = strings.Replace(data, "<key>RunAtLoad</key>", "<key>LimitLoadToSessionType</key><string>Background</string><key>RunAtLoad</key>", 1)
+		}
+		result[path] = data
+	}
+	return result, nil
+}

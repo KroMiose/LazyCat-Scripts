@@ -19,13 +19,13 @@ ROOT=Path(__file__).resolve().parents[1]
 LABEL='com.lazycat.ssh.renew'
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--assets',type=Path,required=True);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--assets',type=Path,required=True);parser.add_argument('--session',choices=['background','gui'],default='background');args=parser.parse_args()
     if platform.system()!='Darwin' or os.environ.get('GITHUB_ACTIONS')!='true' or os.environ.get('RUNNER_OS')!='macOS':
         parser.error('this account-creation fixture runs only on disposable GitHub macOS runners')
     manifest=json.loads((args.assets/'manifest.json').read_text())
     out=ROOT/'artifacts/package'/('launchd-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ'));out.mkdir(parents=True)
-    report=dict(format_version=1,commit=manifest['commit'],source_tree_sha256=manifest['source_tree_sha256'],scope='dedicated-account-launchd-lifecycle',level='native-platform',platform=platform.platform(),status='failed',phase='prepare',scenarios=[],skipped=0,flaky=0,environment_errors=0)
-    name='lazycatci'+secrets.token_hex(4);home='/Users/'+name;domain=None;created=False
+    report=dict(format_version=1,commit=manifest['commit'],source_tree_sha256=manifest['source_tree_sha256'],scope='dedicated-account-background-launchd' if args.session=='background' else 'runner-account-gui-legacy-launchd',level='native-platform',platform=platform.platform(),status='failed',phase='prepare',scenarios=[],skipped=0,flaky=0,environment_errors=0)
+    name='lazycatci'+secrets.token_hex(4);home='/Users/'+name;domain=None;created=False;gui_ready=False;absent_dirs=[];owned=[]
     log=(out/'commands.jsonl').open('w')
     def run(argv,expected=0,timeout=45):
         r=subprocess.run([str(v) for v in argv],capture_output=True,text=True,timeout=timeout)
@@ -35,22 +35,26 @@ def main():
         if expected is not None and r.returncode!=expected:raise RuntimeError('unexpected command result; see commands.jsonl')
         return r
     try:
-        try:pwd.getpwnam(name)
-        except KeyError:pass
-        else:raise RuntimeError('fixture account already exists')
-        if Path(home).exists():raise RuntimeError('fixture home already exists')
-        run(['sudo','/usr/sbin/sysadminctl','-addUser',name,'-fullName','LazyCat disposable fixture','-home',home,'-shell','/bin/bash','-password',secrets.token_urlsafe(24)],timeout=90)
-        created=True
-        account=pwd.getpwnam(name)
-        if account.pw_dir!=home or account.pw_uid==os.getuid():raise RuntimeError('account database does not match the dedicated home')
-        uid=account.pw_uid;domain=f'user/{uid}'
+        if args.session=='background':
+            try:pwd.getpwnam(name)
+            except KeyError:pass
+            else:raise RuntimeError('fixture account already exists')
+            if Path(home).exists():raise RuntimeError('fixture home already exists')
+            run(['sudo','/usr/sbin/sysadminctl','-addUser',name,'-fullName','LazyCat disposable fixture','-home',home,'-shell','/bin/bash','-password',secrets.token_urlsafe(24)],timeout=90)
+            created=True
+            account=pwd.getpwnam(name)
+            if account.pw_dir!=home or account.pw_uid==os.getuid():raise RuntimeError('account database does not match the dedicated home')
+        else:
+            account=pwd.getpwuid(os.getuid());name=account.pw_name;home=account.pw_dir
+            if os.environ.get('HOME')!=home:raise RuntimeError('runner HOME differs from account database')
+        uid=account.pw_uid;domain=f'user/{uid}' if args.session=='background' else f'gui/{uid}'
         groups=run(['id','-Gn',name]).stdout.split()
-        if uid==0 or 'admin' in groups or 'wheel' in groups:raise RuntimeError('fixture account has unexpected privilege')
+        if uid==0 or (args.session=='background' and ('admin' in groups or 'wheel' in groups)):raise RuntimeError('fixture account has unexpected privilege')
         report['account']=dict(uid=uid,gid=account.pw_gid,home=home,groups=groups)
         report['runner']={k:os.environ.get(k) for k in ('ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH')}
-        run(['sudo','install','-d','-o',name,'-g',str(account.pw_gid),'-m','700',home])
+        if args.session=='background':run(['sudo','install','-d','-o',name,'-g',str(account.pw_gid),'-m','700',home])
         probe=run(['sudo','/bin/launchctl','print',domain],expected=None)
-        if probe.returncode==112:run(['sudo','/bin/launchctl','bootstrap',domain])
+        if probe.returncode==112 and args.session=='background':run(['sudo','/bin/launchctl','bootstrap',domain])
         elif probe.returncode:raise RuntimeError('cannot inspect fixture launchd domain')
         def user(argv,expected=0,timeout=45):
             return run(['sudo','/bin/launchctl','asuser',str(uid),'sudo','-H','-u',name,'/usr/bin/env','-i','HOME='+home,'USER='+name,'PATH=/usr/bin:/bin:/usr/sbin:/sbin']+list(argv),expected,timeout)
@@ -60,6 +64,18 @@ def main():
                 stream.write(data);stream.flush()
                 run(['sudo','install','-o',name,'-g',str(account.pw_gid),'-m','600',stream.name,path])
         def passed(identifier):report['scenarios'].append(dict(id=identifier,status='passed'))
+        if args.session=='gui':
+            # Never replace the runner's existing SSH/config/tool resources.
+            owned=[home+'/'+p for p in ['incoming','inventory.yaml','fixture-ca','fixture-ca.pub','.lazycat/ssh','.local/bin/lazycat-ssh','.local/bin/lazycat-ssh-candidate','.ssh/config','.ssh/config.d/lazycat.conf','.ssh/lazycat_ca_ed25519','.ssh/lazycat_ca_ed25519.pub','.ssh/lazycat_ca_ed25519-cert.pub','Library/LaunchAgents/'+LABEL+'.plist']]
+            for path in owned:
+                if os.path.lexists(path):raise RuntimeError('GUI fixture resource already exists: '+path)
+            for prefix in ('gui/','user/'):
+                existing=user(['/bin/launchctl','print',prefix+str(uid)+'/'+LABEL],expected=None)
+                if existing.returncode not in (112,113):raise RuntimeError('GUI fixture task registration not absent')
+            for relative in ('.local','.local/bin','.ssh','.ssh/config.d','.lazycat','Library/LaunchAgents'):
+                directory=home+'/'+relative
+                if not os.path.lexists(directory):absent_dirs.append(directory)
+            gui_ready=True
         user(['/bin/mkdir','-p',home+'/.local/bin',home+'/.ssh',home+'/incoming',home+'/Library/LaunchAgents'])
         arch={'arm64':'arm64','x86_64':'amd64'}[platform.machine()]
         native=manifest['versions']['ssh']+'-darwin-'+arch+'.tar.gz'
@@ -82,47 +98,55 @@ def main():
         client('trust-ca',fingerprint);client('sync','--config-only');client('migrate','--apply')
         key_before=user(['/usr/bin/shasum','-a','256',home+'/.ssh/lazycat_ca_ed25519']).stdout.split()[0]
         cert_before=read(home+'/.ssh/lazycat_ca_ed25519-cert.pub')
-        user(['/bin/launchctl','print-disabled',domain])
-        client('install-renew','1')
-        receipt=json.loads(read(home+'/.lazycat/ssh/timer.json'))
-        if receipt['Domain']!=domain:raise AssertionError('task installed in another login domain')
-        user(['/bin/launchctl','print',domain+'/'+LABEL])
-        deadline=time.monotonic()+180
-        while True:
-            found=run(['sudo','test','-f',home+'/.lazycat/ssh/renew-status.json'],expected=None)
-            if found.returncode==0 and json.loads(read(home+'/.lazycat/ssh/renew-status.json')).get('scheduled') is True:break
-            if time.monotonic()>deadline:raise RuntimeError('real launchd interval did not trigger')
-            time.sleep(.5)
-        if read(home+'/.ssh/lazycat_ca_ed25519-cert.pub')!=cert_before:raise AssertionError('scheduled task changed valid certificate')
-        passed('first-install-and-real-interval-trigger')
-        plist=home+'/Library/LaunchAgents/'+LABEL+'.plist';first=read(plist)
-        client('install-renew','1')
-        if read(plist)!=first:raise AssertionError('repeat changed task')
-        user(['/bin/launchctl','bootout',domain+'/'+LABEL]);client('install-renew','2')
-        user(['/bin/launchctl','print',domain+'/'+LABEL],expected=113)
-        user(['/bin/launchctl','disable',domain+'/'+LABEL]);client('install-renew','3')
-        disabled=user(['/bin/launchctl','print-disabled',domain]).stdout
-        if '"'+LABEL+'" => true' not in disabled:raise AssertionError('update enabled disabled task')
-        client('uninstall-renew')
-        run(['sudo','test','-e',plist],expected=1)
-        passed('repeat-unloaded-disabled-update-and-removal')
-        # Use the actual historical Shell task fixture. The program remains the
-        # owned Go candidate: this is task adoption, not full old-client upgrade.
-        user(['/bin/launchctl','enable',domain+'/'+LABEL])
-        legacy=(ROOT/'tests/fixtures/legacy-launchd.plist').read_text().replace('/Users/fixture',home)
-        write(plist,legacy);user(['/bin/launchctl','bootstrap',domain,plist])
-        client('migrate','--check');client('migrate','--apply')
-        adopted=plistlib.loads(read(plist).encode());original=plistlib.loads(legacy.encode())
-        expected=dict(original);expected['ProgramArguments']=[binary,'renew-certs','--scheduled']
-        if adopted!=expected:raise AssertionError('adoption changed legacy task preferences')
-        if json.loads(read(home+'/.lazycat/ssh/timer.json'))['Domain']!=domain:raise AssertionError('adoption moved domain')
-        user(['/bin/launchctl','print',domain+'/'+LABEL])
-        passed('legacy-task-adoption-preserves-domain-interval-environment-and-logs')
-        changed=read(plist).replace('renew.err.log','user-edited.err.log');write(plist,changed)
-        client('migrate','--check',expected=3)
-        if read(plist)!=changed:raise AssertionError('migration overwrote customized task')
-        if user(['/usr/bin/shasum','-a','256',home+'/.ssh/lazycat_ca_ed25519']).stdout.split()[0]!=key_before:raise AssertionError('task lifecycle changed key')
-        passed('user-task-edit-conflict-and-key-preservation')
+        if args.session=='background':
+            user(['/bin/launchctl','print-disabled',domain])
+            client('install-renew','1')
+            receipt=json.loads(read(home+'/.lazycat/ssh/timer.json'))
+            if receipt['Domain']!=domain:raise AssertionError('task installed in another login domain')
+            user(['/bin/launchctl','print',domain+'/'+LABEL])
+            deadline=time.monotonic()+180
+            while True:
+                found=run(['sudo','test','-f',home+'/.lazycat/ssh/renew-status.json'],expected=None)
+                if found.returncode==0 and json.loads(read(home+'/.lazycat/ssh/renew-status.json')).get('scheduled') is True:break
+                if time.monotonic()>deadline:raise RuntimeError('real launchd interval did not trigger')
+                time.sleep(.5)
+            if read(home+'/.ssh/lazycat_ca_ed25519-cert.pub')!=cert_before:raise AssertionError('scheduled task changed valid certificate')
+            passed('first-install-and-real-interval-trigger')
+            plist=home+'/Library/LaunchAgents/'+LABEL+'.plist';first=read(plist)
+            client('install-renew','1')
+            if read(plist)!=first:raise AssertionError('repeat changed task')
+            user(['/bin/launchctl','bootout',domain+'/'+LABEL]);client('install-renew','2')
+            user(['/bin/launchctl','print',domain+'/'+LABEL],expected=113)
+            user(['/bin/launchctl','disable',domain+'/'+LABEL]);client('install-renew','3')
+            disabled=user(['/bin/launchctl','print-disabled',domain]).stdout
+            if '"'+LABEL+'" => true' not in disabled:raise AssertionError('update enabled disabled task')
+            client('uninstall-renew')
+            run(['sudo','test','-e',plist],expected=1)
+            passed('repeat-unloaded-disabled-update-and-removal')
+        if args.session=='gui':
+            plist=home+'/Library/LaunchAgents/'+LABEL+'.plist'
+            # Use the actual historical Shell task fixture. The program remains the
+            # owned Go candidate: this is task adoption, not full old-client upgrade.
+            legacy=(ROOT/'tests/fixtures/legacy-launchd.plist').read_text().replace('/Users/fixture',home)
+            write(plist,legacy);user(['/bin/launchctl','bootstrap',domain,plist])
+            client('migrate','--check');client('migrate','--apply')
+            adopted=plistlib.loads(read(plist).encode());original=plistlib.loads(legacy.encode())
+            expected=dict(original);expected['ProgramArguments']=[binary,'renew-certs','--scheduled']
+            if adopted!=expected:raise AssertionError('adoption changed legacy task preferences')
+            if json.loads(read(home+'/.lazycat/ssh/timer.json'))['Domain']!=domain:raise AssertionError('adoption moved domain')
+            user(['/bin/launchctl','print',domain+'/'+LABEL])
+            passed('legacy-task-adoption-preserves-domain-interval-environment-and-logs')
+            client('install-renew','2')
+            expected['StartInterval']=120
+            if plistlib.loads(read(plist).encode())!=expected:raise AssertionError('interval update lost legacy preferences')
+            client('install-renew','2')
+            if plistlib.loads(read(plist).encode())!=expected:raise AssertionError('repeat lost legacy preferences')
+            passed('adopted-task-interval-update-and-repeat-preserve-preferences')
+            changed=read(plist).replace('renew.err.log','user-edited.err.log');write(plist,changed)
+            client('migrate','--check',expected=3)
+            if read(plist)!=changed:raise AssertionError('migration overwrote customized task')
+            if user(['/usr/bin/shasum','-a','256',home+'/.ssh/lazycat_ca_ed25519']).stdout.split()[0]!=key_before:raise AssertionError('task lifecycle changed key')
+            passed('user-task-edit-conflict-and-key-preservation')
         report['status']='passed'
     except Exception as error:
         report['error']=str(error)
@@ -140,6 +164,15 @@ def main():
                 run(['sudo','log','show','--last','3m','--style','compact','--predicate','process == "launchd" AND eventMessage CONTAINS "com.lazycat"'],expected=None,timeout=30)
             except Exception as diagnostic:report['diagnostic_error']=str(diagnostic)
     finally:
+        if gui_ready:
+            try:
+                state=user(['/bin/launchctl','print',domain+'/'+LABEL],expected=None)
+                if state.returncode==0:user(['/bin/launchctl','bootout',domain+'/'+LABEL])
+                elif state.returncode!=113:raise RuntimeError('cannot inspect GUI task during cleanup')
+                for path in owned:run(['sudo','rm','-rf','--',path])
+                for directory in reversed(absent_dirs):run(['sudo','rmdir',directory])
+                if any(os.path.lexists(path) for path in owned):raise RuntimeError('GUI fixture resources remain')
+            except Exception as error:report['status']='failed';report['cleanup_error']=str(error);report['environment_errors']+=1
         if created:
             try:
                 if domain:
