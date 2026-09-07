@@ -272,7 +272,7 @@ func run(ctx context.Context, p paths, args []string) error {
 		if len(args) != 2 {
 			return errors.New("rollback <operation-id>")
 		}
-		return rollback(p.Ops, args[1])
+		return rollbackUserOperation(p, args[1])
 	case "install-renew":
 		return installTimer(p, args[1:])
 	case "uninstall-renew":

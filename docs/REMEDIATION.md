@@ -94,3 +94,7 @@ Ubuntu Docker 场景已验证 daemon 实际经过本地代理、拒绝时拉取�
 草稿 PR #8 的首轮 reliability（run 34151819016）中，quality、macOS 行为、Debian 和 OpenWrt 全系统作业通过；Linux 容器源码目录权限与 Ubuntu 启动探测导致两个环境失败，required-checks 正确失败，未把遗漏当成通过。HUD 独立测试/构建工作流通过，没有执行发布作业。
 
 已针对日志修正临时源码目录的可遍历权限和有界启动轮询，并接入四平台实际候选产物检查；这些后续工作流变更需在下一轮远程验证。Debian 的成功不覆盖本地失败，也不代表 Debian 已有离线固定包源。
+
+第二轮 reliability（run 34152445967）中，Ubuntu/Debian 系统、Linux/macOS 行为和四平台候选产物全部通过。OpenWrt 在 KVM 下暴露 procd 状态先于监听端口就绪的竞争；已有修改和受控延迟/超时用例，等待下一轮真实验证。未重跑原失败来覆盖记录。
+
+公共 Go rollback 已收紧：任务生命周期恢复未完成前，包含原生任务的记录拒绝自动回滚，避免只恢复文件却报告服务也恢复了。

@@ -64,3 +64,26 @@ func TestMigrationChecksOwnedTimerBytes(t *testing.T) {
 		t.Fatal("adopted edited owned timer")
 	}
 }
+
+func TestPublicRollbackCannotPretendTaskStateWasRestored(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	p, e := defaultPaths()
+	if e != nil {
+		t.Fatal(e)
+	}
+	c, e := prepare(timerReceiptPath(p), []byte("task-state"), 0600)
+	if e != nil {
+		t.Fatal(e)
+	}
+	id, e := commit(p.Ops, []change{c})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = rollbackUserOperation(p, id); e == nil {
+		t.Fatal("file-only task rollback reported success")
+	}
+	b, e := os.ReadFile(timerReceiptPath(p))
+	if e != nil || string(b) != "task-state" {
+		t.Fatal("refused rollback changed task state", e)
+	}
+}

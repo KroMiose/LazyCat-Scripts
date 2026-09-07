@@ -91,6 +91,27 @@ lc_openwrt_service() { return 1; }
 lc_openwrt_apply_service 0
 ''', 1)
 
+    def test_openwrt_waits_for_actual_listener(self):
+        self.run_shell('''
+netstat() {
+  if [[ -f "$TEST_ROOT/first-probe" ]]; then
+    printf 'tcp 0 0 192.168.5.8:2222 0.0.0.0:* LISTEN\\n'
+  else
+    touch "$TEST_ROOT/first-probe"
+  fi
+}
+sleep() { :; }
+lc_openwrt_wait_listener 192.168.5.8 2222
+''')
+        self.assertTrue((self.root / "first-probe").exists())
+
+    def test_openwrt_listener_timeout_is_failure(self):
+        self.run_shell('''
+netstat() { :; }
+sleep() { SECONDS=$((SECONDS+16)); }
+lc_openwrt_wait_listener 192.168.5.8 2222
+''', 1)
+
     def test_openwrt_rejects_port_22_before_installing(self):
         self.run_shell('''
 lc_is_openwrt() { return 0; }

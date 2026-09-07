@@ -324,6 +324,32 @@ func rollback(dir, id string) error {
 		return journal(dir, op)
 	})
 }
+
+// A file restore alone cannot restore launchd/systemd's loaded state. Until
+// public lifecycle rollback is implemented, reject those records BEFORE writes.
+// Internal failure recovery calls rollback together with its service recovery.
+func rollbackUserOperation(p paths, id string) error {
+	if id == "" || filepath.Base(id) != id || strings.Contains(id, "..") {
+		return errors.New("invalid operation id")
+	}
+	b, e := os.ReadFile(filepath.Join(p.Ops, id+".json"))
+	if e != nil {
+		return e
+	}
+	var op operation
+	if e = json.Unmarshal(b, &op); e != nil {
+		return e
+	}
+	for _, c := range op.Changes {
+		if c.Path == timerReceiptPath(p) {
+			return &migrationConflict{"operation includes native tasks; file-only rollback is unsafe; review the saved task and program together"}
+		}
+		if _, ok := timerFiles(p, 30)[c.Path]; ok {
+			return &migrationConflict{"operation includes native tasks; file-only rollback is unsafe; review the saved task and program together"}
+		}
+	}
+	return rollback(p.Ops, id)
+}
 func digest(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:]) }
 
 const begin = "# >>> LazyCat SSH BEGIN >>>"

@@ -117,6 +117,16 @@ lc_openwrt_service() {
   /etc/init.d/sshd "$@"
 }
 
+lc_openwrt_wait_listener() {
+  local endpoint="$1:$2" deadline=$((SECONDS + 15))
+  # procd can report a running process before sshd binds its listening socket.
+  # On a fast runner a one-shot netstat check races that startup transition.
+  until netstat -lnt | awk -v endpoint="$endpoint" '$1 ~ /^tcp/ && $4 == endpoint { found=1 } END { exit !found }'; do
+    (( SECONDS < deadline )) || { lc_log "sshd 未在 15 秒内监听 $endpoint" >&2; return 1; }
+    sleep 1
+  done
+}
+
 lc_install_openwrt() {
   local key="${1:-}" address="${2:-}" port="${3:-2222}"
   lc_is_openwrt || lc_die "install-openwrt 仅适用于 OpenWrt / ImmortalWrt。"
@@ -181,7 +191,7 @@ lc_install_openwrt() {
     chmod 600 "$SSHD_CONFIG"
     sshd -t -f "$SSHD_CONFIG"
     lc_openwrt_apply_service "$was_running"
-    netstat -lnt | awk -v endpoint="$address:$port" '$1 ~ /^tcp/ && $4 == endpoint { found=1 } END { exit !found }'
+    lc_openwrt_wait_listener "$address" "$port"
     /etc/init.d/sshd enable
   )
   result=$?
