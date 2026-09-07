@@ -18,9 +18,11 @@ lc_tx_begin() {
     lc_tx_check_path "$LC_TX_TARGET" || return 3
     LC_TX_LOCK="${LC_TX_TARGET}.lazycat-lock"
     LC_TX_LOCK_OWNED=0
+    [[ ! -e "${LC_TX_LOCK}.recovery" && ! -L "${LC_TX_LOCK}.recovery" ]] || { echo '锁恢复正在进行或中断，请检查恢复记录' >&2; return 3; }
     (umask 077; mkdir "$LC_TX_LOCK") || { echo "操作锁已存在，请检查并发或中断状态：$LC_TX_LOCK" >&2; return 3; }
     LC_TX_LOCK_OWNED=1
     printf '%s\n' "$$" > "$LC_TX_LOCK/pid"
+    if [[ -e "${LC_TX_LOCK}.recovery" || -L "${LC_TX_LOCK}.recovery" ]]; then lc_tx_unlock; echo '锁恢复与新操作冲突，未写入目标' >&2; return 3; fi
     LC_TX_OPERATION=$(mktemp -d "${LC_TX_TARGET}.lazycat-operation.XXXXXX")
     chmod 700 "$LC_TX_OPERATION"
     printf '%s\n' "$LC_TX_TARGET" > "$LC_TX_OPERATION/target"
@@ -41,6 +43,29 @@ lc_tx_begin() {
     LC_TX_CANDIDATE="$LC_TX_OPERATION/after"
     printf 'prepared\n' > "$LC_TX_OPERATION/status"
 }
+# Explicit stale-lock recovery. A live/reused PID, incomplete lock or competing
+# recovery is a conflict. Keep the original lock as evidence; never delete it.
+lc_tx_recover_lock() (
+    set -e
+    local target="$1" lock guard pid archived process result
+    [[ "$target" == /* && "$target" != *$'\n'* && "$target" != *$'\r'* ]] || return 2
+    lc_tx_check_path "$target" || return 3
+    lock="${target}.lazycat-lock"
+    guard="${lock}.recovery"
+    [[ -d "$lock" && ! -L "$lock" && -f "$lock/pid" && ! -L "$lock/pid" ]] || { echo '锁缺失、损坏或为链接，需人工检查' >&2; return 3; }
+    (umask 077; mkdir "$guard") || return 3
+    trap 'rmdir "$guard"' EXIT
+    IFS= read -r pid < "$lock/pid"
+    [[ "$pid" =~ ^[1-9][0-9]*$ ]] || { echo '锁的 PID 无效，未移动' >&2; return 3; }
+    # ps also sees processes which kill -0 cannot probe due to permissions.
+    result=0
+    process=$(LC_ALL=C ps -p "$pid" -o pid=) || result=$?
+    [[ "$result" == 1 && -z "$process" ]] || { echo '锁的进程仍存在或无法确认，未移动' >&2; return 3; }
+    archived=$(mktemp -d "${lock}.recovered.XXXXXX")
+    chmod 700 "$archived"
+    mv "$lock" "$archived/lock"
+    printf '已保存失效锁：%s\n目标与事务备份未修改；请检查后回滚或重新执行。\n' "$archived"
+)
 lc_tx_unlock() {
     [[ -n "${LC_TX_LOCK:-}" && "${LC_TX_LOCK_OWNED:-0}" == 1 ]] || return 0
     rm -f "$LC_TX_LOCK/pid"

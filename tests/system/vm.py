@@ -181,7 +181,9 @@ def main():
                         report.setdefault('diagnostic_errors',[]).append(str(error))
 
                 report['exit_code']=r.returncode
-                if r.returncode:raise RuntimeError('guest product assertions failed; see test.log')
+                if r.returncode:
+                    category='environment preparation' if report['status']=='environment-error' else 'product assertions'
+                    raise RuntimeError('guest '+category+' failed; see test.log')
                 if args.export_package_lock:
                     exported=out/'package-export.tar'
                     with exported.open('wb') as stream:execute(ssh+['tar -cf - -C /tmp/lazycat-package-export .'],stdout=stream)

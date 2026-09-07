@@ -53,8 +53,8 @@ if command -v squid >/dev/null; then echo 'Unexpected preinstalled squid'; exit 
 printf 'observer-packages\n' > /tmp/lazycat-phase
 # Source indexes are not needed for binary package installation. Keep this
 # declared test-driver prerequisite bounded, independent of product installers.
-timeout 180 apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Acquire::IndexTargets::deb-src::Sources::DefaultEnabled=false update
-timeout 600 apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y openssh-server sudo curl openssl zsh python3 git ca-certificates dbus-user-session
+timeout 180 apt-get -o Acquire::Languages=none -o Acquire::Retries=0 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Acquire::IndexTargets::deb-src::Sources::DefaultEnabled=false update
+timeout 600 apt-get -o Acquire::Languages=none -o Acquire::Retries=0 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y openssh-server sudo curl openssl zsh python3 git ca-certificates dbus-user-session
 printf 'node-lifecycle\n' > /tmp/lazycat-phase
 useradd -m -s /bin/bash fixture
 mkdir -p /run/sshd

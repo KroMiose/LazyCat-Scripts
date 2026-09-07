@@ -108,3 +108,11 @@ Ubuntu 真实上游安装（20260907T185122.590682Z，提交 b8b9e7d）完整通
 事务回归用同一测试文件对比提交 3d70f5f 与修改后实现：旧实现稳定失败于“SIGKILL 后重跑覆盖未完成事务”和“rename 后报错遗漏当前文件恢复”；修改后 Go race 通过。原始失败日志在本地 artifacts/regression-proof/transaction-3d70f5f-supported-extract/before.log。新实现对同资源的未完成事务返回冲突，允许显式 rollback 后重跑；回滚不覆盖后来用户编辑，doctor 报告损坏记录。文件 rename/remove 后同步父目录。该证据不代表全部原生服务或 Shell SIGKILL 恢复已完成。
 
 第四轮 reliability（[run 34153832563](https://github.com/KroMiose/LazyCat-Scripts/actions/runs/34153832563)，提交 3d70f5f）全部必需作业通过。Ubuntu 与 Debian 的真实 systemd 均验证六种启用/运行组合在更新间隔后保持不变；四平台候选归档再次通过原生检查。这轮尚未包含后续事务中断修复。
+
+第五轮 reliability（[run 34154254968](https://github.com/KroMiose/LazyCat-Scripts/actions/runs/34154254968)，提交 e8a7fe1）及 HUD run 34154254861 均通过。此轮包含 Go 中断事务修复；后续 Shell 锁恢复和包源准备调整尚未包含。
+
+Shell 增加显式 `lazycat-check.sh recover-lock <目标绝对路径>`：仅当原 PID 确认不存在时归档旧锁，不改目标或备份；活跃 PID、损坏锁和恢复竞争拒绝处理。真实 SIGKILL 注入到 Shell 文件替换后，随后恢复锁与回滚，验证原内容、权限和恢复前快照。该行为已本地验证，不能代替全部系统工具的服务恢复。
+
+Debian 包锁导出首轮因无关翻译索引超时失败（20260907T190111.174025Z）；第二轮去掉翻译后进入大包下载，但在发现 `mirror+file:` 无法供外部驱动复现后主动中止（20260907T190731.316713Z）。两轮均不算通过。新准备流程由真实 apt 输出经过认证的包元数据，主机按 SHA-256 下载；正在独立环境验证。
+
+包源准备已补充 Debian epoch 文件名与无 MD5 的安全更新索引样本，SHA-256 仍为必须项。大包下载发现仅用 socket 空闲超时无法约束持续慢响应，改用 curl 的 180 秒总时限、大小限制及下载后摘要校验；本地真实 HTTP 截断测试确认失败不会进入缓存。旧下载诊断主动中止，保留环境失败记录，未作为通过。

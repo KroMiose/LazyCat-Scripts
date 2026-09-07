@@ -47,6 +47,8 @@ bash common/lazycat-check.sh --json
 bash common/restore_shell_backup.sh --list
 bash common/restore_shell_backup.sh --restore /absolute/.bashrc.bak.example --target /absolute/.bashrc
 bash common/lazycat-check.sh rollback /absolute/.bashrc.lazycat-operation.ABCDEF
+# 只有进程已退出，才显式恢复其遗留锁
+bash common/lazycat-check.sh recover-lock /absolute/.bashrc
 ```
 
 `lazycat-check` 默认离线、只读，不执行 meta.env 或连接 Gist。当前扫描的是已接入 Shell 助手的操作记录；Go SSH 使用 `lazycat-ssh doctor --json`，节点与其他服务的历史备份尚未全部归一。
@@ -58,3 +60,5 @@ bash common/lazycat-check.sh rollback /absolute/.bashrc.lazycat-operation.ABCDEF
 ## 添加 SSH Host
 
 `bash common/add_ssh_config.sh --help` 列出参数。新条目写入 `~/.ssh/lazycat-hosts/` 的独立片段，以收据识别自己的内容。重复运行不追加；未知旧 Host 或用户改过的片段报告冲突，不覆盖复杂旧块。默认遇到无法确认的 Include 停止，`--allow-existing-includes` 是显式接受其影响的选项，并不保证不存在冲突。旧配置自动等价迁移仍待完成。
+
+`recover-lock` 不恢复文件，也不删除事务备份：确认原 PID 已不存在后，将锁移到同目录的 `.lazycat-lock.recovered.*` 中保留，再允许检查与恢复。PID 仍存在（包括被系统复用）、锁不完整或另一恢复正在进行时均拒绝。恢复进程本身被强杀留下 `.recovery` 时仍需人工审阅；不把所有中断状态都当成可自动清理。
