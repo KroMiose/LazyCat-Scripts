@@ -156,9 +156,8 @@ func readSource(p paths) (sourceConfig, error) {
 	return parseLegacy(b)
 }
 func fetch(ctx context.Context, raw string) ([]byte, error) {
-	u, e := url.Parse(raw)
-	if e != nil || u.Host == "" || u.Scheme != "https" || u.User != nil {
-		return nil, errors.New("configuration source must be an HTTPS URL without credentials")
+	if e := validateSourceURL(raw); e != nil {
+		return nil, e
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()

@@ -84,3 +84,33 @@ func TestCLIConfigurationLifecycle(t *testing.T) {
 		t.Fatal("uninstall left generated configuration")
 	}
 }
+
+func TestCLIInvalidArgumentsHaveNoSideEffects(t *testing.T) {
+	root := t.TempDir()
+	candidate := filepath.Join(root, "candidate")
+	if b, e := exec.Command("go", "build", "-o", candidate, ".").CombinedOutput(); e != nil {
+		t.Fatal(e, string(b))
+	}
+	for _, args := range [][]string{
+		{"install-renew", "invalid"}, {"install-renew", "0"}, {"install-renew", "10081"},
+		{"trust-ca", "SHA256:not-a-fingerprint"}, {"trust-ca", ""},
+		{"rollback", "../another-operation"}, {"rollback", ""},
+		{"source", "http://example.invalid/inventory"},
+		{"source", "https://user:password@example.invalid/inventory"},
+		{"source", "https://example.invalid/raw", "https://wrong.invalid/abcd1234", "inventory.yaml"},
+		{"source", "--file", "relative.yaml"},
+	} {
+		home := t.TempDir()
+		cmd := exec.Command(candidate, args...)
+		cmd.Env = []string{"HOME=" + home, "PATH=/usr/bin:/bin:/usr/sbin:/sbin", "LC_ALL=C"}
+		output, e := cmd.CombinedOutput()
+		status, ok := e.(*exec.ExitError)
+		if !ok || status.ExitCode() != 2 {
+			t.Fatalf("%v: want argument exit 2; got %v: %s", args, e, output)
+		}
+		files, e := os.ReadDir(home)
+		if e != nil || len(files) != 0 {
+			t.Fatalf("%v: invalid input modified HOME: %v %v", args, files, e)
+		}
+	}
+}

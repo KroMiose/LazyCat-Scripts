@@ -1,8 +1,13 @@
 package main
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/url"
+	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 type configurationError struct{ error }
@@ -46,7 +51,25 @@ func validateArguments(args []string) error {
 		}
 		return nil
 	case "source":
-		if n == 1 || n == 3 || (n == 2 && args[1] == "--file") {
+		if n == 2 && args[1] == "--file" {
+			if filepath.IsAbs(args[2]) && !strings.ContainsAny(args[2], "\x00\r\n") {
+				return nil
+			}
+		}
+		if n == 1 || n == 3 {
+			if e := validateSourceURL(args[1]); e != nil {
+				return e
+			}
+			if n == 3 {
+				if e := validateSourceURL(args[2]); e != nil {
+					return e
+				}
+				u, _ := url.Parse(args[2])
+				parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+				if u.Host != "gist.github.com" || !regexpGist(parts[len(parts)-1]) || args[3] == "" || strings.ContainsAny(args[3], "\x00\r\n") {
+					return invalid("invalid Gist source or file name")
+				}
+			}
 			return nil
 		}
 	case "render":
@@ -58,12 +81,26 @@ func validateArguments(args []string) error {
 			return nil
 		}
 	case "install-renew":
-		if n <= 1 {
+		if n == 0 {
 			return nil
 		}
-	case "rollback", "trust-ca":
 		if n == 1 {
+			minutes, e := strconv.Atoi(args[1])
+			if e == nil && minutes >= 1 && minutes <= 10080 {
+				return nil
+			}
+		}
+	case "rollback":
+		if n == 1 && args[1] != "" && filepath.Base(args[1]) == args[1] && !strings.Contains(args[1], "..") && !strings.ContainsAny(args[1], "\x00\r\n") {
 			return nil
+		}
+	case "trust-ca":
+		if n == 1 && strings.HasPrefix(args[1], "SHA256:") {
+			encoded := strings.TrimPrefix(args[1], "SHA256:")
+			digest, e := base64.RawStdEncoding.Strict().DecodeString(encoded)
+			if e == nil && len(digest) == 32 && base64.RawStdEncoding.EncodeToString(digest) == encoded {
+				return nil
+			}
 		}
 	case "migrate":
 		if n == 1 && (args[1] == "--check" || args[1] == "--apply") {
@@ -71,4 +108,12 @@ func validateArguments(args []string) error {
 		}
 	}
 	return invalid(fmt.Sprintf("invalid command or arguments for %q; run --help", args[0]))
+}
+
+func validateSourceURL(raw string) error {
+	u, e := url.Parse(raw)
+	if e != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || strings.ContainsAny(raw, " \t\r\n\x00") {
+		return invalid("configuration source must be an HTTPS URL without credentials")
+	}
+	return nil
 }
