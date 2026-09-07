@@ -26,6 +26,15 @@ def binary_platform(payload):
         if cpu in (0x1000007,0x100000c):return 'darwin/'+{0x1000007:'amd64',0x100000c:'arm64'}[cpu]
     raise ValueError('unsupported executable architecture (fat/translated packages are not native coverage)')
 
+def darwin_hardware(arch,code,stdout,stderr):
+    hardware=stdout.strip()
+    # Intel macOS 15 has no arm64 capability OID. This exact native evidence
+    # is distinct from permission failures or an unknown ARM baseline.
+    if code==1 and arch=='amd64' and stderr.strip()=="sysctl: unknown oid 'hw.optional.arm64'":return False
+    if code!=0 or hardware not in ('0','1') or (hardware=='1')!=(arch=='arm64'):
+        raise ValueError('translated or unknown observer architecture cannot prove native execution')
+    return hardware=='1'
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--assets',required=True,type=Path);parser.add_argument('--expected-platform',choices=['linux/amd64','linux/arm64','darwin/amd64','darwin/arm64']);args=parser.parse_args()
     assets=args.assets.resolve();manifest=json.loads((assets/'manifest.json').read_text())
@@ -37,9 +46,9 @@ def main():
         report['native_platform']=system+'/'+arch
         if args.expected_platform and report['native_platform']!=args.expected_platform:raise ValueError('runner architecture does not match declared native coverage')
         if system=='darwin':
-            hardware=subprocess.check_output(['/usr/sbin/sysctl','-n','hw.optional.arm64'],text=True,timeout=10).strip()
-            if hardware not in ('0','1') or (hardware=='1')!=(arch=='arm64'):raise ValueError('translated observer process cannot prove native execution')
-            report['hardware_arm64']=hardware=='1'
+            probe=subprocess.run(['/usr/sbin/sysctl','-n','hw.optional.arm64'],capture_output=True,text=True,timeout=10)
+            report['hardware_probe']=dict(exit_code=probe.returncode,stdout=probe.stdout,stderr=probe.stderr)
+            report['hardware_arm64']=darwin_hardware(arch,probe.returncode,probe.stdout,probe.stderr)
         for asset in manifest['assets']:
             path=assets/asset['path']
             if path.parent!=assets or hashlib.sha256(path.read_bytes()).hexdigest()!=asset['sha256']:raise ValueError('invalid candidate asset: '+asset['path'])
