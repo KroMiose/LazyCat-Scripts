@@ -104,4 +104,5 @@ fi
 if [[ "$suite" == docker ]]; then bash tests/system/docker.sh;fi
 printf 'go-client-lifecycle\n' > /tmp/lazycat-phase
 bash tests/system/client.sh
+bash tests/system/legacy-client.sh
 echo 'PASS full-system SSH login/rejection, sudo grant/revoke, Squid auth/credential preservation'

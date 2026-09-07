@@ -125,6 +125,7 @@ jobs:
           retention-days: ${{ job.status == 'success' && 14 || 90 }}
           if-no-files-found: error
   weekly-full:
+    name: weekly-full (${{ matrix.lane }})
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false

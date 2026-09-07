@@ -68,7 +68,7 @@ def main():
     frozen=[]
     for folder in ['ssh','linux','common','tests']:
         for path in sorted((ROOT/folder).rglob('*')):
-            if path.is_file() and not any(x in path.parts for x in ['fixtures','__pycache__']):
+            if path.is_file() and '__pycache__' not in path.parts and ('fixtures' not in path.parts or path in (ROOT/'tests/fixtures/legacy-client-before.sh',ROOT/'tests/fixtures/legacy-common-before.sh')):
                 frozen.append((str(path.relative_to(ROOT)),path.read_bytes(),path.stat().st_mode & 0o777))
     source_hash=hashlib.sha256()
     for name,data,mode in frozen:source_hash.update(name.encode()+b'\0'+str(mode).encode()+b'\0'+data)
@@ -139,14 +139,19 @@ def main():
                     if r.returncode==0:break
                     time.sleep(2)
                 else:raise RuntimeError('guest SSH did not become ready within 600s')
-                client_binary=None
+                client_binary=None;legacy_yq=None
                 if args.image!='openwrt' and not args.export_package_lock:
                     report['phase']='build-client'
                     client_binary=work/'lazycat-ssh'
                     execute(['go','build','-trimpath','-o',str(client_binary),'.'],cwd=snapshot/'ssh',env={**os.environ,'GOOS':'linux','GOARCH':'amd64','CGO_ENABLED':'0'},timeout=180)
+                    legacy_yq=work/'yq'
+                    execute(['go','build','-mod=readonly','-trimpath','-o',str(legacy_yq),'github.com/mikefarah/yq/v4'],cwd=snapshot/'tests/tools',env={**os.environ,'GOOS':'linux','GOARCH':'amd64','CGO_ENABLED':'0'},timeout=240)
+                    report['legacy_yq_sha256']=hashlib.sha256(legacy_yq.read_bytes()).hexdigest()
+                    report['legacy_yq_build']=subprocess.check_output(['go','version','-m',str(legacy_yq)],text=True,timeout=15)
                 archive=work/'source.tar'
                 with tarfile.open(archive,'w') as tf:
                     if client_binary is not None:tf.add(client_binary,arcname='lazycat-ssh')
+                    if legacy_yq is not None:tf.add(legacy_yq,arcname='yq')
                     for name,_,_ in frozen:tf.add(snapshot/name,arcname=name)
                 report['source_archive_sha256']=hashlib.sha256(archive.read_bytes()).hexdigest()
                 if client_binary is not None:report['client_sha256']=hashlib.sha256(client_binary.read_bytes()).hexdigest()

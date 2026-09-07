@@ -12,3 +12,7 @@ updates:
     directory: /codex-hud
     schedule:
       interval: weekly
+  - package-ecosystem: gomod
+    directory: /tests/tools
+    schedule:
+      interval: weekly

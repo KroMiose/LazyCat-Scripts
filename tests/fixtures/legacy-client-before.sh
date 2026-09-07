@@ -587,7 +587,6 @@ lc_validate_remote_path() {
 
 lc_ensure_ca_keypair() {
   lc_need_cmd ssh-keygen
-  [[ ! -L "$SSH_DIR" && ! -L "$CA_KEY_PATH" && ! -L "$CA_PUB_PATH" && ! -L "$CA_CERT_PATH" ]] || lc_die "证书或密钥路径是符号链接，未修改。"
   mkdir -p "$SSH_DIR"
   chmod 700 "$SSH_DIR"
 
@@ -597,14 +596,13 @@ lc_ensure_ca_keypair() {
     return 0
   fi
 
-  [[ ! -e "$CA_KEY_PATH" && ! -e "$CA_PUB_PATH" ]] || lc_die "密钥对不完整，请检查已有文件；不会覆盖或重新生成。"
   lc_log "🔑 未检测到控制端证书密钥，正在生成：${CA_KEY_PATH}"
   ssh-keygen -t ed25519 -f "$CA_KEY_PATH" -N "" -C "lazycat-ssh-ca-key-$(whoami)@$(hostname -s)"
   chmod 600 "$CA_KEY_PATH"
   chmod 644 "$CA_PUB_PATH"
 }
 
-lc_ca_fetch_and_sign_cert() (
+lc_ca_fetch_and_sign_cert() {
   # 读取 YAML 顶层 ca 配置，通过 SSH 在 CA 服务器上签发证书并拉回本机。
   lc_install_yq
   lc_need_cmd curl
@@ -613,12 +611,12 @@ lc_ca_fetch_and_sign_cert() (
   lc_meta_load || lc_die "尚未配置 Gist/RAW_URL，请先运行“Gist 引导与配置”。"
   [[ -n "${RAW_URL:-}" ]] || lc_die "meta.env 中缺少 RAW_URL，请重新配置。"
 
-  local tmp_yaml="" cert_candidate="" remote_dir=""
-  trap 'rm -f -- "$tmp_yaml" "$cert_candidate"; if [[ -n "$remote_dir" ]]; then "${ssh_base[@]}" "rm -rf \"${remote_dir}\"" || printf "%s\n" "远端临时目录清理失败：$remote_dir" >&2; fi' EXIT
-  tmp_yaml="$(mktemp)" || return 1
+  local tmp_yaml
+  tmp_yaml="$(mktemp)"
+  trap 'rm -f "$tmp_yaml"' RETURN
 
   lc_log "⏳ 正在拉取配置（用于读取 CA 参数）..."
-  curl -fsSL "$RAW_URL" -o "$tmp_yaml" || return 1
+  curl -fsSL "$RAW_URL" -o "$tmp_yaml"
 
   local ca_ssh_host ca_key_path ca_principals ca_validity
   # 约定：用户必须先配置好 `ssh <sshHost>` 能直连 CA 服务器
@@ -653,6 +651,7 @@ lc_ca_fetch_and_sign_cert() (
 
   lc_log "⏳ 正在向 CA 服务器请求签发证书（${ca_ssh_host}，有效期：${ca_validity}，principals：${ca_principals}）..."
 
+  local remote_dir
   remote_dir="$("${ssh_base[@]}" "mktemp -d")"
   if [[ -z "$remote_dir" ]]; then
     lc_die "在 CA 服务器上创建临时目录失败。"
@@ -665,21 +664,14 @@ lc_ca_fetch_and_sign_cert() (
 
   "${ssh_base[@]}" "ssh-keygen -s \"${ca_key_path}\" -I \"${cert_identity}\" -n \"${ca_principals}\" -V \"+${ca_validity}\" \"${remote_dir}/key.pub\""
 
-  cert_candidate="$(mktemp "${CA_CERT_PATH}.XXXXXX")" || return 1
-  "${ssh_base[@]}" "cat \"${remote_dir}/key-cert.pub\"" >"$cert_candidate" || return 1
-  local expected_key candidate_key
-  expected_key="$(ssh-keygen -lf "$CA_PUB_PATH" | awk '{print $2}')" || return 1
-  candidate_key="$(ssh-keygen -lf "$cert_candidate" | awk '{print $2}')" || return 1
-  [[ -n "$candidate_key" && "$candidate_key" == "$expected_key" ]] || lc_die "返回证书不属于当前公钥；旧证书保留。"
-  ssh-keygen -L -f "$cert_candidate" >/dev/null || return 1
-  "${ssh_base[@]}" "rm -rf \"${remote_dir}\"" || return 1
-  remote_dir=""
-  chmod 644 "$cert_candidate" || return 1
-  mv "$cert_candidate" "$CA_CERT_PATH" || return 1
-  cert_candidate=""
+  "${ssh_base[@]}" "cat \"${remote_dir}/key-cert.pub\"" >"${CA_CERT_PATH}.tmp"
+  mv "${CA_CERT_PATH}.tmp" "$CA_CERT_PATH"
+  chmod 644 "$CA_CERT_PATH"
+
+  "${ssh_base[@]}" "rm -rf \"${remote_dir}\""
 
   lc_log "✅ 证书已更新：${CA_CERT_PATH}"
-)
+}
 
 lc_sync_from_raw_url() {
   lc_install_yq
