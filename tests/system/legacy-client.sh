@@ -41,19 +41,37 @@ legacy() { runuser -u legacy-fixture -- env -i HOME="$home" USER=legacy-fixture 
 key="$home/.ssh/lazycat_ca_ed25519"
 cert="${key}-cert.pub"
 sha256sum "$key" "${key}.pub" "$home/.ssh/known_hosts" > /tmp/legacy-preserved.sha256
+cp -p "$home/.ssh/known_hosts" /tmp/legacy-known-hosts-before
 # Same actual entrypoint test on the frozen pre-fix implementation must expose
 # the predictable temporary filename overwriting an unrelated existing file.
 install -o legacy-fixture -g legacy-fixture -m 755 tests/fixtures/legacy-client-before.sh "$home/.local/bin/lazycat-ssh"
 printf 'unrelated user file\n' > "${cert}.tmp"
 chown legacy-fixture:legacy-fixture "${cert}.tmp"
-legacy
+old_status=0
+legacy > /tmp/legacy-before.log 2>&1 || old_status=$?
+cat /tmp/legacy-before.log
 if [[ -e "${cert}.tmp" ]]; then echo 'known pre-fix temp clobber was not reproduced';exit 1;fi
-echo 'EXPECTED OLD DEFECT: successful old renewal removed the unrelated .tmp file'
+if [[ "$old_status" != 0 ]]; then
+    grep -q 'tmp_yaml: unbound variable' /tmp/legacy-before.log || { echo 'unexpected old failure';exit 1; }
+fi
+printf 'EXPECTED OLD DEFECT: temp clobber; command exit=%s (RETURN trap can fail after printing success)\n' "$old_status"
+# Reconstruct the declared user-owned trust input for the corrected path; this
+# controlled old/new comparison is not a full historical release upgrade test.
+if ! cmp -s /tmp/legacy-known-hosts-before "$home/.ssh/known_hosts"; then
+    echo 'OLD SIDE EFFECT: known_hosts changed during renewal'
+fi
+cp -p /tmp/legacy-known-hosts-before "$home/.ssh/known_hosts"
 install -o legacy-fixture -g legacy-fixture -m 644 ssh/lib/common.sh "$home/.local/share/lazycat-ssh/lib/common.sh"
 install -o legacy-fixture -g legacy-fixture -m 755 ssh/client/lazycat-ssh.sh "$home/.local/bin/lazycat-ssh"
+chmod 750 "$home/.ssh"
+chmod 400 "$key" "${key}.pub"
+chmod 400 "$cert"
+stat -c '%a %u %g' "$home/.ssh" "$key" "${key}.pub" "$cert" > /tmp/legacy-permissions-before
 printf 'unrelated user file\n' > "${cert}.tmp"
 chown legacy-fixture:legacy-fixture "${cert}.tmp"
 legacy
+stat -c '%a %u %g' "$home/.ssh" "$key" "${key}.pub" "$cert" > /tmp/legacy-permissions-after
+cmp /tmp/legacy-permissions-before /tmp/legacy-permissions-after
 cmp "${cert}.tmp" <(printf 'unrelated user file\n')
 sha256sum -c /tmp/legacy-preserved.sha256
 # New authentication session is the independent proof of a usable certificate.

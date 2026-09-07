@@ -588,12 +588,12 @@ lc_validate_remote_path() {
 lc_ensure_ca_keypair() {
   lc_need_cmd ssh-keygen
   [[ ! -L "$SSH_DIR" && ! -L "$CA_KEY_PATH" && ! -L "$CA_PUB_PATH" && ! -L "$CA_CERT_PATH" ]] || lc_die "证书或密钥路径是符号链接，未修改。"
-  mkdir -p "$SSH_DIR"
-  chmod 700 "$SSH_DIR"
+  if [[ ! -d "$SSH_DIR" ]]; then
+    mkdir -p "$SSH_DIR" || return 1
+    chmod 700 "$SSH_DIR" || return 1
+  fi
 
   if [[ -f "$CA_KEY_PATH" ]] && [[ -f "$CA_PUB_PATH" ]]; then
-    chmod 600 "$CA_KEY_PATH" || true
-    chmod 644 "$CA_PUB_PATH" || true
     return 0
   fi
 
@@ -631,7 +631,7 @@ lc_ca_fetch_and_sign_cert() (
   lc_validate_remote_path "$ca_key_path"
   if [[ "$ca_key_path" == '~/'* ]]; then
     local remote_home
-    remote_home="$(ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=10 "$ca_ssh_host" 'printf "%s" "$HOME"')"
+    remote_home="$(ssh -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o BatchMode=yes -o ConnectTimeout=10 "$ca_ssh_host" 'printf "%s" "$HOME"')"
     [[ "$remote_home" == /* && "$remote_home" != *$'\n'* ]] || lc_die "远端家目录无效。"
     ca_key_path="$remote_home/${ca_key_path:2}"
     lc_validate_remote_path "$ca_key_path"
@@ -648,7 +648,7 @@ lc_ca_fetch_and_sign_cert() (
   # - StrictHostKeyChecking=yes：未知主机直接失败（请先手动 ssh 一次写入 known_hosts）
   # - BatchMode=yes：任何需要交互输入的场景直接失败
   # - ConnectTimeout：避免长时间卡住
-  local ssh_base=(ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=10)
+  local ssh_base=(ssh -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o BatchMode=yes -o ConnectTimeout=10)
   ssh_base+=( "${ca_ssh_host}" )
 
   lc_log "⏳ 正在向 CA 服务器请求签发证书（${ca_ssh_host}，有效期：${ca_validity}，principals：${ca_principals}）..."
@@ -666,6 +666,16 @@ lc_ca_fetch_and_sign_cert() (
   "${ssh_base[@]}" "ssh-keygen -s \"${ca_key_path}\" -I \"${cert_identity}\" -n \"${ca_principals}\" -V \"+${ca_validity}\" \"${remote_dir}/key.pub\""
 
   cert_candidate="$(mktemp "${CA_CERT_PATH}.XXXXXX")" || return 1
+  local cert_mode=644
+  if [[ -f "$CA_CERT_PATH" ]]; then
+    if [[ "$(uname -s)" == Darwin ]]; then
+      cert_mode="$(stat -f '%Lp' "$CA_CERT_PATH")" || return 1
+    else
+      cert_mode="$(stat -c '%a' "$CA_CERT_PATH")" || return 1
+    fi
+    cp -p "$CA_CERT_PATH" "$cert_candidate" || return 1
+  fi
+  chmod u+w "$cert_candidate" || return 1
   "${ssh_base[@]}" "cat \"${remote_dir}/key-cert.pub\"" >"$cert_candidate" || return 1
   local expected_key candidate_key
   expected_key="$(ssh-keygen -lf "$CA_PUB_PATH" | awk '{print $2}')" || return 1
@@ -674,7 +684,7 @@ lc_ca_fetch_and_sign_cert() (
   ssh-keygen -L -f "$cert_candidate" >/dev/null || return 1
   "${ssh_base[@]}" "rm -rf \"${remote_dir}\"" || return 1
   remote_dir=""
-  chmod 644 "$cert_candidate" || return 1
+  chmod "$cert_mode" "$cert_candidate" || return 1
   mv "$cert_candidate" "$CA_CERT_PATH" || return 1
   cert_candidate=""
 
