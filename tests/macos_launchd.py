@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import xml.etree.ElementTree as ET
 
 ROOT=Path(__file__).resolve().parents[1]
 LABEL='com.lazycat.ssh.renew'
@@ -26,6 +27,8 @@ def main():
     manifest=json.loads((args.assets/'manifest.json').read_text())
     out=ROOT/'artifacts/package'/('launchd-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ'));out.mkdir(parents=True)
     report=dict(format_version=1,commit=manifest['commit'],source_tree_sha256=manifest['source_tree_sha256'],scope='dedicated-account-background-launchd' if args.session=='background' else 'runner-account-gui-legacy-launchd',level='native-platform',platform=platform.platform(),status='failed',phase='prepare',scenarios=[],skipped=0,flaky=0,environment_errors=0)
+    planned=(['first-install-and-real-interval-trigger','repeat-unloaded-disabled-update-and-removal'] if args.session=='background' else ['legacy-task-adoption-preserves-domain-interval-environment-and-logs','adopted-task-interval-update-and-repeat-preserve-preferences','user-task-edit-conflict-and-key-preservation'])
+    active=planned[0];started=time.monotonic()
     name='lazycatci'+secrets.token_hex(4);home='/Users/'+name;domain=None;created=False;gui_ready=False;absent_dirs=[];owned=[]
     log=(out/'commands.jsonl').open('w')
     def run(argv,expected=0,timeout=45):
@@ -113,6 +116,7 @@ def main():
                 time.sleep(.5)
             if read(home+'/.ssh/lazycat_ca_ed25519-cert.pub')!=cert_before:raise AssertionError('scheduled task changed valid certificate')
             passed('first-install-and-real-interval-trigger')
+            active=planned[1]
             plist=home+'/Library/LaunchAgents/'+LABEL+'.plist';first=read(plist)
             client('install-renew','1')
             if read(plist)!=first:raise AssertionError('repeat changed task')
@@ -138,12 +142,14 @@ def main():
             if json.loads(read(home+'/.lazycat/ssh/timer.json'))['Domain']!=domain:raise AssertionError('adoption moved domain')
             user(['/bin/launchctl','print',domain+'/'+LABEL])
             passed('legacy-task-adoption-preserves-domain-interval-environment-and-logs')
+            active=planned[1]
             client('install-renew','2')
             expected['StartInterval']=120
             if plistlib.loads(read(plist).encode())!=expected:raise AssertionError('interval update lost legacy preferences')
             client('install-renew','2')
             if plistlib.loads(read(plist).encode())!=expected:raise AssertionError('repeat lost legacy preferences')
             passed('adopted-task-interval-update-and-repeat-preserve-preferences')
+            active=planned[2]
             changed=read(plist).replace('renew.err.log','user-edited.err.log');write(plist,changed)
             client('migrate','--check',expected=3)
             if read(plist)!=changed:raise AssertionError('migration overwrote customized task')
@@ -190,7 +196,31 @@ def main():
                     if time.monotonic()>deadline:raise RuntimeError('fixture account or home remains after cleanup')
                     time.sleep(.5)
             except Exception as error:report['status']='failed';report['cleanup_error']=str(error);report['environment_errors']+=1
-        log.close();(out/'result.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
+        log.close()
+        done={scene['id'] for scene in report['scenarios']}
+        for identifier in planned:
+            if identifier not in done:
+                report['scenarios'].append(dict(id=identifier,status='failed' if identifier==active else 'not_run'))
+        report['skipped']=sum(scene['status']=='not_run' for scene in report['scenarios'])
+        report['duration_seconds']=round(time.monotonic()-started,3)
+        report['observations']=[dict(path='commands.jsonl',sha256=hashlib.sha256((out/'commands.jsonl').read_bytes()).hexdigest())]
+        suite=ET.Element('testsuite',name=report['scope'],tests=str(len(planned)),time=str(report['duration_seconds']))
+        for scene in report['scenarios']:
+            case=ET.SubElement(suite,'testcase',name=scene['id'],classname=report['scope'])
+            if scene['status']=='failed':ET.SubElement(case,'failure',message=report.get('error','scenario failed'))
+            elif scene['status']=='not_run':ET.SubElement(case,'skipped',message='blocked by earlier failure; no coverage claimed')
+        if report.get('cleanup_error'):
+            case=ET.SubElement(suite,'testcase',name='fixture-cleanup',classname=report['scope'])
+            ET.SubElement(case,'error',message=report['cleanup_error']);suite.set('tests',str(len(planned)+1))
+        suite.set('failures',str(len(suite.findall('./testcase/failure'))));suite.set('errors',str(len(suite.findall('./testcase/error'))));suite.set('skipped',str(report['skipped']))
+        ET.ElementTree(suite).write(out/'junit.xml',encoding='utf-8',xml_declaration=True)
+        (out/'result.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
+        if os.environ.get('GITHUB_STEP_SUMMARY'):
+            with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as summary:
+                summary.write('\nNative launchd: '+report['scope']+' — '+report['status']+'\n\n')
+                summary.write('| Scenario | Result |\n|---|---|\n')
+                for scene in report['scenarios']:summary.write('| '+scene['id']+' | '+scene['status']+' |\n')
+                summary.write('\nAccount, runner image, command observations and cleanup results are recorded in the attached JSON/JUnit artifacts.\n')
     return 0 if report['status']=='passed' else 1
 
 if __name__=='__main__':sys.exit(main())

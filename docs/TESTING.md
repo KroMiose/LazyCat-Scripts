@@ -41,7 +41,7 @@ Python 与 Go race 都输出 JSON、JUnit 和独立时间戳目录；Go 另存�
 
 ## 尚未完成的可信度要求
 
-固定离线包源、完整资源允许变更清单、全部历史安装样本、macOS 专用账户 launchd、发布实际产物升级/回退、ARM64 原生系统场景及所有脚本的失败恢复尚未全部落地。随机顺序已有入口；全面变异检查和每个高优先级缺陷的旧失败/新通过证据仍需补齐。
+固定离线包源、完整资源允许变更清单、全部历史安装样本、发布实际产物升级/回退、ARM64 原生系统场景及所有脚本的失败恢复尚未全部落地。随机顺序已有入口；全面变异检查和每个高优先级缺陷的旧失败/新通过证据仍需补齐。
 
 不要运行 system/guest.sh 到个人机器。guest.sh 只供驱动创建的测试客体；测试中会安装包、写入 SSH/sudoers、启动服务、创建虚构用户。
 
@@ -78,3 +78,6 @@ python3 tests/system/vm.py --image ubuntu --suite docker --package-lock tests/sy
 发布最低覆盖要求由 `tests/release-contract.json` 维护；这是必须取得的证据清单，不是已通过列表。`scripts/release_check.py` 核对每个必测 ID 的平台、真实执行级别、行为/副作用断言，以及相对于报告的观察日志路径和 SHA-256。报告必须绑定当前清单摘要、候选提交和冻结源码摘要；产物必须包括四平台 SSH 包、Shell 包、安装器和一致的 SHA256SUMS。缺平台、只编译、任意名称的绿色场景、空日志及过期清单均不能通过。
 
 门禁单元测试使用明确标注的合成日志验证这些拒绝路径，不能当作对应产品场景已执行。当前完整发布证据仍缺失，42 项验收台账也尚未全部完成，因此稳定版发布保持阻断。
+
+
+macOS launchd 已在 run 34159699770 的 ARM64 和 AMD64 原生 runner 分别验证 Background 新账户与 GUI 历史任务。JSON、JUnit 与 Job Summary 按场景报告；中途失败后的场景记为 not_run/skip，不隐藏。GUI fixture 先确认精确资源缺失，使用账户真实 HOME，仅清理自己创建的路径和任务，不注销 runner 的 GUI 域。此测试只允许在一次性 GitHub macOS runner 运行，不能拿本机修改 HOME 来替代。
