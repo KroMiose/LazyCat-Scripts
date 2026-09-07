@@ -138,6 +138,19 @@ func migrate(ctx context.Context, p paths, apply bool) error {
 	changes := []change{program, source, receipt, configReceipt}
 	if adoption != nil {
 		changes = append(changes, adoption.Changes...)
+	}
+	changed := false
+	for _, c := range changes {
+		if !same(c.Before, c.After) {
+			changed = true
+			break
+		}
+	}
+	if !changed {
+		fmt.Println("Installation and tasks already match; no files or services changed.")
+		return nil
+	}
+	if adoption != nil {
 		if e = adoption.pause(ctx); e != nil {
 			return e
 		}

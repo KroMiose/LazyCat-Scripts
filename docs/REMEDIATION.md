@@ -120,3 +120,7 @@ Debian 包锁导出首轮因无关翻译索引超时失败（20260907T190111.174
 主分支原先没有保护规则；现已启用 `required-checks`（限定 GitHub Actions app 15368）、要求分支与 main 同步，并对管理员生效。此修改会影响合并和直接推送。工作流尚在本草稿中，基于旧 main 的其他 PR 在带入新工作流前会等待必需检查；主分支定期调度也要等工作流合入后才开始。
 
 第六轮 reliability（run 34155373821，提交 846761d）与 HUD run 34155373532 均通过，包含 Shell SIGKILL 后锁恢复。Debian 主机下载与一次诊断重试均在 git 包下载阶段超时，保留失败记录；不继续盲目重跑，转由 GitHub 托管 runner 的 environment-locks 工作流准备候选包锁，再做独立离线生命周期验证。准备成功本身不算产品测试通过。
+
+托管 runner 的 environment-locks（run 34156222825）已完成 Ubuntu/Debian 两套元数据解析和包摘要验证。Debian 候选锁 55 包、106146924 字节，锁摘要 ec31cc9694f32d7b656b5d45a7ce7b6be8bd4f0206014f927301cede209f4714；来自 PR 合并测试提交 429f32e3a5c5cdeb304f84972cab91f9685db36b（包含分支提交 10876a5）。已接入新的 Debian 断网 Docker/核心生命周期作业，待实际验证，不将环境准备成功当作产品通过。
+
+macOS 候选增加实际账户 HOME 校验、当前 launchd 域选择及已加载旧任务的域保留。只采纳历史 Shell 精确生成的 plist；保留间隔、PATH、HOME、RunAtLoad 与日志路径，仅增加 --scheduled。未知、自定义、未加载而无法确认原域的旧任务保持冲突。对应专用账户 native runner 场景验证真实触发、停用偏好、旧任务采纳和冲突；原生结果尚待取得。这仍不是完整旧 Shell 客户端与依赖升级验证。

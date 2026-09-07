@@ -71,6 +71,9 @@ jobs:
         env:
           EXPECTED_PLATFORM: ${{ matrix.platform }}
         run: python3 tests/package.py --assets artifacts/candidate --expected-platform "$EXPECTED_PLATFORM"
+      - name: Real launchd lifecycle in a dedicated account
+        if: runner.os == 'macOS'
+        run: python3 tests/macos_launchd.py --assets artifacts/candidate
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

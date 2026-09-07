@@ -20,12 +20,16 @@ type timerReceipt struct {
 	Version int
 	Minutes int
 	Files   map[string]string
+	Domain  string `json:",omitempty"`
 }
 
 func timerReceiptPath(p paths) string { return filepath.Join(p.Meta, "timer.json") }
 func validateTimerReceipt(p paths, r timerReceipt) error {
 	if r.Version != 1 || r.Minutes < 1 || r.Minutes > 10080 {
 		return errors.New("invalid timer receipt")
+	}
+	if r.Domain != "" && (runtime.GOOS != "darwin" || !validLaunchDomain(r.Domain)) {
+		return &migrationConflict{"timer receipt has an invalid task domain"}
 	}
 	allowed := timerFiles(p, r.Minutes)
 	if len(r.Files) != len(allowed) {
@@ -58,7 +62,7 @@ func timerStatus(p paths) map[string]any {
 		}
 	}
 	if runtime.GOOS == "darwin" {
-		_, e = exec.CommandContext(ctx, "launchctl", "print", fmt.Sprintf("gui/%d/com.lazycat.ssh.renew", os.Getuid())).Output()
+		_, e = exec.CommandContext(ctx, "/bin/launchctl", "print", receiptLaunchDomain(readTimerReceiptForStatus(p))+"/"+launchLabel).Output()
 	} else {
 		_, e = exec.CommandContext(ctx, "systemctl", "--user", "is-active", "--quiet", "lazycat-ssh-renew.timer").Output()
 	}
@@ -79,12 +83,12 @@ func serviceTimer(p paths, enable bool) error {
 	defer cancel()
 	var cmds [][]string
 	if runtime.GOOS == "darwin" {
-		domain := fmt.Sprintf("gui/%d", os.Getuid())
+		domain := receiptLaunchDomain(readTimerReceiptForStatus(p))
 		path := filepath.Join(p.Home, "Library/LaunchAgents/com.lazycat.ssh.renew.plist")
 		if enable {
-			cmds = [][]string{{"launchctl", "bootstrap", domain, path}}
+			cmds = [][]string{{"/bin/launchctl", "bootstrap", domain, path}}
 		} else {
-			cmds = [][]string{{"launchctl", "bootout", domain + "/com.lazycat.ssh.renew"}}
+			cmds = [][]string{{"/bin/launchctl", "bootout", domain + "/com.lazycat.ssh.renew"}}
 		}
 	} else {
 		cmds = [][]string{{"systemctl", "--user", "daemon-reload"}}
@@ -126,6 +130,31 @@ func installTimer(p paths, args []string) error {
 	} else if !os.IsNotExist(e) {
 		return e
 	}
+	var launchSaved *launchState
+	launchDomain := ""
+	if runtime.GOOS == "darwin" {
+		if e = launchIdentity(p); e != nil {
+			return e
+		}
+		if len(previous.Files) > 0 {
+			launchDomain = receiptLaunchDomain(previous)
+		} else {
+			launchDomain, e = currentLaunchDomain(p)
+			if e != nil {
+				return e
+			}
+		}
+		launchSaved, e = readLaunchState(launchDomain)
+		if e != nil {
+			return e
+		}
+		if e = checkLaunchFile(p, launchSaved); e != nil {
+			return e
+		}
+		if len(previous.Files) == 0 && (launchSaved.Loaded || launchSaved.Disabled) {
+			return &migrationConflict{"existing launchd registration or disablement requires migration review"}
+		}
+	}
 	var changes []change
 	for path, data := range files {
 		c, e := prepare(path, []byte(data), 0600)
@@ -137,7 +166,7 @@ func installTimer(p paths, args []string) error {
 		}
 		changes = append(changes, c)
 	}
-	receipt := timerReceipt{1, minutes, files}
+	receipt := timerReceipt{Version: 1, Minutes: minutes, Files: files, Domain: launchDomain}
 	b, _ = json.Marshal(receipt)
 	c, e := prepare(timerReceiptPath(p), b, 0600)
 	if e != nil {
@@ -166,6 +195,9 @@ func installTimer(p paths, args []string) error {
 		if saved != nil {
 			return saved.restore(ctx)
 		}
+		if launchSaved != nil {
+			return launchSaved.restore(p)
+		}
 		if len(previous.Files) > 0 {
 			return serviceTimer(p, true)
 		}
@@ -173,6 +205,10 @@ func installTimer(p paths, args []string) error {
 	}
 	if saved != nil {
 		if e = saved.pause(ctx); e != nil {
+			return e
+		}
+	} else if launchSaved != nil {
+		if e = launchSaved.pause(); e != nil {
 			return e
 		}
 	} else if len(previous.Files) > 0 {
@@ -186,6 +222,13 @@ func installTimer(p paths, args []string) error {
 	}
 	if saved != nil {
 		e = saved.restore(ctx)
+	} else if launchSaved != nil {
+		after := *launchSaved
+		if len(previous.Files) == 0 {
+			after.Loaded = true
+			after.Path = filepath.Join(p.Home, "Library/LaunchAgents/"+launchLabel+".plist")
+		}
+		e = after.restore(p)
 	} else {
 		e = serviceTimer(p, true)
 	}
@@ -211,6 +254,19 @@ func removeTimer(p paths) error {
 	}
 	if e := validateTimerReceipt(p, r); e != nil {
 		return e
+	}
+	var launchSaved *launchState
+	if runtime.GOOS == "darwin" {
+		if e = launchIdentity(p); e != nil {
+			return e
+		}
+		launchSaved, e = readLaunchState(receiptLaunchDomain(r))
+		if e != nil {
+			return e
+		}
+		if e = checkLaunchFile(p, launchSaved); e != nil {
+			return e
+		}
 	}
 	var changes []change
 	for path, expected := range r.Files {
@@ -243,9 +299,17 @@ func removeTimer(p paths) error {
 		if saved != nil {
 			return saved.restore(ctx)
 		}
+		if launchSaved != nil {
+			return launchSaved.restore(p)
+		}
 		return serviceTimer(p, true)
 	}
-	if e = serviceTimer(p, false); e != nil {
+	if launchSaved != nil {
+		e = launchSaved.pause()
+	} else {
+		e = serviceTimer(p, false)
+	}
+	if e != nil {
 		return errors.Join(e, restorePrevious())
 	}
 	_, e = commit(p.Ops, changes)
@@ -253,4 +317,13 @@ func removeTimer(p paths) error {
 		e = errors.Join(e, restorePrevious())
 	}
 	return e
+}
+
+func readTimerReceiptForStatus(p paths) timerReceipt {
+	var r timerReceipt
+	b, e := os.ReadFile(timerReceiptPath(p))
+	if e == nil {
+		_ = json.Unmarshal(b, &r)
+	}
+	return r
 }

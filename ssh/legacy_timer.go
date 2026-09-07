@@ -18,6 +18,8 @@ import (
 type timerAdoption struct {
 	Changes []change
 	Active  bool
+	Launch  *launchState
+	Paths   paths
 }
 
 var legacyInterval = regexp.MustCompile(`(?m)^OnUnitActiveSec=([0-9]+)min$`)
@@ -58,12 +60,29 @@ found:
 				return nil, &migrationConflict{"owned timer was modified; migration requires review"}
 			}
 		}
-		return nil, nil
+		if runtime.GOOS == "darwin" {
+			if e = launchIdentity(p); e != nil {
+				return nil, e
+			}
+			s, e := readLaunchState(receiptLaunchDomain(receipt))
+			if e != nil {
+				return nil, e
+			}
+			if e = checkLaunchFile(p, s); e != nil {
+				return nil, e
+			}
+			return &timerAdoption{Launch: s, Paths: p}, nil
+		}
+		s, e := readLinuxTimerState(ctx)
+		if e != nil {
+			return nil, e
+		}
+		return &timerAdoption{Active: s.active}, nil
 	} else if !os.IsNotExist(e) {
 		return nil, e
 	}
 	if runtime.GOOS != "linux" {
-		return nil, &migrationConflict{"legacy launchd task requires native adoption review; existing task preserved"}
+		return legacyLaunchPlan(p)
 	}
 	if strings.ContainsAny(p.Binary, " \t\n\r\"\\%") {
 		return nil, &migrationConflict{"legacy ExecStart has ambiguous path escaping"}
@@ -114,7 +133,7 @@ found:
 		}
 		plan.Changes = append(plan.Changes, c)
 	}
-	b, _ := json.Marshal(timerReceipt{1, minutes, files})
+	b, _ := json.Marshal(timerReceipt{Version: 1, Minutes: minutes, Files: files})
 	c, e := prepare(timerReceiptPath(p), b, 0600)
 	if e != nil {
 		return nil, e
@@ -123,6 +142,9 @@ found:
 	return plan, nil
 }
 func (plan *timerAdoption) pause(ctx context.Context) error {
+	if plan.Launch != nil {
+		return plan.Launch.pause()
+	}
 	if plan.Active {
 		if _, e := timerCommand(ctx, "stop", "lazycat-ssh-renew.timer"); e != nil {
 			return errors.Join(e, plan.restore(ctx))
@@ -142,6 +164,9 @@ func (plan *timerAdoption) pause(ctx context.Context) error {
 	return errors.Join(&migrationConflict{"legacy renewal is still running; migration postponed"}, plan.restore(ctx))
 }
 func (plan *timerAdoption) restore(ctx context.Context) error {
+	if plan.Launch != nil {
+		return plan.Launch.restore(plan.Paths)
+	}
 	if _, e := timerCommand(ctx, "daemon-reload"); e != nil {
 		return e
 	}

@@ -22,7 +22,7 @@ func TestTimerReceiptCannotRemoveArbitraryFile(t *testing.T) {
 	if e = os.WriteFile(victim, []byte("keep"), 0600); e != nil {
 		t.Fatal(e)
 	}
-	receipt := timerReceipt{1, 30, map[string]string{victim: "keep"}}
+	receipt := timerReceipt{Version: 1, Minutes: 30, Files: map[string]string{victim: "keep"}}
 	b, _ := json.Marshal(receipt)
 	if e = os.WriteFile(timerReceiptPath(p), b, 0600); e != nil {
 		t.Fatal(e)
@@ -120,7 +120,7 @@ func TestMigrationChecksOwnedTimerBytes(t *testing.T) {
 	if e = os.MkdirAll(p.Meta, 0700); e != nil {
 		t.Fatal(e)
 	}
-	b, _ := json.Marshal(timerReceipt{1, 30, files})
+	b, _ := json.Marshal(timerReceipt{Version: 1, Minutes: 30, Files: files})
 	if e = os.WriteFile(timerReceiptPath(p), b, 0600); e != nil {
 		t.Fatal(e)
 	}
@@ -149,5 +149,36 @@ func TestPublicRollbackCannotPretendTaskStateWasRestored(t *testing.T) {
 	b, e := os.ReadFile(timerReceiptPath(p))
 	if e != nil || string(b) != "task-state" {
 		t.Fatal("refused rollback changed task state", e)
+	}
+}
+
+func TestPublicProgramRollbackRequiresTaskReview(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	p, e := defaultPaths()
+	if e != nil {
+		t.Fatal(e)
+	}
+	c, e := prepare(p.Binary, []byte("new program"), 0755)
+	if e != nil {
+		t.Fatal(e)
+	}
+	id, e := commit(p.Ops, []change{c})
+	if e != nil {
+		t.Fatal(e)
+	}
+	for path := range timerFiles(p, 30) {
+		if e = os.MkdirAll(filepath.Dir(path), 0700); e != nil {
+			t.Fatal(e)
+		}
+		if e = os.WriteFile(path, []byte("existing native task"), 0600); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if e = rollbackUserOperation(p, id); e == nil {
+		t.Fatal("rolled back running task's program as a plain file")
+	}
+	b, e := os.ReadFile(p.Binary)
+	if e != nil || string(b) != "new program" {
+		t.Fatal("changed program despite native task conflict", e)
 	}
 }

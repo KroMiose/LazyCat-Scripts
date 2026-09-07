@@ -403,6 +403,17 @@ func rollbackChecked(dir, id string, check func(operation) error) error {
 func rollbackUserOperation(p paths, id string) error {
 	return rollbackChecked(p.Ops, id, func(op operation) error {
 		for _, c := range op.Changes {
+			if c.Path == p.Binary {
+				for path := range timerFiles(p, 30) {
+					s, e := state(path)
+					if e != nil {
+						return e
+					}
+					if s.Exists {
+						return &migrationConflict{"program is referenced by native tasks; file-only rollback requires lifecycle review"}
+					}
+				}
+			}
 			_, task := timerFiles(p, 30)[c.Path]
 			if task || c.Path == timerReceiptPath(p) {
 				return &migrationConflict{"operation includes native tasks; file-only rollback is unsafe; review the saved task and program together"}
