@@ -15,7 +15,15 @@ while read -r name url; do
     case "$name" in ''|*[!A-Za-z0-9_-]*) exit 1;; esac
     case "$url" in https://downloads.openwrt.org/*) ;; *) exit 1;; esac
     mkdir "$export_dir/feeds/$name"
-    cp "/var/opkg-lists/$name" "$export_dir/feeds/$name/Packages"
+    # opkg may retain compressed list bytes. Signatures authenticate the
+    # uncompressed Packages document, never a reconstructed/filtered index.
+    if gzip -t "/var/opkg-lists/$name" 2>/dev/null; then
+        printf 'Index storage for %s: gzip\n' "$name"
+        gzip -dc "/var/opkg-lists/$name" > "$export_dir/feeds/$name/Packages"
+    else
+        printf 'Index storage for %s: raw\n' "$name"
+        cp "/var/opkg-lists/$name" "$export_dir/feeds/$name/Packages"
+    fi
     wget -T 30 -O "$export_dir/feeds/$name/Packages.sig" "$url/Packages.sig"
     usign -V -P /etc/opkg/keys -m "$export_dir/feeds/$name/Packages" -x "$export_dir/feeds/$name/Packages.sig"
 done < "$export_dir/feeds.txt"
