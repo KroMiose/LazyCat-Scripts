@@ -1,6 +1,7 @@
 """Metadata/lock rejection checks; real signature/opkg behavior lives in QEMU."""
 import copy
 import hashlib
+import gzip
 import json
 from pathlib import Path
 import tarfile
@@ -39,6 +40,13 @@ class OpkgLock(unittest.TestCase):
             for resource in resources:
                 source=resource['path'] if not resource['path'].endswith('.ipk') else 'cache/'+Path(resource['path']).name
                 (cache/resource['sha256']).write_bytes(files[source])
+            metadata=root/'metadata';metadata.mkdir()
+            for resource in resources:
+                if resource['path'].endswith(('/Packages','/Packages.sig')):
+                    fixture='metadata/'+resource['sha256']+'.gz'
+                    (root/fixture).write_bytes(gzip.compress((cache/resource['sha256']).read_bytes(),mtime=0))
+                    resource.update(fixture=fixture,encoding='gzip')
+                    (cache/resource['sha256']).unlink()
             lock=root/'lock.json';data=dict(format_version=1,manager='opkg',image_digest='fixture',resources=resources);lock.write_text(json.dumps(data))
             materialize(lock,{'digest':'fixture'},cache,root/'repo.tar')
             with tarfile.open(root/'repo.tar') as archive:
@@ -47,5 +55,6 @@ class OpkgLock(unittest.TestCase):
             with self.assertRaises(ValueError):materialize(lock,{'digest':'another-base'},cache,root/'bad.tar')
             broken={**data,'resources':[r for r in resources if not r['path'].endswith('.sig')]};lock.write_text(json.dumps(broken))
             with self.assertRaises(ValueError):materialize(lock,{'digest':'fixture'},cache,root/'bad.tar')
-            lock.write_text(json.dumps(data));(cache/resources[0]['sha256']).write_bytes(b'changed')
+            lock.write_text(json.dumps(data))
+            (root/resources[0]['fixture']).write_bytes(gzip.compress(b'changed',mtime=0))
             with self.assertRaises(ValueError):materialize(lock,{'digest':'fixture'},cache,root/'bad.tar')

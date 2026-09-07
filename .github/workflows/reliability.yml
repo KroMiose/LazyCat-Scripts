@@ -115,7 +115,7 @@ jobs:
           if [ "$TEST_IMAGE" != openwrt ]; then
             python3 tests/system/vm.py --image "$TEST_IMAGE" --suite "$suite" --package-lock "tests/system/apt/$TEST_IMAGE.lock.json"
           else
-            python3 tests/system/vm.py --image "$TEST_IMAGE" --suite "$suite"
+            python3 tests/system/vm.py --image "$TEST_IMAGE" --suite "$suite" --package-lock tests/system/opkg/openwrt.lock.json
           fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
@@ -152,13 +152,16 @@ jobs:
             refresh=()
             if [ "$image" != openwrt ]; then
               fixed=(--package-lock "tests/system/apt/$image.lock.json")
-              refresh=(--fresh-packages)
+            else
+              fixed=(--package-lock tests/system/opkg/openwrt.lock.json)
             fi
+            refresh=(--fresh-packages)
             python3 tests/system/vm.py --image "$image" --suite "$suite" --fresh-download "${fixed[@]}" "${refresh[@]}"
             mv "artifacts/system/$image" "artifacts/system/$image-first"
             python3 tests/system/vm.py --image "$image" --suite "$suite" "${fixed[@]}"
           done
           python3 tests/system/vm.py --image ubuntu --suite docker
+          python3 tests/system/vm.py --image openwrt --suite core
           python3 tests/upstream.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

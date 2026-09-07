@@ -1,0 +1,198 @@
+{
+  "format_version": 1,
+  "manager": "opkg",
+  "image_digest": "cc621a8a8a2b780d3c8f47ce3ecb2ba59e4a0cff1ebeb8d096d7c7e0202799c7",
+  "scope": "official signed opkg indexes frozen in repository; package bytes pinned to image and SHA-256; signatures rechecked by real opkg in offline guest",
+  "resources": [
+    {
+      "path": "feeds/openwrt_core/Packages",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/targets/x86/64/packages/Packages",
+      "size": 42531,
+      "sha256": "776a0e27415cd22642c7f363d8e89a6563d15dfeefca76faaf00c47c07db38fe",
+      "fixture": "metadata/776a0e27415cd22642c7f363d8e89a6563d15dfeefca76faaf00c47c07db38fe.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_core/Packages.sig",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/targets/x86/64/packages/Packages.sig",
+      "size": 142,
+      "sha256": "39957cc32a26c1a47f77981b5420aa452b0f963652e20419c50d9f9a4deff1ff",
+      "fixture": "metadata/39957cc32a26c1a47f77981b5420aa452b0f963652e20419c50d9f9a4deff1ff.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_base/Packages",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/base/Packages",
+      "size": 337335,
+      "sha256": "7ec01349319ff03aeed57b69dc98023dff5099d58e757afb0aaf703e66165ca1",
+      "fixture": "metadata/7ec01349319ff03aeed57b69dc98023dff5099d58e757afb0aaf703e66165ca1.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_base/Packages.sig",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/base/Packages.sig",
+      "size": 142,
+      "sha256": "d42a3339b3a449c6e897411ee70a532dfc95dacee7bf7c339f5a28c1cdbba0f9",
+      "fixture": "metadata/d42a3339b3a449c6e897411ee70a532dfc95dacee7bf7c339f5a28c1cdbba0f9.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_kmods/Packages",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/targets/x86/64/kmods/6.6.104-1-3505295dd1edf1c0eda57c9ce372bf57/Packages",
+      "size": 496786,
+      "sha256": "800dccf893641189ead2978f3f60d447c994c9f3ba3fe91230b7b2a3eb0dfd44",
+      "fixture": "metadata/800dccf893641189ead2978f3f60d447c994c9f3ba3fe91230b7b2a3eb0dfd44.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_kmods/Packages.sig",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/targets/x86/64/kmods/6.6.104-1-3505295dd1edf1c0eda57c9ce372bf57/Packages.sig",
+      "size": 142,
+      "sha256": "a5e41f4f964f86a0f862a5c5bd52e7e498977f662c469d8511c1e4a8a37051e7",
+      "fixture": "metadata/a5e41f4f964f86a0f862a5c5bd52e7e498977f662c469d8511c1e4a8a37051e7.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_luci/Packages",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/luci/Packages",
+      "size": 1323394,
+      "sha256": "5440b119eac41c262243dd84b9c2e3fe9b8865afe164e49a259f2dc99f48f6ec",
+      "fixture": "metadata/5440b119eac41c262243dd84b9c2e3fe9b8865afe164e49a259f2dc99f48f6ec.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_luci/Packages.sig",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/luci/Packages.sig",
+      "size": 142,
+      "sha256": "1c3336a09cc9242bdc28fbe9cdb0f7bd3c27aaae598833ce294d08202e4b61dd",
+      "fixture": "metadata/1c3336a09cc9242bdc28fbe9cdb0f7bd3c27aaae598833ce294d08202e4b61dd.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_packages/Packages",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/Packages",
+      "size": 2451157,
+      "sha256": "4a0336c720c6b933d6a91bf1ade9add4b3f44e1858eba6a1162106914071a216",
+      "fixture": "metadata/4a0336c720c6b933d6a91bf1ade9add4b3f44e1858eba6a1162106914071a216.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_packages/Packages.sig",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/Packages.sig",
+      "size": 142,
+      "sha256": "8990863903f350df870b13629bd20ada161ae01835a609e4765e735d6e9a1150",
+      "fixture": "metadata/8990863903f350df870b13629bd20ada161ae01835a609e4765e735d6e9a1150.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_routing/Packages",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/routing/Packages",
+      "size": 37169,
+      "sha256": "46c763e0989ca818bf30f42edd270bf2cb4501d0725f3bc4c8c04523953528f6",
+      "fixture": "metadata/46c763e0989ca818bf30f42edd270bf2cb4501d0725f3bc4c8c04523953528f6.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_routing/Packages.sig",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/routing/Packages.sig",
+      "size": 142,
+      "sha256": "1db3ca59a0660425c1fe139d53442863bca6b58c5398140baefd401ab845375f",
+      "fixture": "metadata/1db3ca59a0660425c1fe139d53442863bca6b58c5398140baefd401ab845375f.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_telephony/Packages",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/telephony/Packages",
+      "size": 285232,
+      "sha256": "8469a68ad3965f5c2fbd758ebd08dd3c79aae8f1490addb6ebcf2ba0a123c175",
+      "fixture": "metadata/8469a68ad3965f5c2fbd758ebd08dd3c79aae8f1490addb6ebcf2ba0a123c175.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_telephony/Packages.sig",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/telephony/Packages.sig",
+      "size": 142,
+      "sha256": "a06901dde838436ebe7f15fe9879d025d831c534af1f50345d264e66de745301",
+      "fixture": "metadata/a06901dde838436ebe7f15fe9879d025d831c534af1f50345d264e66de745301.gz",
+      "encoding": "gzip"
+    },
+    {
+      "path": "feeds/openwrt_packages/libfido2-1_1.14.0-r1_x86_64.ipk",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/libfido2-1_1.14.0-r1_x86_64.ipk",
+      "size": 77895,
+      "sha256": "0c8473a7eec56ded73038d0f6a49c6f16b2343f28b55a99e72b73caea5f8e1a1"
+    },
+    {
+      "path": "feeds/openwrt_packages/libudev-zero_1.0.4-r1_x86_64.ipk",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/libudev-zero_1.0.4-r1_x86_64.ipk",
+      "size": 10889,
+      "sha256": "1256a7e1d4b184477f0ac7eeb04e63b8e02e83b952469d63dddef2a44a2df77f"
+    },
+    {
+      "path": "feeds/openwrt_packages/libevdev_1.13.1-r1_x86_64.ipk",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/libevdev_1.13.1-r1_x86_64.ipk",
+      "size": 32432,
+      "sha256": "318017a22468ca871e539c144a48e6688e26b52ca248a1debcd50e4cd00cb70a"
+    },
+    {
+      "path": "feeds/openwrt_packages/libcbor0_0.11.0-r2_x86_64.ipk",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/libcbor0_0.11.0-r2_x86_64.ipk",
+      "size": 20624,
+      "sha256": "83e5344f5ba1ab9032a8036fdd102136a8183e85df50f4a48df5ee6019ac1462"
+    },
+    {
+      "path": "feeds/openwrt_packages/openssh-server_9.9_p2-r1_x86_64.ipk",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/openssh-server_9.9_p2-r1_x86_64.ipk",
+      "size": 596793,
+      "sha256": "87cbfaf3f9b9e5f9d787d6da96f5553a16f7f1b992850c175bd5b0a0b6978b4a"
+    },
+    {
+      "path": "feeds/openwrt_packages/openssh-client_9.9_p2-r1_x86_64.ipk",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/openssh-client_9.9_p2-r1_x86_64.ipk",
+      "size": 472759,
+      "sha256": "66db76f27c03da39876760f69b86d11442297b287a1ae76a16830ddf7687cfc5"
+    },
+    {
+      "path": "feeds/openwrt_base/zlib_1.3.1-r1_x86_64.ipk",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/base/zlib_1.3.1-r1_x86_64.ipk",
+      "size": 44055,
+      "sha256": "e37b84681c6b7ab4521a88efa21aa97d832aaa9a4d7aa5d954bffc81d1a542ce"
+    },
+    {
+      "path": "feeds/openwrt_base/libopenssl3_3.0.21-r1_x86_64.ipk",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/base/libopenssl3_3.0.21-r1_x86_64.ipk",
+      "size": 2102312,
+      "sha256": "03dca63261d38374f9d6ac8ae6800992961210a6d9f3b2d1265c3fcb820e0ddc"
+    },
+    {
+      "path": "feeds/openwrt_packages/openssh-keygen_9.9_p2-r1_x86_64.ipk",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/openssh-keygen_9.9_p2-r1_x86_64.ipk",
+      "size": 209233,
+      "sha256": "6ed9b153f6dcbc74627524d06ef8b8c175d8f4af9689ce71ff715ea20c422365"
+    },
+    {
+      "path": "feeds/openwrt_base/libreadline8_8.2-r2_x86_64.ipk",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/base/libreadline8_8.2-r2_x86_64.ipk",
+      "size": 136059,
+      "sha256": "e14fd9f47d733b723947285eb9d6ab91d67e81bcad71d526940d02db0236960f"
+    },
+    {
+      "path": "feeds/openwrt_base/libncurses6_6.4-r2_x86_64.ipk",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/base/libncurses6_6.4-r2_x86_64.ipk",
+      "size": 181355,
+      "sha256": "55cd5c252579b0d96656efe840222f70a6fd92532067e470d9c060d642a4577e"
+    },
+    {
+      "path": "feeds/openwrt_base/terminfo_6.4-r2_x86_64.ipk",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/base/terminfo_6.4-r2_x86_64.ipk",
+      "size": 9499,
+      "sha256": "b66087925682e5810bdb6653107c9a987c5c6f024f85236eb8659bffa559d77e"
+    },
+    {
+      "path": "feeds/openwrt_packages/bash_5.2.37-r1_x86_64.ipk",
+      "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/bash_5.2.37-r1_x86_64.ipk",
+      "size": 480806,
+      "sha256": "1ce13a6502e7d225392ccb382d821464e1c7dab8a45859d78c0b678e4aeb2297"
+    }
+  ]
+}

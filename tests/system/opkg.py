@@ -1,5 +1,6 @@
 """Preserve signed OpenWrt feeds and exact archives from a preparation VM."""
 import hashlib
+import gzip
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -98,7 +99,17 @@ def materialize(lock_path,image,cache,destination,fresh=False):
             seen.add(name);digest=resource['sha256'];size=resource['size'];url=official_url(resource['url'])
             if not re.fullmatch('[a-f0-9]{64}',digest) or type(size) is not int or not 0<size<64*1024*1024:raise ValueError('invalid opkg size/digest')
             cached=cache/digest
-            if fresh or not cached.exists():
+            fixture=resource.get('fixture')
+            if fixture is not None:
+                # Signed indexes are immutable repository fixtures. Re-fetching
+                # a mutable upstream Packages URL would destroy fixed-input CI.
+                fixture_root=lock_path.parent.resolve()
+                source=(fixture_root/str(safe_path(fixture))).resolve()
+                if fixture_root not in source.parents or resource.get('encoding')!='gzip' or parts[2] not in ('Packages','Packages.sig'):raise ValueError('unsafe signed metadata fixture')
+                with gzip.open(source,'rb') as stream:payload=stream.read(size+1)
+                if len(payload)!=size or hashlib.sha256(payload).hexdigest()!=digest:raise ValueError('signed metadata fixture mismatch')
+                cache_bytes(cache,digest,payload)
+            elif fresh or not cached.exists():
                 download=root/'download'
                 subprocess.run(['curl','--fail','--silent','--show-error','--location','--proto','=https','--proto-redir','=https','--connect-timeout','15','--max-time','180','--max-filesize',str(size),url,'-o',str(download)],check=True,timeout=190)
                 payload=download.read_bytes()

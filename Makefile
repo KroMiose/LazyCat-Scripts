@@ -18,6 +18,6 @@ test-system:
 	python3 tests/system/vm.py --image ubuntu --suite docker --package-lock tests/system/apt/ubuntu.lock.json
 test-full: check test test-migration test-system test-linux-files test-fuzz
 	python3 tests/system/vm.py --image debian --suite docker --package-lock tests/system/apt/debian.lock.json
-	python3 tests/system/vm.py --image openwrt --suite core
+	python3 tests/system/vm.py --image openwrt --suite core --package-lock tests/system/opkg/openwrt.lock.json
 release-check: test-full
 	python3 scripts/release_check.py
