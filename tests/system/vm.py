@@ -131,7 +131,10 @@ def main():
                             proc.stdin.write(cmd.encode());proc.stdin.flush();bootstrapped=True
                     probe='true' if args.image=='openwrt' else 'test -f /var/lib/cloud/instance/boot-finished && cloud-init status'
                     with (out/'boot-probes.log').open('ab') as attempts:
-                        r=subprocess.run(ssh+[probe],stdout=attempts,stderr=subprocess.STDOUT,timeout=8)
+                        try:r=subprocess.run(ssh+[probe],stdout=attempts,stderr=subprocess.STDOUT,timeout=8)
+                        except subprocess.TimeoutExpired:
+                            attempts.write(b'boot readiness probe timed out; still inside the overall 600s startup deadline\n')
+                            continue
                     if r.returncode==0:break
                     time.sleep(2)
                 else:raise RuntimeError('guest SSH did not become ready within 600s')

@@ -1,5 +1,13 @@
 name: candidate-assets
 on:
+  workflow_call:
+    inputs:
+      scripts_version:
+        required: false
+        type: string
+      ssh_version:
+        required: false
+        type: string
   workflow_dispatch:
     inputs:
       scripts_version:
@@ -26,8 +34,8 @@ jobs:
           cache: false
       - name: Build immutable assets from selected commit
         env:
-          SCRIPTS_VERSION: ${{ inputs.scripts_version }}
-          SSH_VERSION: ${{ inputs.ssh_version }}
+          SCRIPTS_VERSION: ${{ inputs.scripts_version || format('lazycat-scripts-v0.0.0-ci.{0}', github.run_number) }}
+          SSH_VERSION: ${{ inputs.ssh_version || format('lazycat-ssh-v0.0.0-ci.{0}', github.run_number) }}
         run: python3 scripts/build_release.py --scripts-version "$SCRIPTS_VERSION" --ssh-version "$SSH_VERSION" --output artifacts/candidate
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

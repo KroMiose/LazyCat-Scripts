@@ -51,7 +51,7 @@ Python 与 Go race 都输出 JSON、JUnit 和独立时间戳目录；Go 另存�
 
 `python3 tests/package.py --assets artifacts/my-candidate` 从实际归档安装独立候选，再由系统 `ssh -G` 检查其渲染结果。此处只解析测试自己生成的最小配置，不读取用户的 Match exec。使用临时目录，不切换用户命令或任务。
 
-`candidate-assets` 手动工作流构建同一提交的产物，并在 Linux/macOS runner 下载运行。它没有发布权限；绿色只表示原生暂存和渲染通过。完整离线回归、升级/回退与无凭据公开安装仍是独立门槛，当前不能提升 stable。
+`candidate-assets` 可手动触发，也由 reliability 作为可复用工作流调用，构建同一提交的产物，再由四类 Linux/macOS runner 下载运行；其结果进入 required-checks。它没有发布权限；绿色只表示原生暂存和渲染通过。完整离线回归、升级/回退与无凭据公开安装仍是独立门槛，当前不能提升 stable。
 
 `release_check.py` 拒绝开发构建、脏源码、缺失计数、跳过场景和错误提交。安装/升级/回退证据还必须绑定实际候选产物摘要。已加入已知成功与故意破坏证据的门禁测试；这些测试不是产品发布证据。
 

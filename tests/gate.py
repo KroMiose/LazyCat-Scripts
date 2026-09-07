@@ -7,7 +7,7 @@ def failures(env):
     errors=[]
     for name in ('MAPPING','QUALITY'):
         if env.get(name)!='success':errors.append(name+' did not succeed')
-    for name in ('BEHAVIOR','SYSTEM'):
+    for name in ('BEHAVIOR','SYSTEM','ASSETS'):
         expected=env.get('EXPECT_'+name)
         if expected not in ('true','false'):
             errors.append('missing or invalid test mapping: '+name);continue

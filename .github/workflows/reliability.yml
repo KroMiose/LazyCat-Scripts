@@ -80,6 +80,10 @@ jobs:
           path: artifacts/
           retention-days: ${{ job.status == 'success' && 14 || 90 }}
           if-no-files-found: error
+  candidate-artifacts:
+    needs: affected
+    if: needs.affected.outputs.behavior == 'true'
+    uses: ./.github/workflows/candidate-assets.yml
   system:
     needs: affected
     if: needs.affected.outputs.system == 'true'
@@ -99,6 +103,9 @@ jobs:
           cache: false
       - name: Install VM driver on disposable runner
         run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils
+      - name: Allow QEMU acceleration on this disposable runner when available
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod a+rw /dev/kvm; fi
       - name: Fresh full-system scenario
         env:
           TEST_IMAGE: ${{ matrix.image }}
@@ -130,6 +137,9 @@ jobs:
           go-version-file: ssh/go.mod
           cache: false
       - run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils shellcheck
+      - name: Allow QEMU acceleration on this disposable runner when available
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod a+rw /dev/kvm; fi
       - name: Rebuild and repeat from independent overlays
         run: |
           make check test test-migration test-fuzz
@@ -159,7 +169,7 @@ jobs:
           if-no-files-found: error
   required-checks:
     if: always()
-    needs: [affected, quality, behavior, system, weekly-full]
+    needs: [affected, quality, behavior, system, weekly-full, candidate-artifacts]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -170,6 +180,8 @@ jobs:
           MAPPING: ${{ needs.affected.result }}
           QUALITY: ${{ needs.quality.result }}
           EXPECT_BEHAVIOR: ${{ needs.affected.outputs.behavior }}
+          EXPECT_ASSETS: ${{ needs.affected.outputs.behavior }}
+          ASSETS: ${{ needs.candidate-artifacts.result }}
           EXPECT_SYSTEM: ${{ needs.affected.outputs.system }}
           BEHAVIOR: ${{ needs.behavior.result }}
           SYSTEM: ${{ needs.system.result }}

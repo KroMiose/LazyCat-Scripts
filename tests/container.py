@@ -19,6 +19,9 @@ try:
     report['commit']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
     with tempfile.TemporaryDirectory(prefix='lazycat-frozen-') as directory:
         frozen=Path(directory)
+        # GitHub's host UID differs from the image's node UID. Only this fresh
+        # public-source snapshot is made traversable; the mount stays read-only.
+        frozen.chmod(0o755)
         fingerprint=hashlib.sha256()
         for folder in ('linux','common','tests'):
             for path in sorted((ROOT/folder).rglob('*')):
@@ -35,7 +38,8 @@ try:
 except (OSError,subprocess.SubprocessError) as error:report['error']=str(error)
 finally:
     if shutil.which('docker'):
-        subprocess.run(['docker','rm','-f',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=20)
+        try:subprocess.run(['docker','rm','-f',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=20)
+        except (OSError,subprocess.TimeoutExpired) as error:report['cleanup_error']=str(error)
     (out/'result.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report,indent=2))
 raise SystemExit(0 if report['status']=='passed' else 1)
