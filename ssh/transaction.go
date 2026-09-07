@@ -280,6 +280,10 @@ func commitWithWriter(dir string, changes []change, write func(string, fileState
 	return id, e
 }
 func rollback(dir, id string) error {
+	return rollbackChecked(dir, id, nil)
+}
+
+func rollbackChecked(dir, id string, check func(operation) error) error {
 	if id == "" || filepath.Base(id) != id || strings.Contains(id, "..") {
 		return errors.New("invalid operation id")
 	}
@@ -294,6 +298,11 @@ func rollback(dir, id string) error {
 		}
 		if op.Version != 1 || op.ID != id {
 			return errors.New("unsupported operation record")
+		}
+		if check != nil {
+			if e := check(op); e != nil {
+				return e
+			}
 		}
 		for _, c := range op.Changes {
 			now, e := state(c.Path)
@@ -329,27 +338,17 @@ func rollback(dir, id string) error {
 // public lifecycle rollback is implemented, reject those records BEFORE writes.
 // Internal failure recovery calls rollback together with its service recovery.
 func rollbackUserOperation(p paths, id string) error {
-	if id == "" || filepath.Base(id) != id || strings.Contains(id, "..") {
-		return errors.New("invalid operation id")
-	}
-	b, e := os.ReadFile(filepath.Join(p.Ops, id+".json"))
-	if e != nil {
-		return e
-	}
-	var op operation
-	if e = json.Unmarshal(b, &op); e != nil {
-		return e
-	}
-	for _, c := range op.Changes {
-		if c.Path == timerReceiptPath(p) {
-			return &migrationConflict{"operation includes native tasks; file-only rollback is unsafe; review the saved task and program together"}
+	return rollbackChecked(p.Ops, id, func(op operation) error {
+		for _, c := range op.Changes {
+			_, task := timerFiles(p, 30)[c.Path]
+			if task || c.Path == timerReceiptPath(p) {
+				return &migrationConflict{"operation includes native tasks; file-only rollback is unsafe; review the saved task and program together"}
+			}
 		}
-		if _, ok := timerFiles(p, 30)[c.Path]; ok {
-			return &migrationConflict{"operation includes native tasks; file-only rollback is unsafe; review the saved task and program together"}
-		}
-	}
-	return rollback(p.Ops, id)
+		return nil
+	})
 }
+
 func digest(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:]) }
 
 const begin = "# >>> LazyCat SSH BEGIN >>>"

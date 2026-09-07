@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -35,6 +36,69 @@ func TestTimerReceiptCannotRemoveArbitraryFile(t *testing.T) {
 	b, e = os.ReadFile(victim)
 	if e != nil || string(b) != "keep" {
 		t.Fatal("user file changed", e)
+	}
+}
+
+// This adapter test injects manager failures. Full-system/client.sh separately
+// verifies the same state combinations against real systemd.
+func TestLinuxTimerRestorePreservesIndependentState(t *testing.T) {
+	dir := t.TempDir()
+	manager := `#!/bin/sh
+set -eu
+shift
+printf '%s\n' "$*" >> "$TIMER_STATE/calls"
+case "$1" in
+  show)
+    case "$3" in
+      --property=ActiveState) cat "$TIMER_STATE/active" ;;
+      --property=UnitFileState) cat "$TIMER_STATE/enabled" ;;
+    esac ;;
+  daemon-reload) test ! -e "$TIMER_STATE/fail" ;;
+  disable) printf disabled > "$TIMER_STATE/enabled" ;;
+  enable)
+    if [ "$2" = --runtime ]; then printf enabled-runtime; else printf enabled; fi > "$TIMER_STATE/enabled" ;;
+  start) printf active > "$TIMER_STATE/active" ;;
+  stop) printf inactive > "$TIMER_STATE/active" ;;
+  *) exit 90 ;;
+esac
+`
+	if e := os.WriteFile(filepath.Join(dir, "systemctl"), []byte(manager), 0700); e != nil {
+		t.Fatal(e)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("TIMER_STATE", dir)
+	write := func(name, data string) {
+		t.Helper()
+		if e := os.WriteFile(filepath.Join(dir, name), []byte(data), 0600); e != nil {
+			t.Fatal(e)
+		}
+	}
+	for _, enabled := range []string{"enabled", "disabled", "enabled-runtime"} {
+		for _, active := range []bool{true, false} {
+			write("enabled", "disabled")
+			write("active", "inactive")
+			expected := linuxTimerState{active, enabled}
+			if e := expected.restore(context.Background()); e != nil {
+				t.Fatal(enabled, active, e)
+			}
+			got, e := readLinuxTimerState(context.Background())
+			if e != nil || *got != expected {
+				t.Fatal(got, e)
+			}
+		}
+	}
+	write("enabled", "masked")
+	if _, e := readLinuxTimerState(context.Background()); e == nil {
+		t.Fatal("accepted masked task")
+	}
+	write("calls", "")
+	write("fail", "injected manager failure")
+	if e := (&linuxTimerState{true, "enabled"}).restore(context.Background()); e == nil {
+		t.Fatal("hid reload failure")
+	}
+	b, e := os.ReadFile(filepath.Join(dir, "calls"))
+	if e != nil || strings.TrimSpace(string(b)) != "daemon-reload" {
+		t.Fatal("changed state after failed reload", string(b), e)
 	}
 }
 

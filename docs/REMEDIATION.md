@@ -21,7 +21,7 @@
 - Zsh：不删除既有 OMZ 或未知插件，不改默认 Shell；--cleanup-all 现在保守地只清理托管块，并提示组件保留。损坏标记拒绝写入。需要核对这个有意收紧的卸载契约。
 - Squid：普通重跑保留 /etc/squid/passwd；改密必须显式 --rotate-credentials。配置变化仍涉及服务重启，应安排窗口。恢复范围是配置、认证文件和服务状态，不承诺撤销 apt 的包安装。
 - Python：新装默认 uv，其他组件明确选择；不再批量改 Poetry/PDM 偏好。现有工具保留。首次依赖安装与全部上游版本验证尚未完成。
-- Docker 代理：重启默认否，重启失败返回失败。现有 daemon 不因默认选择重启；文件事务已接入；真实 daemon 的代理与权限生命周期正在验证。
+- Docker 代理：重启默认否，重启失败返回失败。现有 daemon 不因默认选择重启；文件事务已接入；真实 daemon 的本地代理拉取与权限生命周期已通过 Ubuntu 全系统验证。
 - SSH：现有 Shell 下载入口保留。Go 候选没有通过旧任务采纳验收前不切换；未知旧任务、手改配置返回冲突。可从关联旧证书验证并采纳 CA 指纹；无法证明关联时要求明确处理，不自动信任新 CA。
 - CA：自定义目录/名称以非执行数据保存至 ~/.lazycat/ssh-ca-location；不搬迁、不重建已有 CA。历史自定义位置不会凭空被发现，需要明确采纳入口。
 - HUD：总处理预算 4.5 秒、锁最多等 4 秒，请求受剩余预算约束。送达状态不明会保留标记以阻止自动 Stop 重发；可能少一条通知，不能承诺严格一次送达。
@@ -79,11 +79,11 @@
 
 ## 最近验证记录（2026-09-08）
 
-`make check test`：Shell 语法、ShellCheck error 级、文档文件链接、actionlint、Go vet/gofmt、41 个 Python 用例及两模块 Go race 通过。后续新系统场景仍须独立执行，不沿用这次结果。
+`make check test`：Shell 语法、ShellCheck error 级、文档文件链接、actionlint、Go vet/gofmt、43 个 Python 用例及两模块 Go race 通过。后续新系统场景仍须独立执行，不沿用这次结果。
 
 Ubuntu QEMU 已实际观察旧 systemd 任务采纳后的定时触发，并确认未替换仍有效证书；本次场景最后的 `loginctl show-user` 因用户管理器退出而失败，整次结果保留为失败。随后在全新 overlay 完成整场复测（20260907T175508.388474Z），包括真实 Docker 代理请求/权限生命周期和 linger 检查，结果通过。前次失败日志仍保留。Debian 软件源初始化超时，记录为环境失败。
 
-候选 `release-candidate-8` 的 macOS ARM64 原生与断网 Linux ARM64 容器实际归档暂存/渲染及 Shell 包语法/只读检查通过，其他架构目前只有构建证据。开发候选不可用于 stable。完整机器迁移报告仍为未纳入范围；没有访问个人服务器或迁移本机安装。
+候选 `release-candidate-8` 的 macOS ARM64 原生与断网 Linux ARM64 容器实际归档暂存/渲染及 Shell 包语法/只读检查通过，此后四平台均已通过远程原生产物检查（见下方记录）。开发候选不可用于 stable。完整机器迁移报告仍为未纳入范围；没有访问个人服务器或迁移本机安装。
 
 Ubuntu Docker 场景已验证 daemon 实际经过本地代理、拒绝时拉取失败、放行后从本地 TLS 仓库拉取并检查镜像，以及普通配置不重启、显式重启、代理移除和组权限撤销。它不代表 Docker Hub 网络或任意企业代理已验证。
 
@@ -98,3 +98,7 @@ Ubuntu Docker 场景已验证 daemon 实际经过本地代理、拒绝时拉取�
 第二轮 reliability（run 34152445967）中，Ubuntu/Debian 系统、Linux/macOS 行为和四平台候选产物全部通过。OpenWrt 在 KVM 下暴露 procd 状态先于监听端口就绪的竞争；已有修改和受控延迟/超时用例，等待下一轮真实验证。未重跑原失败来覆盖记录。
 
 公共 Go rollback 已收紧：任务生命周期恢复未完成前，包含原生任务的记录拒绝自动回滚，避免只恢复文件却报告服务也恢复了。
+
+第三轮 reliability（[run 34153115082](https://github.com/KroMiose/LazyCat-Scripts/actions/runs/34153115082)，提交 b8b9e7d）全部必需作业通过：Ubuntu、Debian、OpenWrt 完整系统，Linux/macOS 行为，以及 Linux/macOS × AMD64/ARM64 四平台实际候选包。OpenWrt KVM 监听竞争修复通过真实系统验证。HUD run 34153114908 测试/构建通过，没有发布。weekly-full 在 PR 事件不要求执行，其跳过不能视为每周完整覆盖已经通过。
+
+正在增加 systemd 任务更新的六种状态组合（持久启用/临时启用/禁用 × 运行/停止），防止修改间隔隐式重新启用用户停用的任务。适配测试覆盖管理器故障，真实系统结果另行记录；macOS 生命周期不沿用此 Linux 结论。公共回滚的原生任务检查移入事务锁内，避免检查与实际读取不同记录。

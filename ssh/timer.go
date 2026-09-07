@@ -154,26 +154,46 @@ func installTimer(p paths, args []string) error {
 	if unchanged {
 		return nil
 	}
-	if len(previous.Files) > 0 {
+	ctx := context.Background()
+	var saved *linuxTimerState
+	if len(previous.Files) > 0 && runtime.GOOS == "linux" {
+		saved, e = readLinuxTimerState(ctx)
+		if e != nil {
+			return e
+		}
+	}
+	restorePrevious := func() error {
+		if saved != nil {
+			return saved.restore(ctx)
+		}
+		if len(previous.Files) > 0 {
+			return serviceTimer(p, true)
+		}
+		return nil
+	}
+	if saved != nil {
+		if e = saved.pause(ctx); e != nil {
+			return e
+		}
+	} else if len(previous.Files) > 0 {
 		if e = serviceTimer(p, false); e != nil {
 			return e
 		}
 	}
 	id, e := commit(p.Ops, changes)
 	if e != nil {
-		if len(previous.Files) > 0 {
-			e = errors.Join(e, serviceTimer(p, true))
-		}
-		return e
+		return errors.Join(e, restorePrevious())
 	}
-	if e = serviceTimer(p, true); e != nil {
+	if saved != nil {
+		e = saved.restore(ctx)
+	} else {
+		e = serviceTimer(p, true)
+	}
+	if e != nil {
 		if id != "" {
 			e = errors.Join(e, rollback(p.Ops, id))
 		}
-		if len(previous.Files) > 0 {
-			e = errors.Join(e, serviceTimer(p, true))
-		}
-		return e
+		return errors.Join(e, restorePrevious())
 	}
 	return nil
 }
@@ -208,12 +228,29 @@ func removeTimer(p paths) error {
 		return e
 	}
 	changes = append(changes, change{timerReceiptPath(p), s, fileState{}})
+	ctx := context.Background()
+	var saved *linuxTimerState
+	if runtime.GOOS == "linux" {
+		saved, e = readLinuxTimerState(ctx)
+		if e != nil {
+			return e
+		}
+		if e = saved.pause(ctx); e != nil {
+			return e
+		}
+	}
+	restorePrevious := func() error {
+		if saved != nil {
+			return saved.restore(ctx)
+		}
+		return serviceTimer(p, true)
+	}
 	if e = serviceTimer(p, false); e != nil {
-		return e
+		return errors.Join(e, restorePrevious())
 	}
 	_, e = commit(p.Ops, changes)
 	if e != nil {
-		e = errors.Join(e, serviceTimer(p, true))
+		e = errors.Join(e, restorePrevious())
 	}
 	return e
 }

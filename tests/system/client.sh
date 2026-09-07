@@ -106,6 +106,25 @@ until [[ -f "$home/.lazycat/ssh/renew-status.json" ]] && grep -q '"scheduled":tr
     sleep 1
 done
 sha256sum -c /tmp/cert-before-timer
+# Updating the interval must preserve independent active/enabled choices.
+minutes=2
+for enabled in enabled disabled enabled-runtime; do
+    for active in active inactive; do
+        user_systemctl stop lazycat-ssh-renew.timer
+        user_systemctl disable lazycat-ssh-renew.timer
+        case "$enabled" in
+            enabled) user_systemctl enable lazycat-ssh-renew.timer ;;
+            enabled-runtime) user_systemctl enable --runtime lazycat-ssh-renew.timer ;;
+        esac
+        if [[ "$active" == active ]]; then user_systemctl start lazycat-ssh-renew.timer; fi
+        client install-renew "$minutes"
+        [[ "$(user_systemctl show lazycat-ssh-renew.timer --property=ActiveState --value)" == "$active" ]]
+        [[ "$(user_systemctl show lazycat-ssh-renew.timer --property=UnitFileState --value)" == "$enabled" ]]
+        grep -qx "OnUnitActiveSec=${minutes}min" "$home/.config/systemd/user/lazycat-ssh-renew.timer"
+        minutes=$((minutes+1))
+    done
+done
+echo 'PASS timer updates preserve six active/enabled combinations'
 client uninstall-renew
 [[ ! -e "$home/.config/systemd/user/lazycat-ssh-renew.timer" ]]
 # With no login and no remaining timer, logind may already have collected the

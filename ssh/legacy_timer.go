@@ -123,11 +123,10 @@ found:
 	return plan, nil
 }
 func (plan *timerAdoption) pause(ctx context.Context) error {
-	if !plan.Active {
-		return nil
-	}
-	if _, e := timerCommand(ctx, "stop", "lazycat-ssh-renew.timer"); e != nil {
-		return e
+	if plan.Active {
+		if _, e := timerCommand(ctx, "stop", "lazycat-ssh-renew.timer"); e != nil {
+			return errors.Join(e, plan.restore(ctx))
+		}
 	}
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
