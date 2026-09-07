@@ -38,5 +38,9 @@
   {
     "commit": "9ac712eb6c0b6f59ec75caf9472bbfc8050cc26d",
     "sha256": "65684a819d649bd0e6581b35c14f0eb2e3678fa8e7e84ae48a066428f10a4228"
+  },
+  {
+    "commit": "a34e1494dc2de3e982d18ea353d2b92a096f45c8",
+    "sha256": "f9ad696a3f3d334b32345b6f52a6b88e7c38c7bcecb1d58bba00b6381c2d7454"
   }
 ]
