@@ -142,3 +142,17 @@ python3 tests/installer.py /tmp/codex-hud-test
 ```
 
 测试使用隔离配置和本地服务。许可已嵌入程序，可运行 `codex-hud licenses` 查看。
+
+## 开发版新增接口（尚未发布到 stable）
+
+```sh
+codex-hud config set enabled on
+codex-hud config set stop off
+codex-hud config set alias /absolute/project 项目简称
+codex-hud repair --check
+codex-hud repair --adopt --apply
+```
+
+`repair --check` 只读检查已有安装。明确采纳后仅更新安装记录，保留 Bark Key、通知偏好、其他 Hooks，以及已识别的自定义规则和 Hook 超时。只接受明确命令组与唯一成对标记；未知或损坏内容仍需处理。升级会保留已采纳的定制。
+
+通知总预算为 4.5 秒，锁最多等待 4 秒，网络请求使用剩余时间。请求送达状态不明时不自动重复 Stop 通知；这可能少送一条，不能承诺严格一次送达。本地慢响应与并发测试不验证手机或眼镜实际显示。

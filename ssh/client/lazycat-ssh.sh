@@ -205,13 +205,56 @@ lc_meta_write() {
   chmod 600 "$META_PATH"
 }
 
-lc_meta_load() {
-  if [[ ! -f "$META_PATH" ]]; then
-    return 1
+# Decode the data forms emitted by Bash printf %q; never evaluate shell code.
+lc_meta_decode() {
+  local input="$1" output="" ch next escape decoded digits ansi=0
+  if [[ "$input" == "''" ]]; then LC_META_VALUE="";return 0;fi
+  if [[ "${input:0:2}" == "\$'" && "${input: -1}" == "'" ]]; then
+    ansi=1;input="${input:2:${#input}-3}"
   fi
-  # shellcheck source=/dev/null
-  source "$META_PATH"
-  return 0
+  while [[ -n "$input" ]]; do
+    ch="${input:0:1}";input="${input:1}"
+    if [[ "$ch" == '\' ]]; then
+      [[ -n "$input" ]] || return 1
+      next="${input:0:1}";input="${input:1}"
+      if [[ "$ansi" == 0 ]]; then output+="$next";continue;fi
+      case "$next" in
+        "'") output+="'" ;;
+        '\') output+='\' ;;
+        a|b|e|E|f|n|r|t|v) printf -v decoded '%b' "\\$next";output+="$decoded" ;;
+        [0-7])
+          digits="$next"
+          while [[ ${#digits} -lt 3 && "${input:0:1}" == [0-7] ]]; do digits+="${input:0:1}";input="${input:1}";done
+          [[ "$digits" != 0 && "$digits" != 00 && "$digits" != 000 ]] || return 1
+          printf -v decoded '%b' "\\0$digits";output+="$decoded" ;;
+        *) return 1 ;;
+      esac
+    else
+      if [[ "$ansi" == 0 ]]; then
+        case "$ch" in [[:space:]]|'$'|'`'|'"'|"'"|'('|')'|';'|'&'|'|'|'<'|'>') return 1 ;; esac
+      elif [[ "$ch" == "'" ]]; then return 1
+      fi
+      output+="$ch"
+    fi
+  done
+  [[ "$output" != *[[:cntrl:]]* ]] || return 1
+  LC_META_VALUE="$output"
+}
+
+lc_meta_load() {
+  [[ -f "$META_PATH" && ! -L "$META_PATH" ]] || return 1
+  local line key value seen="|" gist="" raw="" filename=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] || continue
+    [[ "$line" == *=* ]] || { lc_log "meta.env 不是受支持的数据格式，未执行其中内容。";return 1; }
+    key="${line%%=*}";value="${line#*=}"
+    case "$key" in GIST_URL|RAW_URL|FILE_NAME) ;; *) return 1 ;; esac
+    [[ "$seen" != *"|$key|"* ]] || return 1
+    seen+="$key|"
+    lc_meta_decode "$value" || { lc_log "meta.env 数据格式需要检查，未执行其中内容。";return 1; }
+    case "$key" in GIST_URL) gist="$LC_META_VALUE" ;; RAW_URL) raw="$LC_META_VALUE" ;; FILE_NAME) filename="$LC_META_VALUE" ;; esac
+  done < "$META_PATH"
+  GIST_URL="$gist";RAW_URL="$raw";FILE_NAME="$filename"
 }
 
 lc_gist_open_guide() {
@@ -417,6 +460,13 @@ lc_append_ssh_host_block() {
   local identity="$7"
   local ca_enabled="$8"
 
+  local value
+  for value in "$host_alias" "$host_name" "$user" "$port" "$via" "$identity"; do
+    [[ "$value" != *$'\n'* && "$value" != *$'\r'* ]] || lc_die "SSH 字段必须为单行文本。"
+  done
+  [[ "$host_alias" =~ ^[A-Za-z0-9._-]+$ && "$host_name" =~ ^[A-Za-z0-9._:%-]+$ ]] || lc_die "SSH 别名或主机名无效。"
+  [[ -z "$port" ]] || { [[ "$port" =~ ^[0-9]{1,5}$ ]] && (( 10#$port > 0 && 10#$port <= 65535 )); } || lc_die "SSH 端口无效。"
+  [[ "$identity" != *'"'* && "$identity" != *'\'* ]] || lc_die "IdentityFile 路径包含不支持的字符。"
   {
     printf 'Host %s\n' "$host_alias"
     printf '    HostName %s\n' "$host_name"
@@ -426,9 +476,9 @@ lc_append_ssh_host_block() {
     [[ -n "$port" ]] && printf '    Port %s\n' "$port"
     [[ -n "$via" ]] && printf '    ProxyJump %s\n' "$via"
     if [[ -n "$identity" ]]; then
-      printf '    IdentityFile %s\n' "$identity"
+      printf '    IdentityFile "%s"\n' "$identity"
     elif [[ "$ca_enabled" == "1" ]]; then
-      printf '    IdentityFile %s\n' "$CA_KEY_PATH"
+      printf '    IdentityFile "%s"\n' "$CA_KEY_PATH"
       printf '    CertificateFile %s\n' "$CA_CERT_PATH"
     fi
     printf '    IdentitiesOnly yes\n'
@@ -577,6 +627,13 @@ lc_ca_fetch_and_sign_cert() {
   # 默认路径：lazycat-ssh-ca 初始化后的默认位置（减少暴露细节）
   ca_key_path="$(yq -r '.ca.ca_key_path // .ca.caKeyPath // "~/.lazycat/ssh-ca/lazycat-ssh-ca"' "$tmp_yaml")"
   lc_validate_remote_path "$ca_key_path"
+  if [[ "$ca_key_path" == '~/'* ]]; then
+    local remote_home
+    remote_home="$(ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=10 "$ca_ssh_host" 'printf "%s" "$HOME"')"
+    [[ "$remote_home" == /* && "$remote_home" != *$'\n'* ]] || lc_die "远端家目录无效。"
+    ca_key_path="$remote_home/${ca_key_path:2}"
+    lc_validate_remote_path "$ca_key_path"
+  fi
 
   ca_principals="$(yq -r '.ca.principals // "root"' "$tmp_yaml")"
   ca_validity="$(yq -r '.ca.validity // "12h"' "$tmp_yaml")"
@@ -1226,7 +1283,8 @@ main_menu() {
 
 main() {
   lc_require_not_root
-  lc_self_install_if_needed
+  if [[ "${1:-}" == check-source ]]; then lc_meta_load || lc_die "配置源数据无效或不存在";lc_log "配置源数据格式有效（未联网）";return;fi
+  [[ -x "${LAZYCAT_SSH_BIN_DIR}/lazycat-ssh" ]] || lc_self_install_if_needed
   # 子命令：用于定时任务/脚本化
   case "${1:-}" in
     sync) lc_sync_from_raw_url ;;

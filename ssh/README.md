@@ -2,11 +2,15 @@
 
 LazyCat SSH 是一套轻量级的 SSH 基础设施管理工具，旨在通过 **SSH 证书认证（SSH CA）** 简化多服务器的访问控制。
 
+本项目定位为个人管理员工具。CA SSH 账户有直接使用 CA 私钥签发的权限，不是面向团队的受限授权服务。已有 root 身份创建的 CA 继续由原身份管理，不因文档改为普通用户入口而搬迁。
+
+Go 候选客户端与验证边界见 [整改记录](../docs/REMEDIATION.md) 和 [测试契约](../docs/TESTING.md)。当前公开 Shell 入口尚未切换到 Go。
+
 它解决了传统 `authorized_keys` 管理痛点：
 
 - **无需分发公钥**：服务器不再需要存储每个人的公钥。
-- **配置自动同步**：通过 Gist 集中管理服务器列表，团队成员一键同步 SSH Config。
-- **安全性更高**：证书支持有效期（如 12 小时），过期自动失效，无需手动吊销。
+- **配置自动同步**：通过自己的 Gist 管理服务器列表，同步 SSH Config。
+- **证书有效期**：证书支持有效期（如 12 小时）。过期与撤销授权是不同操作；保留 CA 签发权限的身份仍可续签。
 
 ---
 
@@ -31,7 +35,7 @@ LazyCat SSH 是一套轻量级的 SSH 基础设施管理工具，旨在通过 **
 在 **管理员电脑** 或 **中央堡垒机** 上运行：
 
 ```bash
-sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/ca/lazycat-ssh-ca.sh)"
+bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/ca/lazycat-ssh-ca.sh)"
 ```
 
 1. 选择 `1) 初始化 CA`。
@@ -59,7 +63,52 @@ sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/ca/la
 
 ---
 
-### 3. 配置 Client (团队成员)
+### OpenWrt / ImmortalWrt 节点
+
+Dropbear 不读取 OpenSSH 的 `TrustedUserCAKeys`。这类节点需显式安装 OpenSSH，保留 Dropbear 的原端口作为应急入口。先准备 `bash`，再使用本地仓库中的脚本（同时保留相邻的 `ssh/lib/common.sh`）：
+
+```bash
+bash ssh/node/lazycat-ssh-node.sh install-openwrt \
+  'ssh-ed25519 <实际CA公钥> lazycat-ssh-ca' 192.168.5.8 22022
+```
+
+此入口仅支持使用 `opkg` 的系统，检查本机内网 IPv4、端口占用和至少 16 MiB 可写空间，按需安装 `openssh-server` / `openssh-keygen`。它备份并管理 `/etc/ssh/sshd_config`，仅在指定内网地址提供 CA 认证，关闭该 OpenSSH 服务的密码及普通 `authorized_keys` 登录；不会修改 Dropbear、防火墙或公网转发。已有运行中的非 LazyCat OpenSSH 服务会被拒绝覆盖。
+
+也可以在客户端仓库根目录运行以下命令，通过现有 SSH 入口上传本地脚本及配套库，无需先发布到 GitHub，且不依赖路由器的 SFTP 服务：
+
+```bash
+bash ssh/node/deploy-openwrt.sh nexus-wrt \
+  'ssh-ed25519 <实际CA公钥> lazycat-ssh-ca' 192.168.5.8 22022
+```
+
+配置经 `sshd -t` 校验后，由 `/etc/init.d/sshd` 启动或重载并启用开机启动。配置或启动失败会恢复原配置、CA 文件和服务启用状态；已安装的软件包及生成的主机密钥保留。更新 CA 仍可使用原来的单公钥参数调用。
+
+先核对脚本输出的 OpenSSH 主机指纹并用新端口验证证书登录，再修改 Gist：
+
+```yaml
+nexus-wrt:
+  lan_host: 192.168.5.8
+  lan_port: 22022
+  user: root
+  via: nexus-star-wan
+```
+
+运行 `lazycat-ssh sync` 后，直连和跳板别名都会使用新的内网端口。客户端使用 `HostKeyAlias`，旧别名可能仍记录 Dropbear 指纹：应通过原管理会话核实新指纹后再更新对应记录，不要禁用主机校验。
+
+端口检查还应覆盖客户端实际访问路径。路由器的 NAT 转发不会表现为本机监听进程，可能绕过安装时的 `netstat` 检查；例如端口 2222 已转发给另一台服务器时，应选择未使用的端口并验证目标主机指纹。
+
+安装备份位于输出的 `/etc/ssh/lazycat-backup.*` 目录。紧急时仍可通过原 Dropbear 入口登录，执行 `/etc/init.d/sshd stop`、`/etc/init.d/sshd disable` 停用新服务。菜单的“移除 CA 配置”只撤销 CA 信任，不恢复整个安装前配置，也不会卸载软件包。
+
+节点回归测试：`python3 -m unittest discover -s ssh/tests -v`。
+
+真实 OpenSSH / Dropbear 集成测试可在一次性容器运行（服务管理使用模拟接口，不代表已经验证原生 procd 或 opkg 安装）：
+
+```bash
+docker run --rm -v "$PWD:/work:ro" node:20.20.1-alpine sh -c \
+  'apk add --no-cache bash openssh dropbear iproute2 >/dev/null && bash /work/ssh/tests/openwrt-container.sh'
+```
+
+### 3. 配置 Client (个人管理员)
 
 > **目标**：同步连接列表，并获取证书进行登录。
 
@@ -200,3 +249,9 @@ A: `principals` 是 SSH 证书中的**权限白名单**。它指定了持有该�
 
 **Q: 支持 Windows 吗？**
 A: 目前仅支持 Linux 和 macOS (Bash)。
+
+## 开发候选的兼容性补充
+
+旧 Shell 客户端的 `check-source` 离线检查 `meta.env` 格式，不输出 URL，也不触发自安装。元数据不再作为 Shell 执行，接受历史 `%q` 生成的普通字符串及转义；命令替换、重复字段和控制字符会停止处理。原文件不自动改写。
+
+Go 候选拒绝 YAML 别名/合并（需先明确展开）、重复键及不受支持的执行/信任字段。手写跳板别名继续可用，包含用户和端口的跳板也检查端口范围和循环引用。此类冲突返回配置错误并保留原 SSH 文件，不擅自把复杂 YAML 转成另一种连接行为。

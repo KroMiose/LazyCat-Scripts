@@ -1,82 +1,127 @@
-#!/bin/bash
-
-# ==============================================================================
-# 脚本名称: setup_ssh_access.sh
-# 功    能: 为当前用户配置免密登录。它会创建一个专用的 SSH 密钥对，
-#           将公钥添加到 authorized_keys 中，然后显示私钥，
-#           以便您可以从其他计算机使用此私钥登录。
-# 适用系统: 所有 Linux & macOS 系统
-# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_ssh_access.sh)"
-# ==============================================================================
-
-set -e # 如果任何命令失败，则立即退出
-
-# --- 定义变量 ---
-# 使用主机名创建专用密钥的文件名，避免硬编码
-KEY_FILENAME="access_key_$(hostname -s)"
-KEY_PATH="$HOME/.ssh/${KEY_FILENAME}"
-PUBLIC_KEY_PATH="${KEY_PATH}.pub"
-AUTHORIZED_KEYS_PATH="$HOME/.ssh/authorized_keys"
-KEY_COMMENT="access-key-for-${USER}@$(hostname)"
-
-# --- 准备 .ssh 目录 ---
-# 确保 .ssh 目录存在且权限正确
-if [ ! -d "$HOME/.ssh" ]; then
-    echo "🔑 .ssh 目录不存在，正在创建..."
-    mkdir -p "$HOME/.ssh"
-    chmod 700 "$HOME/.ssh"
+#!/usr/bin/env bash
+# 接收客户端公钥。旧授权和本机已有密钥不会被默认替换或导出。
+set -euo pipefail
+# lazycat-file-transaction:begin
+# Single-file candidate/backup protocol. Embedded into standalone release scripts.
+# Call lc_tx_begin, edit "$LC_TX_CANDIDATE", validate, then lc_tx_commit.
+lc_tx_check_path() {
+    local parent="$1"
+    while [[ -n "$parent" && "$parent" != / ]]; do
+        if [[ -L "$parent" ]]; then
+            case "$parent" in
+                /var|/tmp|/etc) [[ "$(uname -s)" == Darwin && "$parent" != "$1" ]] || { echo '路径包含符号链接，需要先明确采纳' >&2; return 3; } ;;
+                *) echo '路径包含符号链接，需要先明确采纳' >&2; return 3 ;;
+            esac
+        fi
+        parent="${parent%/*}"
+    done
+}
+lc_tx_begin() {
+    LC_TX_TARGET="$1"
+    [[ "$LC_TX_TARGET" == /* && "$LC_TX_TARGET" != *$'\n'* && "$LC_TX_TARGET" != *$'\r'* ]] || { echo '事务目标必须是绝对单行路径' >&2; return 2; }
+    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    LC_TX_LOCK="${LC_TX_TARGET}.lazycat-lock"
+    LC_TX_LOCK_OWNED=0
+    (umask 077; mkdir "$LC_TX_LOCK") || { echo "操作锁已存在，请检查并发或中断状态：$LC_TX_LOCK" >&2; return 3; }
+    LC_TX_LOCK_OWNED=1
+    printf '%s\n' "$$" > "$LC_TX_LOCK/pid"
+    LC_TX_OPERATION=$(mktemp -d "${LC_TX_TARGET}.lazycat-operation.XXXXXX")
+    chmod 700 "$LC_TX_OPERATION"
+    printf '%s\n' "$LC_TX_TARGET" > "$LC_TX_OPERATION/target"
+    LC_TX_EXISTED=0
+    if [[ -e "$LC_TX_TARGET" ]]; then
+        [[ -f "$LC_TX_TARGET" ]] || { lc_tx_unlock; echo '目标不是普通文件' >&2; return 3; }
+        LC_TX_EXISTED=1
+        LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')
+        printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
+        cp -p "$LC_TX_TARGET" "$LC_TX_OPERATION/before"
+    else
+        (umask 077; : > "$LC_TX_OPERATION/before")
+    fi
+    LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_OPERATION/before" | awk '{print $1, $3, $4}')
+    printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
+    printf '%s\n' "$LC_TX_EXISTED" > "$LC_TX_OPERATION/existed"
+    cp -p "$LC_TX_OPERATION/before" "$LC_TX_OPERATION/after"
+    LC_TX_CANDIDATE="$LC_TX_OPERATION/after"
+    printf 'prepared\n' > "$LC_TX_OPERATION/status"
+}
+lc_tx_unlock() {
+    [[ -n "${LC_TX_LOCK:-}" && "${LC_TX_LOCK_OWNED:-0}" == 1 ]] || return 0
+    rm -f "$LC_TX_LOCK/pid"
+    rmdir "$LC_TX_LOCK"
+    LC_TX_LOCK=''
+    LC_TX_LOCK_OWNED=0
+}
+lc_tx_commit() {
+    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    if [[ "$LC_TX_EXISTED" == 1 ]]; then
+        [[ "$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] || { echo '文件权限或属主被并发修改' >&2; return 3; }
+        cmp -s "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { echo '检测到并发修改，已停止' >&2; return 3; }
+    else
+        [[ ! -e "$LC_TX_TARGET" ]] || { echo '目标被并发创建，已停止' >&2; return 3; }
+    fi
+    if [[ "$LC_TX_EXISTED" == 1 && "$(LC_ALL=C ls -ldn "$LC_TX_CANDIDATE" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] && cmp -s "$LC_TX_CANDIDATE" "$LC_TX_OPERATION/before"; then
+        rm -rf "$LC_TX_OPERATION"
+        lc_tx_unlock
+        return 0
+    fi
+    local staged
+    staged=$(mktemp "${LC_TX_TARGET}.lazycat-stage.XXXXXX")
+    cp -p "$LC_TX_CANDIDATE" "$staged"
+    if ! mv "$staged" "$LC_TX_TARGET"; then rm -f "$staged"; return 1; fi
+    printf 'committed\n' > "$LC_TX_OPERATION/status"
+    lc_tx_unlock
+    printf '操作记录与备份：%s\n' "$LC_TX_OPERATION"
+}
+lc_remove_block_candidate() {
+    local file="$1" begin="$2" end="$3" tmp
+    awk -v begin="$begin" -v end="$end" '
+        $0 == begin { if (inside || seen++) bad=1; inside=1 }
+        $0 == end { if (!inside) bad=1; inside=0 }
+        END { exit (bad || inside) ? 1 : 0 }
+    ' "$file" || { echo '托管标记损坏，未修改目标文件' >&2; return 3; }
+    tmp=$(mktemp "${file}.XXXXXX")
+    cp -p "$file" "$tmp"
+    awk -v begin="$begin" -v end="$end" '
+        $0 == begin { inside=1; next }
+        $0 == end { inside=0; next }
+        !inside { print }
+    ' "$file" > "$tmp"
+    mv "$tmp" "$file"
+}
+# lazycat-file-transaction:end
+case "${1:-}" in
+    --export-private)
+        [[ $# == 2 && -f "$2" && ! -L "$2" ]] || { echo '用法：--export-private <已有私钥文件>' >&2; exit 2; }
+        ssh-keygen -y -P '' -f "$2" >/dev/null
+        cat "$2"
+        exit 0
+        ;;
+    --public-key)
+        [[ $# == 2 && -f "$2" ]] || { echo '用法：--public-key <客户端公钥文件>' >&2; exit 2; }
+        public=$(cat "$2")
+        ;;
+    '') read -r -p '请粘贴客户端公钥（不会生成或输出私钥）: ' public ;;
+    *) echo '用法：setup_ssh_access.sh [--public-key <文件> | --export-private <已有私钥>]' >&2; exit 2 ;;
+esac
+[[ "$public" != *$'\n'* && "$public" != *$'\r'* ]] || { echo '公钥必须为单行' >&2; exit 2; }
+read -r key_type key_data key_comment <<< "$public"
+case "$key_type" in ssh-ed25519|ssh-rsa|ecdsa-sha2-*|sk-ssh-ed25519@openssh.com|sk-ecdsa-sha2-nistp256@openssh.com) ;; *) echo '不接受授权选项或未知公钥类型' >&2; exit 2 ;; esac
+work=$(mktemp -d)
+trap 'rm -rf "$work"; lc_tx_unlock' EXIT
+printf '%s\n' "$public" > "$work/key.pub"
+ssh-keygen -lf "$work/key.pub" >/dev/null
+[[ ! -L "$HOME/.ssh" ]] || { echo '.ssh 为符号链接，需要人工采纳' >&2; exit 3; }
+if [[ ! -d "$HOME/.ssh" ]]; then (umask 077; mkdir -p "$HOME/.ssh"); fi
+lc_tx_begin "$HOME/.ssh/authorized_keys"
+# Matching a restricted existing key counts as present; do not append an
+# unrestricted duplicate which would broaden its authorization.
+if awk -v key="$key_data" '{ for(i=1;i<=NF;i++) if($i==key) found=1 } END {exit !found}' "$LC_TX_CANDIDATE"; then
+    lc_tx_commit
+    echo '公钥已存在，保留现有选项与权限。'
+    exit 0
 fi
-
-# --- 核心理念：幂等性 ---
-# 检查专用密钥是否已经生成
-if [ -f "$KEY_PATH" ]; then
-    echo "✅ 专用的 SSH 登录密钥已经存在。"
-else
-    echo "⏳ 正在生成专用的 4096 位 RSA SSH 密钥..."
-    # 生成一个新的密钥对，用于远程访问
-    ssh-keygen -t rsa -b 4096 -f "$KEY_PATH" -N "" -C "$KEY_COMMENT" >/dev/null
-    chmod 600 "$KEY_PATH"
-    chmod 644 "$PUBLIC_KEY_PATH"
-    echo "✅ 新的专用密钥已生成: ${KEY_PATH}"
-fi
-
-# 确保公钥已被添加到 authorized_keys
-# 使用 grep -q -F 来检查公钥字符串是否已存在于文件中
-if [ -f "$AUTHORIZED_KEYS_PATH" ] && grep -q -F "$(cat "$PUBLIC_KEY_PATH")" "$AUTHORIZED_KEYS_PATH"; then
-    echo "✅ 公钥已经配置在 authorized_keys 文件中。"
-else
-    echo "🔧 正在将公钥添加到 authorized_keys..."
-    # 追加公钥到 authorized_keys 文件，并确保文件权限正确
-    touch "$AUTHORIZED_KEYS_PATH"
-    chmod 600 "$AUTHORIZED_KEYS_PATH"
-    echo "" >>"$AUTHORIZED_KEYS_PATH" # 添加换行符以防万一
-    cat "$PUBLIC_KEY_PATH" >>"$AUTHORIZED_KEYS_PATH"
-    # 清理可能产生的重复空行
-    awk '!seen[$0]++' "$AUTHORIZED_KEYS_PATH" >"${AUTHORIZED_KEYS_PATH}.tmp" && mv "${AUTHORIZED_KEYS_PATH}.tmp" "$AUTHORIZED_KEYS_PATH"
-    echo "✅ 公钥配置完成。"
-fi
-
-# --- 输出私钥和使用说明 ---
-IP_ADDRESS=$(hostname -I | awk '{print $1}')
-
-echo ""
-echo "========================================================================"
-echo "      🎉 SSH 访问配置完成! 🎉"
-echo "------------------------------------------------------------------------"
-echo "  您现在可以使用以下私钥从任何计算机远程登录到此服务器。"
-echo "  服务器用户: $USER"
-echo "  服务器 IP 地址: $IP_ADDRESS"
-echo ""
-echo "  👇 这是您需要使用的私钥内容:"
-echo "========================================================================"
-cat "$KEY_PATH"
-echo "" # 在密钥输出后再加一个换行符，让结尾的提示更清晰
-echo "========================================================================"
-echo "  使用方法:"
-echo "  1. 将上面的私钥内容完整复制，并保存到一个文件中 (例如: my_server_key)。"
-echo "  2. 在您的本地计算机上，使用以下命令登录:"
-echo "     chmod 600 my_server_key"
-echo "     ssh -i my_server_key ${USER}@${IP_ADDRESS}"
-echo "========================================================================"
-
-exit 0
+if [[ -s "$LC_TX_CANDIDATE" && -n "$(tail -c 1 "$LC_TX_CANDIDATE")" ]]; then printf '\n' >> "$LC_TX_CANDIDATE"; fi
+printf '%s\n' "$public" >> "$LC_TX_CANDIDATE"
+lc_tx_commit
+echo '客户端公钥已登记；请在保留原会话的同时验证新连接。'

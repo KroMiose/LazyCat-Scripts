@@ -1,0 +1,159 @@
+{
+  "format_version": 1,
+  "components": {
+    "file-transactions": {
+      "paths": [
+        "lib/**",
+        "scripts/embed.py"
+      ],
+      "depends_on": [],
+      "jobs": [
+        "behavior"
+      ],
+      "scenarios": [
+        "shell-regressions"
+      ]
+    },
+    "ssh-contract": {
+      "paths": [
+        "ssh/**"
+      ],
+      "depends_on": [],
+      "jobs": [
+        "behavior",
+        "system",
+        "go"
+      ],
+      "scenarios": [
+        "shell-regressions",
+        "ssh-node-adapters",
+        "linux-system"
+      ]
+    },
+    "shell-proxy": {
+      "paths": [
+        "common/setup_proxy_config.sh"
+      ],
+      "depends_on": [
+        "file-transactions"
+      ],
+      "jobs": [
+        "behavior"
+      ],
+      "scenarios": [
+        "shell-regressions"
+      ]
+    },
+    "shell-zsh": {
+      "paths": [
+        "common/setup_zsh_p10k.sh"
+      ],
+      "depends_on": [
+        "file-transactions"
+      ],
+      "jobs": [
+        "behavior"
+      ],
+      "scenarios": [
+        "shell-regressions"
+      ]
+    },
+    "shell-node": {
+      "paths": [
+        "common/setup_node_env.sh"
+      ],
+      "depends_on": [],
+      "jobs": [
+        "behavior",
+        "system"
+      ],
+      "scenarios": [
+        "shell-regressions",
+        "linux-system"
+      ]
+    },
+    "shell-access": {
+      "paths": [
+        "common/setup_ssh_access.sh",
+        "common/add_ssh_config.sh"
+      ],
+      "depends_on": [
+        "file-transactions",
+        "ssh-contract"
+      ],
+      "jobs": [
+        "behavior"
+      ],
+      "scenarios": [
+        "shell-regressions"
+      ]
+    },
+    "shell-recovery": {
+      "paths": [
+        "common/lazycat-check.sh",
+        "common/restore_shell_backup.sh"
+      ],
+      "depends_on": [
+        "file-transactions"
+      ],
+      "jobs": [
+        "behavior"
+      ],
+      "scenarios": [
+        "shell-regressions"
+      ]
+    },
+    "linux-tools": {
+      "paths": [
+        "linux/**"
+      ],
+      "depends_on": [
+        "file-transactions"
+      ],
+      "jobs": [
+        "behavior",
+        "system"
+      ],
+      "scenarios": [
+        "shell-regressions",
+        "linux-system"
+      ]
+    },
+    "hud": {
+      "paths": [
+        "codex-hud/**"
+      ],
+      "depends_on": [],
+      "jobs": [
+        "behavior",
+        "go"
+      ],
+      "scenarios": [
+        "hud-lifecycle"
+      ]
+    },
+    "packaging": {
+      "paths": [
+        "scripts/build_release.py",
+        "scripts/install-ssh.sh",
+        "scripts/release_check.py"
+      ],
+      "depends_on": [],
+      "jobs": [
+        "behavior",
+        "system",
+        "go"
+      ],
+      "scenarios": [
+        "shell-regressions",
+        "linux-system"
+      ]
+    }
+  },
+  "full_validation_paths": [
+    ".github/**",
+    "tests/**",
+    "Makefile",
+    "scripts/**"
+  ]
+}

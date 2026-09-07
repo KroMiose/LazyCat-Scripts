@@ -1,184 +1,159 @@
-#!/bin/bash
-
-# ==============================================================================
-# 脚本名称: setup_docker_proxy.sh
-# 功    能: 为 Docker 守护进程配置或移除 HTTP/HTTPS 代理。
-#           这会影响 'docker pull', 'docker build' 等网络操作。
-# 适用系统: 使用 systemd 的 Linux 系统 (例如 Debian, Ubuntu, CentOS, Fedora)
-# 使用方法: sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_docker_proxy.sh)"
-# ==============================================================================
-
-# --- 核心函数库和颜色定义 ---
-COLOR_GREEN="\033[32m"
-COLOR_YELLOW="\033[33m"
-COLOR_BLUE="\033[34m"
-COLOR_RED="\033[31m"
-COLOR_RESET="\033[0m"
-
-log_info() {
-    echo -e "${COLOR_BLUE}INFO: $1${COLOR_RESET}"
-}
-log_success() {
-    echo -e "${COLOR_GREEN}SUCCESS: $1${COLOR_RESET}"
-}
-log_warn() {
-    echo -e "${COLOR_YELLOW}WARN: $1${COLOR_RESET}"
-}
-log_error() {
-    echo -e "${COLOR_RED}ERROR: $1${COLOR_RESET}" >&2
-}
-
-# --- 检查和函数定义 ---
-
-# 检查是否以 root 身份运行
-check_root() {
-    if [ "$(id -u)" -ne 0 ]; then
-        log_error "此脚本必须以 root 或 sudo 身份运行！"
-        exit 1
-    fi
-}
-
-# 检查 systemd 是否存在
-check_systemd() {
-    if ! [ -d /run/systemd/system ]; then
-        log_error "此脚本仅支持使用 systemd 的 Linux 系统。"
-        exit 1
-    fi
-    if ! command -v docker &>/dev/null; then
-        log_error "未找到 Docker。请先安装 Docker 再运行此脚本。"
-        exit 1
-    fi
-}
-
-# 提示重启 Docker
-prompt_restart_docker() {
-    echo ""
-    log_info "为了使更改生效，需要重载 systemd 并重启 Docker 服务。"
-    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 是否现在为您执行 'systemctl daemon-reload && systemctl restart docker'？ (Y/n): ${COLOR_RESET}")" confirm_restart
-    if [[ ! "$confirm_restart" =~ ^[Nn]$ ]]; then
-        log_info "⏳ 正在重载 daemon 并重启 Docker..."
-        if systemctl daemon-reload && systemctl restart docker; then
-            log_success "✅ Docker 已成功重启！"
-        else
-            log_error "❌ Docker 重启失败。请手动运行以下命令进行检查和重启："
-            log_error "  sudo systemctl daemon-reload"
-            log_error "  sudo systemctl restart docker"
+#!/usr/bin/env bash
+# Docker drop-in configuration and service restart are explicit separate actions.
+set -euo pipefail
+# lazycat-file-transaction:begin
+# Single-file candidate/backup protocol. Embedded into standalone release scripts.
+# Call lc_tx_begin, edit "$LC_TX_CANDIDATE", validate, then lc_tx_commit.
+lc_tx_check_path() {
+    local parent="$1"
+    while [[ -n "$parent" && "$parent" != / ]]; do
+        if [[ -L "$parent" ]]; then
+            case "$parent" in
+                /var|/tmp|/etc) [[ "$(uname -s)" == Darwin && "$parent" != "$1" ]] || { echo '路径包含符号链接，需要先明确采纳' >&2; return 3; } ;;
+                *) echo '路径包含符号链接，需要先明确采纳' >&2; return 3 ;;
+            esac
         fi
-    else
-        log_warn "请稍后手动运行以下命令以应用更改:"
-        log_warn "  sudo systemctl daemon-reload"
-        log_warn "  sudo systemctl restart docker"
-    fi
-}
-
-# 配置代理的函数
-configure_docker_proxy() {
-    log_info "--- 开始配置 Docker 代理 ---"
-
-    # --- 尝试从环境变量中获取现有代理配置 ---
-    local EXISTING_PROXY=""
-    if [ -n "$http_proxy" ]; then
-        EXISTING_PROXY="$http_proxy"
-    elif [ -n "$https_proxy" ]; then
-        EXISTING_PROXY="$https_proxy"
-    elif [ -n "$all_proxy" ]; then
-        EXISTING_PROXY="$all_proxy"
-    elif [ -n "$HTTP_PROXY" ]; then
-        EXISTING_PROXY="$HTTP_PROXY"
-    elif [ -n "$HTTPS_PROXY" ]; then
-        EXISTING_PROXY="$HTTPS_PROXY"
-    elif [ -n "$ALL_PROXY" ]; then
-        EXISTING_PROXY="$ALL_PROXY"
-    fi
-
-    local DEFAULT_HOST="127.0.0.1"
-    local DEFAULT_PORT="7890"
-
-    if [ -n "$EXISTING_PROXY" ]; then
-        log_info "🔍 检测到现有代理环境变量: $EXISTING_PROXY"
-        local PROXY_NO_PROTOCOL=$(echo "$EXISTING_PROXY" | sed -E 's_.*://__; s_/$__')
-        local PROXY_HOST_PORT=$(echo "$PROXY_NO_PROTOCOL" | sed -E 's/.*@//')
-        DEFAULT_HOST=$(echo "$PROXY_HOST_PORT" | awk -F: '{print $1}')
-        DEFAULT_PORT=$(echo "$PROXY_HOST_PORT" | awk -F: '{print $2}')
-        log_info "  -> 将使用 Host: $DEFAULT_HOST, Port: $DEFAULT_PORT 作为默认值。"
-    fi
-
-    read -p "  -> 请输入代理主机 (默认: ${DEFAULT_HOST}): " proxy_host
-    proxy_host=${proxy_host:-${DEFAULT_HOST}}
-    read -p "  -> 请输入代理端口 (默认: ${DEFAULT_PORT}): " proxy_port
-    proxy_port=${proxy_port:-${DEFAULT_PORT}}
-
-    read -p "  -> 请输入 NO_PROXY 列表 (多个用逗号隔开, 默认: localhost,127.0.0.1): " no_proxy_input
-    local no_proxy=${no_proxy_input:-"localhost,127.0.0.1"}
-
-    local DOCKER_CONF_DIR="/etc/systemd/system/docker.service.d"
-    local PROXY_CONF_FILE="$DOCKER_CONF_DIR/http-proxy.conf"
-
-    log_info "🔧 正在创建 systemd drop-in 目录: $DOCKER_CONF_DIR"
-    mkdir -p "$DOCKER_CONF_DIR"
-
-    # 使用 cat 和 EOF 创建配置块，确保引号正确处理
-    log_info "✍️  正在写入代理配置文件: $PROXY_CONF_FILE"
-    cat >"$PROXY_CONF_FILE" <<EOF
-[Service]
-Environment="HTTP_PROXY=http://${proxy_host}:${proxy_port}"
-Environment="HTTPS_PROXY=http://${proxy_host}:${proxy_port}"
-Environment="NO_PROXY=${no_proxy}"
-EOF
-
-    log_success "✅ Docker 代理配置文件已成功创建/更新。"
-    prompt_restart_docker
-}
-
-# 移除代理的函数
-remove_docker_proxy() {
-    log_info "--- 开始移除 Docker 代理 ---"
-    local DOCKER_CONF_DIR="/etc/systemd/system/docker.service.d"
-    local PROXY_CONF_FILE="$DOCKER_CONF_DIR/http-proxy.conf"
-
-    if [ -f "$PROXY_CONF_FILE" ]; then
-        log_info "🗑️  正在删除代理配置文件: $PROXY_CONF_FILE"
-        rm -f "$PROXY_CONF_FILE"
-        log_success "✅ Docker 代理配置文件已移除。"
-
-        # 检查目录是否为空，如果为空则删除
-        if [ -z "$(ls -A "$DOCKER_CONF_DIR" 2>/dev/null)" ]; then
-            log_info "💨 配置目录为空，正在移除: $DOCKER_CONF_DIR"
-            rmdir "$DOCKER_CONF_DIR"
-        fi
-        prompt_restart_docker
-    else
-        log_success "🤷‍♀️ 未找到 Docker 代理配置文件，无需操作。"
-    fi
-}
-
-# --- 主逻辑 ---
-main() {
-    check_root
-    check_systemd
-
-    log_info "--- Docker 代理配置工具 ---"
-    echo ""
-    PS3="👉 请选择您要执行的操作: "
-    select choice in "配置/更新 Docker 代理" "移除 Docker 代理" "退出"; do
-        case $choice in
-        "配置/更新 Docker 代理")
-            configure_docker_proxy
-            break
-            ;;
-        "移除 Docker 代理")
-            remove_docker_proxy
-            break
-            ;;
-        "退出")
-            log_info "操作已取消。"
-            exit 0
-            ;;
-        *)
-            log_warn "无效的选项，请重新输入。"
-            ;;
-        esac
+        parent="${parent%/*}"
     done
 }
-
-main "$@"
+lc_tx_begin() {
+    LC_TX_TARGET="$1"
+    [[ "$LC_TX_TARGET" == /* && "$LC_TX_TARGET" != *$'\n'* && "$LC_TX_TARGET" != *$'\r'* ]] || { echo '事务目标必须是绝对单行路径' >&2; return 2; }
+    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    LC_TX_LOCK="${LC_TX_TARGET}.lazycat-lock"
+    LC_TX_LOCK_OWNED=0
+    (umask 077; mkdir "$LC_TX_LOCK") || { echo "操作锁已存在，请检查并发或中断状态：$LC_TX_LOCK" >&2; return 3; }
+    LC_TX_LOCK_OWNED=1
+    printf '%s\n' "$$" > "$LC_TX_LOCK/pid"
+    LC_TX_OPERATION=$(mktemp -d "${LC_TX_TARGET}.lazycat-operation.XXXXXX")
+    chmod 700 "$LC_TX_OPERATION"
+    printf '%s\n' "$LC_TX_TARGET" > "$LC_TX_OPERATION/target"
+    LC_TX_EXISTED=0
+    if [[ -e "$LC_TX_TARGET" ]]; then
+        [[ -f "$LC_TX_TARGET" ]] || { lc_tx_unlock; echo '目标不是普通文件' >&2; return 3; }
+        LC_TX_EXISTED=1
+        LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')
+        printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
+        cp -p "$LC_TX_TARGET" "$LC_TX_OPERATION/before"
+    else
+        (umask 077; : > "$LC_TX_OPERATION/before")
+    fi
+    LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_OPERATION/before" | awk '{print $1, $3, $4}')
+    printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
+    printf '%s\n' "$LC_TX_EXISTED" > "$LC_TX_OPERATION/existed"
+    cp -p "$LC_TX_OPERATION/before" "$LC_TX_OPERATION/after"
+    LC_TX_CANDIDATE="$LC_TX_OPERATION/after"
+    printf 'prepared\n' > "$LC_TX_OPERATION/status"
+}
+lc_tx_unlock() {
+    [[ -n "${LC_TX_LOCK:-}" && "${LC_TX_LOCK_OWNED:-0}" == 1 ]] || return 0
+    rm -f "$LC_TX_LOCK/pid"
+    rmdir "$LC_TX_LOCK"
+    LC_TX_LOCK=''
+    LC_TX_LOCK_OWNED=0
+}
+lc_tx_commit() {
+    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    if [[ "$LC_TX_EXISTED" == 1 ]]; then
+        [[ "$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] || { echo '文件权限或属主被并发修改' >&2; return 3; }
+        cmp -s "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { echo '检测到并发修改，已停止' >&2; return 3; }
+    else
+        [[ ! -e "$LC_TX_TARGET" ]] || { echo '目标被并发创建，已停止' >&2; return 3; }
+    fi
+    if [[ "$LC_TX_EXISTED" == 1 && "$(LC_ALL=C ls -ldn "$LC_TX_CANDIDATE" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] && cmp -s "$LC_TX_CANDIDATE" "$LC_TX_OPERATION/before"; then
+        rm -rf "$LC_TX_OPERATION"
+        lc_tx_unlock
+        return 0
+    fi
+    local staged
+    staged=$(mktemp "${LC_TX_TARGET}.lazycat-stage.XXXXXX")
+    cp -p "$LC_TX_CANDIDATE" "$staged"
+    if ! mv "$staged" "$LC_TX_TARGET"; then rm -f "$staged"; return 1; fi
+    printf 'committed\n' > "$LC_TX_OPERATION/status"
+    lc_tx_unlock
+    printf '操作记录与备份：%s\n' "$LC_TX_OPERATION"
+}
+lc_remove_block_candidate() {
+    local file="$1" begin="$2" end="$3" tmp
+    awk -v begin="$begin" -v end="$end" '
+        $0 == begin { if (inside || seen++) bad=1; inside=1 }
+        $0 == end { if (!inside) bad=1; inside=0 }
+        END { exit (bad || inside) ? 1 : 0 }
+    ' "$file" || { echo '托管标记损坏，未修改目标文件' >&2; return 3; }
+    tmp=$(mktemp "${file}.XXXXXX")
+    cp -p "$file" "$tmp"
+    awk -v begin="$begin" -v end="$end" '
+        $0 == begin { inside=1; next }
+        $0 == end { inside=0; next }
+        !inside { print }
+    ' "$file" > "$tmp"
+    mv "$tmp" "$file"
+}
+# lazycat-file-transaction:end
+[[ "$EUID" == 0 && -d /run/systemd/system ]] || { echo '需要 root 和真实 systemd' >&2; exit 2; }
+command -v docker >/dev/null || { echo 'Docker 尚未安装' >&2; exit 1; }
+target=/etc/systemd/system/docker.service.d/http-proxy.conf
+mode="${1:-menu}"
+[[ $# == 0 ]] || shift
+url=''
+no_proxy_value=localhost,127.0.0.1,::1
+restart=0
+adopt=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --url|--no-proxy) [[ $# -ge 2 ]] || exit 2; if [[ "$1" == --url ]]; then url="$2"; else no_proxy_value="$2"; fi; shift 2 ;;
+        --restart) restart=1;shift ;;
+        --adopt) adopt=1;shift ;;
+        *) echo '参数无效' >&2;exit 2 ;;
+    esac
+done
+if [[ "$mode" == menu ]]; then
+    read -r -p '1 配置代理 / 2 移除托管代理 / 3 退出: ' choice
+    case "$choice" in 1) mode=set;read -r -p '完整 HTTP(S) 代理 URL: ' url ;; 2) mode=remove ;; *) exit 0 ;; esac
+fi
+if [[ "$mode" == check ]]; then
+    if [[ -e "$target" ]]; then echo "配置文件存在：$target（不输出认证内容）"; else echo '未发现此代理片段'; fi
+    systemctl is-active docker
+    exit
+fi
+case "$mode" in set|remove) ;; *) echo '用法：set --url URL [--no-proxy LIST] [--restart] [--adopt] | remove [--restart] | check' >&2;exit 2 ;; esac
+if [[ "$mode" == set ]]; then
+    case "$url" in http://*|https://*) ;; *) echo 'Docker 代理需要 HTTP(S) URL' >&2;exit 2 ;; esac
+    [[ "$url" != *[[:space:]]* && "$url" != *['"\`']* && "$no_proxy_value" != *[[:space:]]* && "$no_proxy_value" != *['"\`']* ]] || { echo '配置包含非法控制或引号字符' >&2;exit 2; }
+fi
+if [[ -f "$target" && "$adopt" != 1 ]] && ! grep -qx '# Managed by LazyCat Docker proxy' "$target"; then
+    echo '既有片段归属未确认；检查后使用 --adopt 明确采纳，原文件未修改。' >&2;exit 3
+fi
+[[ ! -L "$(dirname "$target")" ]] || exit 3
+if [[ ! -d "$(dirname "$target")" ]]; then mkdir -p "$(dirname "$target")"; fi
+trap 'lc_tx_unlock' EXIT
+lc_tx_begin "$target"
+if [[ "$mode" == set ]]; then
+    # systemd expands % specifiers even inside quotes; URL escapes need %%.
+    url=${url//%/%%};no_proxy_value=${no_proxy_value//%/%%}
+    printf '# Managed by LazyCat Docker proxy\n[Service]\nEnvironment="HTTP_PROXY=%s"\nEnvironment="HTTPS_PROXY=%s"\nEnvironment="NO_PROXY=%s"\n' "$url" "$url" "$no_proxy_value" > "$LC_TX_CANDIDATE"
+else
+    # A commented empty owned fragment stops contributing proxy variables;
+    # other Docker fragments and daemon.json remain untouched.
+    printf '# Managed by LazyCat Docker proxy\n# Proxy settings removed\n' > "$LC_TX_CANDIDATE"
+fi
+was_active=0
+systemctl is-active --quiet docker && was_active=1
+lc_tx_commit
+[[ "$restart" == 1 ]] || { echo '配置已保存，待应用；Docker 未重启。维护窗口执行 daemon-reload 和 restart。';exit 0; }
+if systemctl daemon-reload && systemctl restart docker && systemctl is-active --quiet docker; then
+    echo 'Docker 已按显式请求重启；请验证实际拉取行为。'
+    exit 0
+fi
+# A restart can affect containers; only config/service state is recoverable here.
+if [[ -d "$LC_TX_OPERATION" ]] && cmp -s "$target" "$LC_TX_OPERATION/after"; then
+    if [[ "$LC_TX_EXISTED" == 1 ]]; then
+        cp -p "$LC_TX_OPERATION/before" "$LC_TX_OPERATION/restore"
+        mv "$LC_TX_OPERATION/restore" "$target"
+    else rm "$target"; fi
+    printf 'rollback-attempted\n' > "$LC_TX_OPERATION/status"
+    systemctl daemon-reload || echo '恢复后的 daemon-reload 失败' >&2
+    if [[ "$was_active" == 1 ]]; then systemctl restart docker || echo '旧配置服务恢复失败' >&2; else systemctl stop docker || echo '服务停止失败' >&2; fi
+fi
+echo 'Docker 应用失败；请查看操作记录和 journalctl，不能把容器业务状态视为已回滚。' >&2
+exit 1

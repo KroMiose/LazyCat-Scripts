@@ -14,7 +14,7 @@ set -euo pipefail
 MODE="install"
 ASSUME_YES=0
 CLEAN_REMOVE_INSTALLED_COMPONENTS=0
-CLEAN_REMOVE_LEGACY_LINES=1
+CLEAN_REMOVE_LEGACY_LINES=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -86,8 +86,10 @@ ensure_dependencies() {
             exit 1
         fi
 
+        if [[ "$ASSUME_YES" -eq 1 ]]; then confirm_install=Y; else
         read -p "脚本可以尝试使用 '${pkg_manager}' 为您安装。此操作可能需要 sudo 权限。是否继续？ (Y/n): " confirm_install
         confirm_install=${confirm_install:-Y}
+        fi
 
         if [[ "$confirm_install" =~ ^[Yy]$ ]]; then
             echo "⏳ 正在运行安装命令..."
@@ -114,12 +116,17 @@ remove_lazycat_managed_block() {
     local start_marker="# --- LAZYCAT-SCRIPTS ZSH MANAGED START ---"
     local end_marker="# --- LAZYCAT-SCRIPTS ZSH MANAGED END ---"
 
-    if ! grep -qF -- "$start_marker" "$zshrc_file"; then
-        return 0
-    fi
+    [[ ! -L "$zshrc_file" ]] || { echo '拒绝替换符号链接' >&2; return 1; }
+    awk -v start="$start_marker" -v end="$end_marker" '
+        $0 == start { if (inside || seen++) exit 1; inside=1 }
+        $0 == end { if (!inside) exit 1; inside=0 }
+        END { if (inside) exit 1 }
+    ' "$zshrc_file" || { echo '托管标记损坏，原文件未修改' >&2; return 1; }
+    if ! grep -qFx -- "$start_marker" "$zshrc_file"; then return 0; fi
 
     local tmp_file
-    tmp_file="$(mktemp)"
+    tmp_file="$(mktemp "${zshrc_file}.tmp.XXXXXX")"
+    cp -p "$zshrc_file" "$tmp_file"
     awk -v start="$start_marker" -v end="$end_marker" '
         $0 == start { in_block=1; next }
         $0 == end { in_block=0; next }
@@ -131,7 +138,8 @@ remove_lazycat_managed_block() {
 sanitize_zshrc_known_bad_lines() {
     local zshrc_file="$1"
     local tmp_file
-    tmp_file="$(mktemp)"
+    tmp_file="$(mktemp "${zshrc_file}.tmp.XXXXXX")"
+    cp -p "$zshrc_file" "$tmp_file"
 
     # 历史版本脚本错误地把 `p10k configure` 写进 .zshrc，导致 zsh 启动时直接报错并中断主题/插件加载。
     awk '
@@ -150,14 +158,15 @@ zshrc_has_omz_source() {
     # - source $ZSH/oh-my-zsh.sh
     # - . $ZSH/oh-my-zsh.sh
     # - source ~/.oh-my-zsh/oh-my-zsh.sh
-    grep -qE '^[[:space:]]*(source|\.)[[:space:]]+(\$ZSH|"\$ZSH"|~\/\.oh-my-zsh|\$HOME\/\.oh-my-zsh|"\$HOME\/\.oh-my-zsh")\/oh-my-zsh\.sh([[:space:]]|$)' "$zshrc_file"
+    grep -qE '^[[:space:]]*(source|\.)[[:space:]]+"?(\$ZSH|~\/\.oh-my-zsh|\$HOME\/\.oh-my-zsh)"?\/oh-my-zsh\.sh"?([[:space:]]|$)' "$zshrc_file"
 }
 
 inject_lazycat_block_before_omz_source() {
     local zshrc_file="$1"
     local block_file="$2"
     local tmp_file
-    tmp_file="$(mktemp)"
+    tmp_file="$(mktemp "${zshrc_file}.tmp.XXXXXX")"
+    cp -p "$zshrc_file" "$tmp_file"
 
     awk -v block_path="$block_file" '
         BEGIN {
@@ -166,7 +175,7 @@ inject_lazycat_block_before_omz_source() {
             }
             close(block_path)
         }
-        !inserted && $0 ~ /^[[:space:]]*(source|\.)[[:space:]]+(\$ZSH|"\$ZSH"|~\/\.oh-my-zsh|\$HOME\/\.oh-my-zsh|"\$HOME\/\.oh-my-zsh")\/oh-my-zsh\.sh([[:space:]]|$)/ {
+        !inserted && $0 ~ /^[[:space:]]*(source|\.)[[:space:]]+"?(\$ZSH|~\/\.oh-my-zsh|\$HOME\/\.oh-my-zsh)"?\/oh-my-zsh\.sh"?([[:space:]]|$)/ {
             printf "%s", block
             inserted=1
         }
@@ -179,7 +188,7 @@ append_lazycat_block() {
     local zshrc_file="$1"
     local block_file="$2"
     {
-        echo ""
+        if [[ -s "$zshrc_file" && -n "$(tail -n 1 "$zshrc_file")" ]]; then echo ""; fi
         cat "$block_file"
     } >> "$zshrc_file"
 }
@@ -187,7 +196,8 @@ append_lazycat_block() {
 remove_legacy_theme_and_plugin_lines() {
     local zshrc_file="$1"
     local tmp_file
-    tmp_file="$(mktemp)"
+    tmp_file="$(mktemp "${zshrc_file}.tmp.XXXXXX")"
+    cp -p "$zshrc_file" "$tmp_file"
 
     awk '
         # 仅清理历史版本脚本常见注入行（非托管块）。避免误删用户自定义内容。
@@ -198,6 +208,40 @@ remove_legacy_theme_and_plugin_lines() {
     mv "$tmp_file" "$zshrc_file"
 }
 
+
+# Work only on a same-directory candidate. Unknown user edits win over commits.
+begin_zshrc_edit() {
+    ZSHRC_TARGET="$HOME/.zshrc"
+    [[ ! -L "$ZSHRC_TARGET" ]] || { echo '.zshrc 是符号链接，需要先明确采纳目标' >&2; exit 1; }
+    ZSHRC_LOCK="$HOME/.lazycat-zsh.lock"
+    mkdir "$ZSHRC_LOCK" || { echo '另一个操作正在执行，或上次中断留下锁；请先检查' >&2; exit 1; }
+    EDIT_DIR=$(mktemp -d "$HOME/.lazycat-zsh.XXXXXX")
+    trap 'rm -rf "$EDIT_DIR"; rmdir "$ZSHRC_LOCK"' EXIT
+    ZSHRC_EXISTED=0
+    if [[ -e "$ZSHRC_TARGET" ]]; then
+        ZSHRC_EXISTED=1
+        cp -p "$ZSHRC_TARGET" "$EDIT_DIR/before"
+    else
+        (umask 077; : > "$EDIT_DIR/before")
+    fi
+    cp -p "$EDIT_DIR/before" "$EDIT_DIR/candidate"
+    ZSHRC_FILE="$EDIT_DIR/candidate"
+}
+commit_zshrc_edit() {
+    zsh -n "$ZSHRC_FILE"
+    if [[ "$ZSHRC_EXISTED" -eq 1 ]]; then
+        [[ ! -L "$ZSHRC_TARGET" ]] && cmp -s "$ZSHRC_TARGET" "$EDIT_DIR/before" || { echo '配置被并发修改，已停止' >&2; exit 1; }
+    else
+        [[ ! -e "$ZSHRC_TARGET" && ! -L "$ZSHRC_TARGET" ]] || { echo '配置被并发创建，已停止' >&2; exit 1; }
+    fi
+    if cmp -s "$ZSHRC_FILE" "$EDIT_DIR/before"; then return; fi
+    if [[ "$ZSHRC_EXISTED" -eq 1 ]]; then
+        local backup
+        backup=$(mktemp "$HOME/.zshrc.lazycat.bak.XXXXXX")
+        cp -p "$EDIT_DIR/before" "$backup"
+    fi
+    mv "$ZSHRC_FILE" "$ZSHRC_TARGET"
+}
 
 # --- 安全检查 ---
 if [ "$(id -u)" -eq 0 ]; then
@@ -215,31 +259,12 @@ if [[ "$MODE" == "cleanup" ]]; then
     ZSHRC_FILE="$HOME/.zshrc"
     echo "🧹 正在清理 Zsh 配置 (由 LazyCat-Scripts 写入的内容)..."
 
-    touch "$ZSHRC_FILE"
-    cp "$ZSHRC_FILE" "${ZSHRC_FILE}.cleanup.bak.$(date +'%Y-%m-%d_%H-%M-%S')"
-    echo "  -> 已创建备份文件: ${ZSHRC_FILE}.cleanup.bak.*"
-
-    sanitize_zshrc_known_bad_lines "$ZSHRC_FILE"
+    [[ -e "$ZSHRC_FILE" ]] || exit 0
+    begin_zshrc_edit
     remove_lazycat_managed_block "$ZSHRC_FILE"
-    if [[ "$CLEAN_REMOVE_LEGACY_LINES" -eq 1 ]]; then
-        remove_legacy_theme_and_plugin_lines "$ZSHRC_FILE"
-    fi
-
+    commit_zshrc_edit
     if [[ "$CLEAN_REMOVE_INSTALLED_COMPONENTS" -eq 1 ]]; then
-        if [[ "$ASSUME_YES" -eq 1 ]]; then
-            confirm_remove="Y"
-        else
-            read -p "是否同时移除已安装的 Oh My Zsh / Powerlevel10k / 插件目录？(Y/n): " confirm_remove
-            confirm_remove=${confirm_remove:-Y}
-        fi
-
-        if [[ "$confirm_remove" =~ ^[Yy]$ ]]; then
-            echo "  -> 正在移除已安装组件目录..."
-            rm -rf "$HOME/.oh-my-zsh"
-            echo "✅ 已移除: ~/.oh-my-zsh"
-        else
-            echo "ℹ️  已跳过组件卸载，仅完成配置清理。"
-        fi
+        echo '组件目录没有可验证的安装归属记录，已保留；--cleanup-all 仅移除托管配置。'
     fi
 
     echo "✅ 清理完成。你现在可以重新运行本脚本进行安装。"
@@ -271,7 +296,12 @@ if [ ! -d "$HOME/.oh-my-zsh" ]; then
     # 使用 sh -c 来非交互式地运行安装脚本
     # RUNZSH=no: 安装后不立即启动 zsh
     # CHSH=no: 不自动修改默认 shell (因为我们已要求用户手动设置)
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended --keep-zshrc
+    omz_installer=$(mktemp)
+    if ! curl -fSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -o "$omz_installer"; then
+        rm -f "$omz_installer"; exit 1
+    fi
+    RUNZSH=no CHSH=no sh "$omz_installer" --unattended --keep-zshrc
+    rm -f "$omz_installer"
 else
     echo "✅ Oh My Zsh 已经安装。"
 fi
@@ -309,15 +339,7 @@ fi
 ZSHRC_FILE="$HOME/.zshrc"
 echo "🔧 正在配置 .zshrc 文件..."
 
-# 确保文件存在，否则备份会失败
-touch "$ZSHRC_FILE"
-
-# 创建一个 .zshrc 的备份，更加安全
-cp "$ZSHRC_FILE" "${ZSHRC_FILE}.bak.$(date +'%Y-%m-%d_%H-%M-%S')"
-echo "  -> 已创建备份文件: ${ZSHRC_FILE}.bak.*"
-
-# 幂等清理：移除历史版本写入的错误行，以及旧的脚本托管块
-sanitize_zshrc_known_bad_lines "$ZSHRC_FILE"
+begin_zshrc_edit
 remove_lazycat_managed_block "$ZSHRC_FILE"
 
 echo "  -> 正在写入托管配置块 (幂等)..."
@@ -332,11 +354,13 @@ LAZYCAT_BLOCK_FILE="$(mktemp)"
     echo "# --- LAZYCAT-SCRIPTS ZSH MANAGED START ---"
     echo "# 由 LazyCat-Scripts 管理：确保 OMZ / P10k 加载顺序正确且可重复执行。"
     echo 'export ZSH="$HOME/.oh-my-zsh"'
-    echo "plugins=(${PLUGINS_LIST[*]})"
+    echo 'typeset -ga plugins'
+    echo 'typeset -gU plugins'
+    echo "plugins+=( ${PLUGINS_LIST[*]} )"
     if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
         echo 'ZSH_THEME="powerlevel10k/powerlevel10k"'
         echo '[[ ! -f "$HOME/.p10k.zsh" ]] || source "$HOME/.p10k.zsh"'
-        echo "# 如需生成/重跑向导：请在 Zsh 里手动执行 `p10k configure`"
+        echo '# 如需生成/重跑向导：请在 Zsh 里手动执行 p10k configure'
     fi
     echo "# --- LAZYCAT-SCRIPTS ZSH MANAGED END ---"
 } > "$LAZYCAT_BLOCK_FILE"
@@ -348,37 +372,19 @@ else
     # 不存在 source 行：追加一个包含 source 的托管块，保证 OMZ/主题/插件能实际加载
     LAZYCAT_BLOCK_WITH_SOURCE_FILE="$(mktemp)"
     {
-        cat "$LAZYCAT_BLOCK_FILE"
+        sed '$d' "$LAZYCAT_BLOCK_FILE"
         echo 'source "$ZSH/oh-my-zsh.sh"'
+        echo '# --- LAZYCAT-SCRIPTS ZSH MANAGED END ---'
     } > "$LAZYCAT_BLOCK_WITH_SOURCE_FILE"
     append_lazycat_block "$ZSHRC_FILE" "$LAZYCAT_BLOCK_WITH_SOURCE_FILE"
     rm -f "$LAZYCAT_BLOCK_WITH_SOURCE_FILE"
 fi
 rm -f "$LAZYCAT_BLOCK_FILE"
 
+commit_zshrc_edit
 echo "✅ .zshrc 配置完成。"
 
-# --- Set Zsh as default shell ---
-# Check if zsh was just installed or if the current shell is not zsh
-CURRENT_SHELL=$(basename "$SHELL")
-echo ""
-echo "🔍 检测到您当前的默认 Shell 是: $CURRENT_SHELL"
-
-if [[ "$SHELL" != */zsh ]]; then
-    read -p "是否要将 Zsh 设置为您的默认 Shell？ (Y/n): " confirm_chsh
-    confirm_chsh=${confirm_chsh:-Y}
-    if [[ "$confirm_chsh" =~ ^[Yy]$ ]]; then
-        echo "⏳ 正在尝试将默认 Shell 更改为 Zsh。此过程可能需要您的密码。"
-        if chsh -s "$(command -v zsh)"; then
-            echo "✅ 默认 Shell 已成功更改为 Zsh。"
-            echo "   注意: 需要注销并重新登录后才会完全生效。"
-        else
-            echo "⚠️  自动更改默认 Shell 失败。您可以手动运行此命令尝试: chsh -s $(command -v zsh)"
-        fi
-    fi
-else
-    echo "✅ 您的默认 Shell 已经是 Zsh，无需更改。"
-fi
+echo '默认 Shell 保持不变；需要切换时请单独运行 chsh。'
 
 # --- 完成后提示 ---
 echo ""

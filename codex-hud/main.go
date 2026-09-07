@@ -62,6 +62,8 @@ func (a *app) run(args []string) error {
 			fmt.Fprintln(a.errOut, "codex-hud:", err)
 		}
 		return json.NewEncoder(a.out).Encode(result)
+	case "repair":
+		return a.repair(args[1:])
 	case "setup":
 		if len(args) != 1 {
 			return errors.New("用法：setup")
@@ -111,6 +113,8 @@ const mainHelp = `codex-hud — 向 Bark / RayNeo iO 发送简短 Codex 通知
 setup                 配置 Key 并安装全局 Hooks 和短规则
 config [show|set|test] 管理配置；config --help 查看用法
 notify <type> <正文>   主动通知；notify --help 按需查看参数
+repair --check        检查能否采纳当前集成
+repair --adopt --apply 采纳当前 Hooks/规则，保留 Key 与定制
 enable / disable      恢复 / 暂停，不修改 Hook 定义
 doctor                检查配置和集成，不联网
 uninstall [--purge]    删除集成和程序；--purge 同时删除 Key 与 alias

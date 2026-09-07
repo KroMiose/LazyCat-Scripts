@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "scenarios": [
+    {"id":"shell-regressions","level":"isolated-process","initial":"fresh temporary directory, allowlisted environment, immutable legacy fixtures","entrypoint":"python3 tests/run.py","preserve":["non-managed lines","file permissions","outside test directory"],"mutations":["test directory only"]},
+    {"id":"ssh-node-adapters","level":"mocked-service-adapter","initial":"fresh sshd configuration and generated fixture key","entrypoint":"python3 -m unittest discover -s ssh/tests","preserve":["original config on failure","existing CA on failure"],"mutations":["test directory only"]},
+    {"id":"hud-lifecycle","level":"native-process-local-http","initial":"allowlisted environment, empty isolated configuration","entrypoint":"python3 codex-hud/tests/lifecycle.py <candidate>","preserve":["other hooks","user rules","key on upgrade"],"mutations":["test directory only"]},
+    {"id":"linux-system","level":"full-system-qemu","initial":"verified base image and fresh overlay","entrypoint":"python3 tests/system/vm.py --image ubuntu --suite core","preserve":["existing credentials","non-managed configuration","host runner"],"mutations":["guest managed files and declared package state"]}
+  ]
+}

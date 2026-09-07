@@ -1,0 +1,86 @@
+package main
+
+import (
+	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestCLIConfigurationLifecycle(t *testing.T) {
+	root := t.TempDir()
+	candidate := filepath.Join(root, "candidate")
+	cmd := exec.Command("go", "build", "-o", candidate, ".")
+	if b, e := cmd.CombinedOutput(); e != nil {
+		t.Fatal(e, string(b))
+	}
+	home := filepath.Join(root, "用户 with spaces")
+	if e := os.Mkdir(home, 0700); e != nil {
+		t.Fatal(e)
+	}
+	inventory := filepath.Join(root, "inventory.yaml")
+	os.WriteFile(inventory, []byte(example), 0600)
+	call := func(expected int, args ...string) string {
+		t.Helper()
+		command := exec.Command(candidate, args...)
+		command.Env = []string{"HOME=" + home, "PATH=/usr/bin:/bin:/usr/sbin:/sbin", "LANG=C", "LC_ALL=C"}
+		output, e := command.CombinedOutput()
+		actual := 0
+		if e != nil {
+			if status, ok := e.(*exec.ExitError); ok {
+				actual = status.ExitCode()
+			} else {
+				t.Fatal(e)
+			}
+		}
+		if actual != expected {
+			t.Fatalf("%v: got %d want %d: %s", args, actual, expected, output)
+		}
+		return string(output)
+	}
+	call(2, "version", "unexpected")
+	call(2, "unknown-command")
+	call(0, "source", "--file", inventory)
+	generated := filepath.Join(home, ".ssh/config.d/lazycat.conf")
+	call(0, "sync", "--dry-run")
+	if _, e := os.Stat(generated); !os.IsNotExist(e) {
+		t.Fatal("dry-run wrote generated config")
+	}
+	call(0, "sync", "--config-only")
+	first, _ := os.ReadFile(generated)
+	stat, _ := os.Stat(generated)
+	call(0, "sync", "--config-only")
+	after, _ := os.Stat(generated)
+	if !stat.ModTime().Equal(after.ModTime()) {
+		t.Fatal("repeat rewrote generated file")
+	}
+	// Independent OpenSSH parser verifies actual rendering, without connecting.
+	command := exec.Command("ssh", "-G", "-F", filepath.Join(home, ".ssh/config"), "jump")
+	command.Env = []string{"HOME=" + home, "PATH=/usr/bin:/bin"}
+	output, e := command.CombinedOutput()
+	if e != nil || !strings.Contains(string(output), "hostname 100.64.0.1") {
+		t.Fatal(e, string(output))
+	}
+	call(0, "migrate", "--check")
+	call(0, "migrate", "--apply")
+	binary := filepath.Join(home, ".local/bin/lazycat-ssh")
+	if _, e = os.Stat(binary); e != nil {
+		t.Fatal(e)
+	}
+	os.WriteFile(inventory, []byte("version: 2\nhosts: {}\n"), 0600)
+	call(2, "sync", "--config-only")
+	unchanged, _ := os.ReadFile(generated)
+	if string(unchanged) != string(first) {
+		t.Fatal("invalid inventory changed configuration")
+	}
+	var report map[string]any
+	if e = json.Unmarshal([]byte(call(0, "doctor", "--json")), &report); e != nil {
+		t.Fatal(e)
+	}
+	call(0, "uninstall")
+	if _, e = os.Stat(generated); !os.IsNotExist(e) {
+		t.Fatal("uninstall left generated configuration")
+	}
+}

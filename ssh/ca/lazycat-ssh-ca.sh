@@ -3,7 +3,7 @@
 # ==============================================================================
 # 脚本名称: lazycat-ssh-ca.sh (CA)
 # 功    能: SSH CA 离线管理端：初始化 CA、签发 SSH 用户证书。
-# 适用系统: Linux & macOS（Bash >= 4）
+# 适用系统: Linux & macOS（Bash >= 3.2）
 # 安全提示: 建议在可信环境运行（会在本机生成并保存 CA 私钥）。
 # ==============================================================================
 
@@ -27,7 +27,7 @@ __lc_source_common() {
   local common_lib=""
   if [[ -n "$SCRIPT_DIR" ]] && [[ -f "${SCRIPT_DIR}/../lib/common.sh" ]]; then
     common_lib="${SCRIPT_DIR}/../lib/common.sh"
-  elif [[ -f "${XDG_DATA_HOME:-$HOME/.local/share}/lazycat-ssh/lib/common.sh" ]]; then
+  elif [[ "$EUID" -ne 0 && -f "${XDG_DATA_HOME:-$HOME/.local/share}/lazycat-ssh/lib/common.sh" ]]; then
     common_lib="${XDG_DATA_HOME:-$HOME/.local/share}/lazycat-ssh/lib/common.sh"
   fi
 
@@ -62,6 +62,28 @@ DEFAULT_CA_NAME="lazycat-ssh-ca"
 ca_dir="$DEFAULT_CA_DIR"
 ca_name="$DEFAULT_CA_NAME"
 
+CA_LOCATION="$HOME/.lazycat/ssh-ca-location"
+if [[ -L "$CA_LOCATION" ]]; then lc_die 'CA 位置记录是符号链接，需要人工检查'; fi
+if [[ -f "$CA_LOCATION" ]]; then
+  { IFS= read -r ca_dir; IFS= read -r ca_name; } < "$CA_LOCATION"
+  [[ "$ca_dir" == /* && "$ca_name" =~ ^[A-Za-z0-9._-]+$ && "$ca_name" != . && "$ca_name" != .. ]] || lc_die 'CA 位置记录无效'
+fi
+DEFAULT_CA_DIR="$ca_dir"
+DEFAULT_CA_NAME="$ca_name"
+
+persist_ca_location() {
+  mkdir -p "$(dirname "$CA_LOCATION")"
+  local candidate
+  candidate=$(mktemp "${CA_LOCATION}.XXXXXX")
+  chmod 600 "$candidate"
+  printf '%s\n%s\n' "$ca_dir" "$ca_name" > "$candidate"
+  if [[ -f "$CA_LOCATION" ]] && cmp -s "$candidate" "$CA_LOCATION"; then rm "$candidate"; return; fi
+  if [[ -e "$CA_LOCATION" ]]; then
+    cp -p "$CA_LOCATION" "${candidate}.before"
+  fi
+  mv "$candidate" "$CA_LOCATION"
+}
+
 ca_priv_path() { printf '%s/%s' "$ca_dir" "${ca_name}"; }
 ca_pub_path() { printf '%s/%s.pub' "$ca_dir" "${ca_name}"; }
 
@@ -76,20 +98,27 @@ lc_ca_exists() {
 lc_init_ca() {
   lc_require_cmds
 
+  if [[ $# -eq 2 ]]; then
+    input_dir="$1"; input_name="$2"
+  else
   read -r -p "CA 存放目录（默认: ${DEFAULT_CA_DIR}）: " input_dir
   ca_dir="${input_dir:-$DEFAULT_CA_DIR}"
 
   read -r -p "CA 标识名（默认: ${DEFAULT_CA_NAME}）: " input_name
+  fi
+  ca_dir="${input_dir:-$DEFAULT_CA_DIR}"
   ca_name="${input_name:-$DEFAULT_CA_NAME}"
+  [[ "$ca_dir" == /* && "$ca_dir" != *$'\n'* && "$ca_dir" != *$'\r'* ]] || lc_die 'CA 目录必须为绝对单行路径'
+  [[ "$ca_name" =~ ^[A-Za-z0-9._-]+$ && "$ca_name" != . && "$ca_name" != .. ]] || lc_die 'CA 名称无效'
 
-  mkdir -p "$ca_dir"
-  chmod 700 "$ca_dir"
+  [[ ! -L "$ca_dir" ]] || lc_die 'CA 目录为符号链接，需要人工采纳'
+  if [[ ! -d "$ca_dir" ]]; then (umask 077; mkdir -p "$ca_dir"); fi
 
   local priv pub
   priv="$(ca_priv_path)"
   pub="$(ca_pub_path)"
 
-  if [[ -f "$priv" ]]; then
+  if [[ -e "$priv" || -L "$priv" || -e "$pub" || -L "$pub" ]]; then
     lc_die "CA 私钥已存在：${priv}"
   fi
 
@@ -97,6 +126,7 @@ lc_init_ca() {
   ssh-keygen -t ed25519 -f "$priv" -N "" -C "$ca_name"
   chmod 600 "$priv"
   chmod 644 "$pub"
+  persist_ca_location
 
   lc_log "✅ CA 初始化完成："
   lc_log "  - 私钥: ${priv}"
@@ -148,7 +178,7 @@ lc_sign_pubkey() {
   if [[ -f "$out_cert" ]]; then
     lc_log "✅ 证书已生成：${out_cert}"
   else
-    lc_log "⚠️ 未在预期路径找到证书（请检查 ssh-keygen 输出）。"
+    lc_die "未在预期路径找到证书（请检查 ssh-keygen 输出）。"
   fi
 }
 
@@ -213,7 +243,12 @@ main_menu() {
 
 main() {
   lc_require_cmds
-  main_menu
+  case "${1:-}" in
+    "") main_menu ;;
+    show) [[ $# == 1 ]] || lc_die 'show 不接受参数'; lc_show_ca_pub ;;
+    init) [[ $# == 5 && "$2" == --dir && "$4" == --name ]] || lc_die 'init --dir <绝对路径> --name <名称>'; lc_init_ca "$3" "$5" ;;
+    *) lc_die '用法：lazycat-ssh-ca.sh [show | init --dir <目录> --name <名称>]' ;;
+  esac
 }
 
 main "$@"

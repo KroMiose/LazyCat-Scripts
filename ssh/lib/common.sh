@@ -65,26 +65,29 @@ lc_backup_file() {
 }
 
 lc_remove_marked_block() {
-  # Remove block (inclusive) from file. If not present, no-op.
-  # usage: lc_remove_marked_block "/path" "BEGIN_MARK" "END_MARK"
-  local path="$1"
-  local begin="$2"
-  local end="$3"
-
+  local path="$1" begin="$2" end="$3" tmp
+  [[ ! -L "$path" ]] || lc_die "拒绝修改符号链接: $path"
   [[ -f "$path" ]] || return 0
-
-  if ! grep -qF "$begin" "$path"; then
-    return 0
-  fi
-
+  # Validate before creating a candidate; a broken block must never eat user data.
   awk -v b="$begin" -v e="$end" '
-    BEGIN {p=0}
-    index($0, b) {p=1; next}
-    index($0, e) {p=0; next}
-    !p {print}
-  ' "$path" >"${path}.tmp"
-  mv "${path}.tmp" "$path"
+    $0 == b { if (inside || starts++) exit 1; inside=1; next }
+    $0 == e { if (!inside) exit 1; inside=0 }
+    END { if (inside) exit 1 }
+  ' "$path" || lc_die "托管标记损坏或重复，未修改: $path"
+  grep -qxF "$begin" "$path" || return 0
+  tmp="$(mktemp "${path}.XXXXXX")" || return 1
+  cp -p "$path" "$tmp" || { rm -f "$tmp"; return 1; }
+  if ! awk -v b="$begin" -v e="$end" '
+    $0 == b { inside=1; next }
+    $0 == e { inside=0; next }
+    !inside { print }
+  ' "$path" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$path"
 }
+
 
 lc_append_marked_block() {
   # Append a marked block at end of file, preceded by a newline.
@@ -100,8 +103,8 @@ lc_append_marked_block() {
   # Ensure file ends with newline before appending.
   if [[ -s "$path" ]]; then
     local last_char
-    last_char="$(tail -c 1 "$path")"
-    if [[ "$last_char" != $'\n' ]]; then
+    last_char="$(tail -c 1 "$path"; printf x)"
+    if [[ "$last_char" != $'\nx' ]]; then
       printf '\n' >>"$path"
     fi
   fi
@@ -125,58 +128,16 @@ lc_open_url() {
 }
 
 lc_install_yq() {
-  # 首先尝试标准 PATH 检测
-  if command -v yq >/dev/null 2>&1; then
-    return 0
+  if ! command -v yq >/dev/null 2>&1; then
+    if [[ "$(uname)" == Darwin ]]; then
+      for candidate in /opt/homebrew/bin/yq /usr/local/bin/yq; do
+        if [[ -x "$candidate" ]]; then export PATH="$(dirname "$candidate"):$PATH"; break; fi
+      done
+    fi
   fi
-
-  # macOS: 尝试常见的 Homebrew 安装路径（launchd 环境可能 PATH 不完整）
-  if [[ "$(uname)" == "Darwin" ]]; then
-    local yq_candidates=(
-      "/opt/homebrew/bin/yq"
-      "/usr/local/bin/yq"
-      "$HOME/.local/bin/yq"
-      "$HOME/homebrew/bin/yq"
-    )
-    for candidate in "${yq_candidates[@]}"; do
-      if [[ -x "$candidate" ]]; then
-        # 找到 yq，但不在 PATH 中，临时添加到 PATH（仅本次调用有效）
-        export PATH="$(dirname "$candidate"):${PATH}"
-        if command -v yq >/dev/null 2>&1; then
-          return 0
-        fi
-      fi
-    done
+  if ! command -v yq >/dev/null 2>&1; then
+    command -v brew >/dev/null 2>&1 || lc_die "旧客户端需要 Mike Farah yq v4；请安装该实现或迁移 Go 客户端。不会安装同名但不兼容的软件包。"
+    brew install yq || return 1
   fi
-
-  lc_log "🔧 未检测到 yq，正在尝试自动安装..."
-
-  if command -v brew >/dev/null 2>&1; then
-    brew install yq
-    return 0
-  fi
-
-  if command -v apt-get >/dev/null 2>&1; then
-    sudo apt-get update
-    sudo apt-get install -y yq
-    return 0
-  fi
-
-  if command -v dnf >/dev/null 2>&1; then
-    sudo dnf install -y yq
-    return 0
-  fi
-
-  if command -v yum >/dev/null 2>&1; then
-    sudo yum install -y yq
-    return 0
-  fi
-
-  if command -v pacman >/dev/null 2>&1; then
-    sudo pacman -Sy --noconfirm yq
-    return 0
-  fi
-
-  lc_die "无法自动安装 yq（未检测到 brew/apt-get/dnf/yum/pacman）。请先手动安装 yq 后重试。"
+  [[ "$(printf 'hosts: {}\n' | yq -r '.hosts | tag')" == '!!map' ]] || lc_die "yq 实现不兼容，需要 Mike Farah yq v4。"
 }
-

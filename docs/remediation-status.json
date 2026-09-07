@@ -1,0 +1,314 @@
+{
+  "format_version": 1,
+  "baseline": "2026-09-07 review",
+  "items": [
+    {
+      "id": 1,
+      "title": "SSH 清单的数据可以变成客户端执行指令",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "旧 Shell meta.env 改为非执行数据解析并有入口/往返测试；Go 拒绝 YAML 别名/重复键/执行字段及带用户端口的跳板循环，限时 fuzz 通过。完整输入矩阵待扩展。"
+    },
+    {
+      "id": 2,
+      "title": "SSH CA 自动签发没有形成服务端授权边界",
+      "status": "按用户确认的范围不实施团队授权服务",
+      "decision": "SSH README 明确个人管理员通过已有 SSH 身份签发；权限等价于已有 CA 主机访问，不承诺团队授权边界。",
+      "release_complete": true
+    },
+    {
+      "id": 3,
+      "title": "默认 CA 路径无法按设计展开",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "Go 默认 CA 路径已有 Ubuntu QEMU 真实签发/登录证据；旧 Shell 入口回归仍需补齐。"
+    },
+    {
+      "id": 4,
+      "title": "代理测试失败后，“是否继续”的逻辑不可达",
+      "status": "相关回归已通过，完整验收待补",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 5,
+      "title": "HTTP 代理测试实际上可能走了直连",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "实际本地 HTTP 代理验证认证及禁止直连回退；其他协议组合待扩展。"
+    },
+    {
+      "id": 6,
+      "title": "Squid 把日志中有没有 ERROR 当作退出状态",
+      "status": "相关回归已通过，完整验收待补",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 7,
+      "title": "多个安装步骤失败后仍可能返回成功",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 8,
+      "title": "Python 执行封装混合了数据和 Shell 代码",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 9,
+      "title": "Zsh 识别不了自己写进去的加载语句",
+      "status": "相关回归已通过，完整验收待补",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 10,
+      "title": "一句说明文字实际执行了 p10k",
+      "status": "相关回归已通过，完整验收待补",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 11,
+      "title": "SSH Host 覆盖逻辑不兼容 macOS awk",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "Host 独立片段入口已实现，macOS 原生入口/冲突/重跑测试通过；旧块等价采纳待补。"
+    },
+    {
+      "id": 12,
+      "title": "标记块损坏时会删除后续用户配置",
+      "status": "相关回归已通过，完整验收待补",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 13,
+      "title": "系统配置存在“先生效、后校验”的窗口",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 14,
+      "title": "临时文件替换会丢失原文件属性",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "Shell 事务增加锁归属检查、祖先链接拒绝、空文件/权限变化提交；回归通过，ACL/中断恢复仍待补。"
+    },
+    {
+      "id": 15,
+      "title": "SSH 私钥的默认工作流反向了",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "公钥登记和显式旧私钥导出已实现；授权限制保留与回滚入口回归通过。"
+    },
+    {
+      "id": 16,
+      "title": "SSH 客户端已超出 Bash 擅长的复杂度",
+      "status": "部分实现，验收未完成",
+      "decision": "仅 SSH 客户端改 Go，不拆仓库，不建设通用脚本框架。",
+      "release_complete": false
+    },
+    {
+      "id": 17,
+      "title": "YAML 版本字段没有承担版本契约",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 18,
+      "title": "yq 依赖只检查同名命令，未检查实现",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 19,
+      "title": "配置同步被 CA 可用性绑架",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "Ubuntu 真实 CA 不可用时配置同步成功、续签失败单独返回，旧证书保留，恢复后重新签发通过。"
+    },
+    {
+      "id": 20,
+      "title": "普通运行隐式承担安装和升级",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 21,
+      "title": "SSH 状态分散，卸载承诺大于实际行为",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 22,
+      "title": "CA 自定义设置只存在于本次进程",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 23,
+      "title": "自动续期缺少与证书生命周期对应的策略",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "Ubuntu 全系统旧 timer 迁移、保留间隔、实际定时触发、有效证书不重签及卸载/不启用 linger 已通过；macOS 与公共 rollback 任务状态恢复待补。"
+    },
+    {
+      "id": 24,
+      "title": "新节点实现已有回滚，但安装和移除不对称",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "Linux 安装/移除共享候选事务和验证失败恢复；OpenWrt 部署/撤销生命周期尚未统一。"
+    },
+    {
+      "id": 25,
+      "title": "Zsh 清理通过“长得像”判断所有权",
+      "status": "相关回归已通过，完整验收待补",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 26,
+      "title": "“一键 Python 环境”捆绑了互相重叠的选择",
+      "status": "部分实现，验收未完成",
+      "decision": "新装默认 uv；已有工具和项目环境保留。",
+      "release_complete": false
+    },
+    {
+      "id": 27,
+      "title": "权限范围经常大于实际业务范围",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "Python/XDG 降为用户级，Docker 组明确目标；完整复杂身份矩阵待补。"
+    },
+    {
+      "id": 28,
+      "title": "备份格式没有形成恢复协议",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "Shell 检查器、操作记录和内容冲突回滚已实现；中断、属性冲突及全部历史目录发现待补。"
+    },
+    {
+      "id": 29,
+      "title": "“优雅”被错误地绑定到了动态最新版",
+      "status": "规则整改已验收",
+      "decision": ".cursor/rules/global.mdc 改为固定经过验证的版本、显式升级，删除动态最新版优先要求。",
+      "release_complete": true
+    },
+    {
+      "id": 30,
+      "title": "“不要藏错”不该写成禁止捕获错误",
+      "status": "规则整改已验收",
+      "decision": ".cursor/rules/global.mdc 允许有诊断的降级，要求正确返回实际失败，不再禁止捕获错误。",
+      "release_complete": true
+    },
+    {
+      "id": 31,
+      "title": "规则把具体实现手法提升成普遍原则",
+      "status": "规则整改已验收",
+      "decision": "global.mdc/testing.mdc 按变更风险选择验证，不强制每次改 README 或全部运行 VM；旧设计规格已标为废弃。",
+      "release_complete": true
+    },
+    {
+      "id": 32,
+      "title": "测试规则包含已被复现推翻的经验结论",
+      "status": "规则整改已验收",
+      "decision": "testing.mdc 删除未经验证的 curl 认证推断；现有入口测试验证真实 HTTP 代理认证及不直连回退。",
+      "release_complete": true
+    },
+    {
+      "id": 33,
+      "title": "最严格的测试要求没有落实到风险最高的代码",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 34,
+      "title": "测试环境没有和支持范围一一对应",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 35,
+      "title": "文档维护靠复制，容易产生事实漂移",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 36,
+      "title": "交互界面占据核心控制流，脚本难以组合",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 37,
+      "title": "面向本地开发的命令默认暴露到所有网卡",
+      "status": "文档示例整改已验收",
+      "decision": "COMMANDS.md 中 Qdrant/PostgreSQL 端口示例全部绑定 127.0.0.1；未修改任何用户既有容器。",
+      "release_complete": true
+    },
+    {
+      "id": 38,
+      "title": "安装记录过度依赖托管文本完全相等",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "HUD repair 只读检查与显式采纳已实现，升级保留已采纳定制；原生历史安装矩阵待补。"
+    },
+    {
+      "id": 39,
+      "title": "通知锁等待预算与网络耗时不匹配",
+      "status": "相关回归已通过，完整验收待补",
+      "decision": "",
+      "release_complete": false
+    },
+    {
+      "id": 40,
+      "title": "通知产品策略过多依赖模型遵守全局自然语言",
+      "status": "待实施",
+      "decision": "确定性去重和格式放程序；模型仍决定通知时机。",
+      "release_complete": false
+    },
+    {
+      "id": 41,
+      "title": "部分 HUD 设置只能通过菜单或手改 TOML",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "HUD enabled/stop/alias CLI 与菜单共用实现，Go 测试通过；发布版入口未切换。"
+    },
+    {
+      "id": 42,
+      "title": "发布流程值得保留，但验证与发布可以更清晰地分开",
+      "status": "部分实现，验收未完成",
+      "decision": "",
+      "release_complete": false,
+      "evidence_summary": "候选构建冻结源码、附依赖许可证；macOS ARM64 与断网 Linux ARM64 容器完成实际归档暂存/渲染验证。完整候选升级/回退及公开发布未完成。"
+    }
+  ]
+}

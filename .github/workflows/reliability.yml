@@ -1,0 +1,178 @@
+name: reliability
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 19 * * 6'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: reliability-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  affected:
+    runs-on: ubuntu-24.04
+    outputs:
+      behavior: ${{ steps.map.outputs.behavior }}
+      system: ${{ steps.map.outputs.system }}
+      go: ${{ steps.map.outputs.go }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: map
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -n "$BASE" ]; then
+            python3 tests/affected.py --base "$BASE" >> "$GITHUB_OUTPUT"
+          else
+            python3 tests/affected.py --full >> "$GITHUB_OUTPUT"
+          fi
+  quality:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: ssh/go.mod
+          cache: false
+      - run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - run: make check
+  behavior:
+    needs: affected
+    if: needs.affected.outputs.behavior == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: ssh/go.mod
+          cache: false
+      - name: Install declared behavior test observers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y zsh
+      - name: Isolated behavior and migration
+        run: make test test-migration
+      - name: Linux files without network or writable source
+        if: runner.os == 'Linux'
+        run: make test-linux-files
+      - name: Native HUD lifecycle
+        run: |
+          go build -C codex-hud -ldflags '-X main.version=codex-hud-v0.1.1' -o "$RUNNER_TEMP/hud-test" .
+          python3 codex-hud/tests/lifecycle.py "$RUNNER_TEMP/hud-test"
+          python3 codex-hud/tests/installer.py "$RUNNER_TEMP/hud-test"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: behavior-${{ matrix.os }}
+          path: artifacts/
+          retention-days: ${{ job.status == 'success' && 14 || 90 }}
+          if-no-files-found: error
+  system:
+    needs: affected
+    if: needs.affected.outputs.system == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ubuntu, debian, openwrt]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: ssh/go.mod
+          cache: false
+      - name: Install VM driver on disposable runner
+        run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils
+      - name: Fresh full-system scenario
+        env:
+          TEST_IMAGE: ${{ matrix.image }}
+        run: |
+          suite=core
+          if [ "$TEST_IMAGE" = ubuntu ]; then suite=docker; fi
+          if [ "$TEST_IMAGE" = ubuntu ]; then
+            python3 tests/system/vm.py --image "$TEST_IMAGE" --suite "$suite" --package-lock tests/system/apt/ubuntu.lock.json
+          else
+            python3 tests/system/vm.py --image "$TEST_IMAGE" --suite "$suite"
+          fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: system-${{ matrix.image }}
+          path: artifacts/system/
+          retention-days: ${{ job.status == 'success' && 14 || 90 }}
+          if-no-files-found: error
+  weekly-full:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: ssh/go.mod
+          cache: false
+      - run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils shellcheck
+      - name: Rebuild and repeat from independent overlays
+        run: |
+          make check test test-migration test-fuzz
+          seed=$(date +%s)
+          python3 tests/run.py --seed "$seed" --output artifacts/shuffled
+          for image in ubuntu debian openwrt; do
+            suite=core
+            if [ "$image" = ubuntu ]; then suite=docker; fi
+            fixed=()
+            refresh=()
+            if [ "$image" = ubuntu ]; then
+              fixed=(--package-lock tests/system/apt/ubuntu.lock.json)
+              refresh=(--fresh-packages)
+            fi
+            python3 tests/system/vm.py --image "$image" --suite "$suite" --fresh-download "${fixed[@]}" "${refresh[@]}"
+            mv "artifacts/system/$image" "artifacts/system/$image-first"
+            python3 tests/system/vm.py --image "$image" --suite "$suite" "${fixed[@]}"
+          done
+          python3 tests/system/vm.py --image ubuntu --suite docker
+          python3 tests/upstream.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: weekly-full
+          path: artifacts/
+          retention-days: ${{ job.status == 'success' && 14 || 90 }}
+          if-no-files-found: error
+  required-checks:
+    if: always()
+    needs: [affected, quality, behavior, system, weekly-full]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Fail closed on missing or skipped required jobs
+        env:
+          MAPPING: ${{ needs.affected.result }}
+          QUALITY: ${{ needs.quality.result }}
+          EXPECT_BEHAVIOR: ${{ needs.affected.outputs.behavior }}
+          EXPECT_SYSTEM: ${{ needs.affected.outputs.system }}
+          BEHAVIOR: ${{ needs.behavior.result }}
+          SYSTEM: ${{ needs.system.result }}
+          WEEKLY: ${{ needs.weekly-full.result }}
+          EVENT: ${{ github.event_name }}
+        run: python3 tests/gate.py

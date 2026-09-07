@@ -49,8 +49,8 @@ git config --global credential.helper store
 
 ```sh
 docker run --name qdrant-basic \
-  -p 6333:6333 \
-  -p 6334:6334 \
+  -p 127.0.0.1:6333:6333 \
+  -p 127.0.0.1:6334:6334 \
   -v "$(pwd)/qdrant_storage:/qdrant/storage:z" \
   --restart unless-stopped \
   -d qdrant/qdrant
@@ -59,7 +59,7 @@ docker run --name qdrant-basic \
 **命令详解:**
 
 - `--name qdrant-basic`: 给容器起一个好记的名字 (`qdrant-basic`)。
-- `-p 6333:6333 -p 6334:6334`: 将本机的 6333 和 6334 端口映射到容器的对应端口。
+- `-p 127.0.0.1:6333:6333 -p 127.0.0.1:6334:6334`: 将本机的 6333 和 6334 端口映射到容器的对应端口。
 - `-v "$(pwd)/qdrant_storage:/qdrant/storage:z"`: 将 **当前目录** 下的 `qdrant_storage` 文件夹挂载到容器内的 `/qdrant/storage` 目录，这样即使容器被删除，数据也不会丢失。
 - `--restart unless-stopped`: 除非手动停止，否则容器总是在 Docker 服务启动时自动重启，保证服务可用性。
 - `-d`: 后台运行容器。
@@ -73,8 +73,8 @@ docker run --name qdrant-basic \
 
 ```sh
 docker run --name qdrant-secure \
-  -p 6333:6333 \
-  -p 6334:6334 \
+  -p 127.0.0.1:6333:6333 \
+  -p 127.0.0.1:6334:6334 \
   -v "$(pwd)/qdrant_storage:/qdrant/storage:z" \
   -e QDRANT__SERVICE__API_KEY='your-secret-api-key' \
   --restart unless-stopped \
@@ -107,7 +107,7 @@ docker run --name my-postgres \
   -e POSTGRES_USER=myuser \
   -e POSTGRES_PASSWORD=mysecretpassword \
   -e POSTGRES_DB=mydb \
-  -p 5432:5432 \
+  -p 127.0.0.1:5432:5432 \
   -v my-postgres-data:/var/lib/postgresql/data \
   --restart unless-stopped \
   -d postgres:15
@@ -120,7 +120,7 @@ docker run --name my-postgres \
   - `POSTGRES_USER`: 设置数据库用户名。
   - `POSTGRES_PASSWORD`: 设置用户密码。**【重要】**
   - `POSTGRES_DB`: 创建一个指定名称的数据库。
-- `-p 5432:5432`: 将本机的 5432 端口映射到容器的 5432 端口。
+- `-p 127.0.0.1:5432:5432`: 将本机的 5432 端口映射到容器的 5432 端口。
 - `-v my-postgres-data:/var/lib/postgresql/data`: 创建一个名为 `my-postgres-data` 的 Docker 卷 (volume) 并挂载到容器内 PG 的数据目录，这样即使容器被删除，数据也不会丢失。
 - `--restart unless-stopped`: 除非手动停止，否则容器总是在 Docker 服务启动时自动重启。
 - `-d`: 后台运行容器。

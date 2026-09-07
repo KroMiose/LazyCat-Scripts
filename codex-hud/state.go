@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -16,6 +17,10 @@ import (
 // Persistent lock files are deliberately never unlinked while active: unlinking a
 // locked inode would let another process acquire a different lock for the same turn.
 func withLock(path string, fn func() error) error {
+	return withLockContext(context.Background(), path, fn)
+}
+
+func withLockContext(ctx context.Context, path string, fn func() error) error {
 	if err := privateDir(filepath.Dir(path)); err != nil {
 		return err
 	}
@@ -24,8 +29,11 @@ func withLock(path string, fn func() error) error {
 		return err
 	}
 	defer unix.Close(fd)
-	deadline := time.Now().Add(350 * time.Millisecond)
+	deadline := time.Now().Add(4 * time.Second)
 	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		err = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB)
 		if err == nil {
 			break
@@ -76,5 +84,5 @@ func (a *app) turnTransaction(session, turn string, fn func(string) error) error
 	}
 	h := turnHash(session, turn)
 	dir := filepath.Join(a.paths.Cache, "turns")
-	return withLock(filepath.Join(dir, h[:2]+".lock"), func() error { cleanMarkers(dir, h[:2]); return fn(filepath.Join(dir, h+".sent")) })
+	return withLockContext(a.ctx, filepath.Join(dir, h[:2]+".lock"), func() error { cleanMarkers(dir, h[:2]); return fn(filepath.Join(dir, h+".sent")) })
 }

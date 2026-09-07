@@ -1,3 +1,5 @@
+> 历史规格，已废弃：单文件及全菜单约束不再适用。当前整改设计见 ../../docs/REMEDIATION.md。
+
 # LazyCat SSH Access Kit
 
 ## 最终开发规格说明（Single-Script / Interactive）

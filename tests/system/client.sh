@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# Run after the Linux node fixture has established CA trust.
+set -euo pipefail
+home=/home/fixture
+mkdir -p "$home/.ssh" /root/.lazycat/ssh-ca
+cp /tmp/ca /root/.lazycat/ssh-ca/lazycat-ssh-ca
+cp /tmp/ca.pub /root/.lazycat/ssh-ca/lazycat-ssh-ca.pub
+cp /tmp/client "$home/.ssh/lazycat_ca_ed25519"
+cp /tmp/client.pub "$home/.ssh/lazycat_ca_ed25519.pub"
+cp /tmp/client-cert.saved "$home/.ssh/lazycat_ca_ed25519-cert.pub"
+printf 'fixture-ca,127.0.0.1 ' > "$home/.ssh/known_hosts"
+cat /etc/ssh/ssh_host_ed25519_key.pub >> "$home/.ssh/known_hosts"
+cat > "$home/.ssh/config" <<'CONFIG'
+Host fixture-ca
+    HostName 127.0.0.1
+    User root
+    IdentityFile ~/.ssh/lazycat_ca_ed25519
+    IdentitiesOnly yes
+CONFIG
+cat > "$home/inventory.yaml" <<'YAML'
+version: 1
+ca:
+  ssh_host: fixture-ca
+  validity: 12h
+  principals: root
+hosts:
+  fixture-node:
+    host: 127.0.0.1
+    user: root
+YAML
+chown -R fixture:fixture "$home/.ssh" "$home/inventory.yaml"
+chmod 700 "$home/.ssh"
+chmod 600 "$home/.ssh/lazycat_ca_ed25519" "$home/.ssh/config"
+client() { runuser -u fixture -- env -i HOME="$home" USER=fixture PATH=/usr/bin:/bin XDG_RUNTIME_DIR="/run/user/$(id -u fixture)" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u fixture)/bus" /work/lazycat-ssh "$@"; }
+client source --file "$home/inventory.yaml"
+fingerprint=$(ssh-keygen -lf /tmp/ca.pub | awk '{print $2}')
+client trust-ca "$fingerprint"
+sha256sum "$home/.ssh/lazycat_ca_ed25519" "$home/.ssh/known_hosts" > /tmp/client-preserved.sha256
+client sync
+client renew-status --json
+sha256sum -c /tmp/client-preserved.sha256
+# This observer validates the renewed cert's real acceptance on a new SSH session.
+runuser -u fixture -- ssh -F "$home/.ssh/config" -o BatchMode=yes -o UpdateHostKeys=no -o HostKeyAlias=127.0.0.1 fixture-node true
+sha256sum "$home/.ssh/lazycat_ca_ed25519-cert.pub" > /tmp/certificate-before-scheduled.sha256
+client renew-certs --scheduled
+sha256sum -c /tmp/certificate-before-scheduled.sha256
+client migrate --check
+client migrate --apply
+# Simulate CA unavailability without breaking the already generated host config.
+mv /root/.lazycat/ssh-ca/lazycat-ssh-ca /root/.lazycat/ssh-ca/unavailable
+printf '\n  second-node:\n    host: 127.0.0.1\n    user: root\n' >> "$home/inventory.yaml"
+if client sync; then echo 'CA failure reported complete success';exit 1;fi
+grep -qx 'Host second-node' "$home/.ssh/config.d/lazycat.conf"
+sha256sum -c /tmp/certificate-before-scheduled.sha256
+mv /root/.lazycat/ssh-ca/unavailable /root/.lazycat/ssh-ca/lazycat-ssh-ca
+client renew-certs
+sha256sum -c /tmp/client-preserved.sha256
+# Adopt the exact legacy systemd files while preserving interval/enabled state.
+uid=$(id -u fixture)
+systemctl start "user@$uid.service"
+user_systemctl() { runuser -u fixture -- env -i HOME="$home" PATH=/usr/bin:/bin XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" systemctl --user "$@"; }
+mkdir -p "$home/.config/systemd/user"
+cat > "$home/.config/systemd/user/lazycat-ssh-renew.service" <<SERVICE
+[Unit]
+Description=LazyCat SSH renew certificates
+
+[Service]
+Type=oneshot
+ExecStart=$home/.local/bin/lazycat-ssh renew-certs
+SERVICE
+cat > "$home/.config/systemd/user/lazycat-ssh-renew.timer" <<'TIMER'
+[Unit]
+Description=LazyCat SSH renew certificates timer
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Unit=lazycat-ssh-renew.service
+
+[Install]
+WantedBy=timers.target
+TIMER
+chown -R fixture:fixture "$home/.config"
+cp "$home/.config/systemd/user/lazycat-ssh-renew.timer" /tmp/timer-before
+user_systemctl daemon-reload
+user_systemctl enable --now lazycat-ssh-renew.timer
+client migrate --check
+client migrate --apply
+cmp /tmp/timer-before "$home/.config/systemd/user/lazycat-ssh-renew.timer"
+grep -q 'renew-certs --scheduled$' "$home/.config/systemd/user/lazycat-ssh-renew.service"
+user_systemctl is-active lazycat-ssh-renew.timer
+user_systemctl is-enabled lazycat-ssh-renew.timer
+sha256sum "$home/.ssh/lazycat_ca_ed25519-cert.pub" > /tmp/cert-before-timer
+rm -f "$home/.lazycat/ssh/renew-status.json"
+# The preserved legacy timer has systemd's default AccuracySec=1min.
+# Allow one interval plus that scheduling window and a bounded TCG margin.
+deadline=$((SECONDS+180))
+until [[ -f "$home/.lazycat/ssh/renew-status.json" ]] && grep -q '"scheduled":true' "$home/.lazycat/ssh/renew-status.json"; do
+    ((SECONDS<deadline)) || {
+        echo 'real timer did not trigger scheduled renewal'
+        user_systemctl show lazycat-ssh-renew.timer lazycat-ssh-renew.service
+        journalctl --no-pager "_UID=$uid" -n 100
+        client renew-status --json
+        exit 1
+    }
+    sleep 1
+done
+sha256sum -c /tmp/cert-before-timer
+client uninstall-renew
+[[ ! -e "$home/.config/systemd/user/lazycat-ssh-renew.timer" ]]
+# With no login and no remaining timer, logind may already have collected the
+# user record. Linger's persistent registration must still be absent.
+[[ ! -e /var/lib/systemd/linger/fixture ]]
+systemctl stop "user@$uid.service"
+echo 'PASS real systemd legacy timer adoption, preserved interval, trigger and removal; linger untouched'
+echo 'PASS Go client real CA signing, login, scheduled no-op, migration and partial sync recovery'
