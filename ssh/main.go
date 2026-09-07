@@ -137,18 +137,17 @@ func diagnostics(p paths) map[string]any {
 		_, e = stripBlock(b)
 	}
 	result["managed_block_valid"] = e == nil
-	var pending []string
-	entries, _ := os.ReadDir(p.Ops)
-	for _, entry := range entries {
-		if strings.HasSuffix(entry.Name(), ".json") {
-			b, e := os.ReadFile(filepath.Join(p.Ops, entry.Name()))
-			var op operation
-			if e == nil && json.Unmarshal(b, &op) == nil && op.Status != "committed" && op.Status != "rolled-back" {
-				pending = append(pending, op.ID)
-			}
-		}
+	pending := []string{}
+	operations, scanError := unfinishedOperations(p.Ops)
+	for _, op := range operations {
+		pending = append(pending, op.ID)
 	}
 	result["unfinished_operations"] = pending
+	result["operation_records_valid"] = scanError == nil
+	if scanError != nil {
+		result["operation_error"] = "operation records are unreadable, damaged or unsupported; preserve backups and review before writing"
+	}
+
 	result["certificate"] = certificateStatus(p.Cert)
 	result["renewal"] = timerStatus(p)
 	return result

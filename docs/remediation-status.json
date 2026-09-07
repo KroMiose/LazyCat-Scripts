@@ -207,7 +207,7 @@
       "status": "部分实现，验收未完成",
       "decision": "",
       "release_complete": false,
-      "evidence_summary": "Shell 检查器、操作记录和内容冲突回滚已实现；中断、属性冲突及全部历史目录发现待补。"
+      "evidence_summary": "Shell 检查器与内容/属性冲突回滚已实现；Go SIGKILL 和 rename 后失败回归证明旧实现失败、新实现恢复且保留后续用户修改。Shell 中断、全部历史目录发现及原生任务公共回滚待补。"
     },
     {
       "id": 29,

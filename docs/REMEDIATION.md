@@ -102,3 +102,9 @@ Ubuntu Docker 场景已验证 daemon 实际经过本地代理、拒绝时拉取�
 第三轮 reliability（[run 34153115082](https://github.com/KroMiose/LazyCat-Scripts/actions/runs/34153115082)，提交 b8b9e7d）全部必需作业通过：Ubuntu、Debian、OpenWrt 完整系统，Linux/macOS 行为，以及 Linux/macOS × AMD64/ARM64 四平台实际候选包。OpenWrt KVM 监听竞争修复通过真实系统验证。HUD run 34153114908 测试/构建通过，没有发布。weekly-full 在 PR 事件不要求执行，其跳过不能视为每周完整覆盖已经通过。
 
 正在增加 systemd 任务更新的六种状态组合（持久启用/临时启用/禁用 × 运行/停止），防止修改间隔隐式重新启用用户停用的任务。适配测试覆盖管理器故障，真实系统结果另行记录；macOS 生命周期不沿用此 Linux 结论。公共回滚的原生任务检查移入事务锁内，避免检查与实际读取不同记录。
+
+Ubuntu 真实上游安装（20260907T185122.590682Z，提交 b8b9e7d）完整通过：新用户无 nvm/uv 起点，安装 Node 22.20.0 与 uv 0.10.0，实际运行 Node 并创建/运行 Python 虚拟环境。此场景预装了明确的系统依赖，不代表缺失 curl/git 时自动安装依赖已验证。
+
+事务回归用同一测试文件对比提交 3d70f5f 与修改后实现：旧实现稳定失败于“SIGKILL 后重跑覆盖未完成事务”和“rename 后报错遗漏当前文件恢复”；修改后 Go race 通过。原始失败日志在本地 artifacts/regression-proof/transaction-3d70f5f-supported-extract/before.log。新实现对同资源的未完成事务返回冲突，允许显式 rollback 后重跑；回滚不覆盖后来用户编辑，doctor 报告损坏记录。文件 rename/remove 后同步父目录。该证据不代表全部原生服务或 Shell SIGKILL 恢复已完成。
+
+第四轮 reliability（[run 34153832563](https://github.com/KroMiose/LazyCat-Scripts/actions/runs/34153832563)，提交 3d70f5f）全部必需作业通过。Ubuntu 与 Debian 的真实 systemd 均验证六种启用/运行组合在更新间隔后保持不变；四平台候选归档再次通过原生检查。这轮尚未包含后续事务中断修复。

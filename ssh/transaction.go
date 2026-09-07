@@ -122,7 +122,10 @@ func writeState(path string, s fileState) error {
 		if os.IsNotExist(e) {
 			return nil
 		}
-		return e
+		if e != nil {
+			return e
+		}
+		return syncDirectory(filepath.Dir(path))
 	}
 	if _, e := state(path); e != nil {
 		return e
@@ -159,7 +162,17 @@ func writeState(path string, s fileState) error {
 	if ce != nil {
 		return ce
 	}
-	return os.Rename(f.Name(), path)
+	if e = os.Rename(f.Name(), path); e != nil {
+		return e
+	}
+	return syncDirectory(filepath.Dir(path))
+}
+func syncDirectory(path string) error {
+	f, e := os.Open(path)
+	if e != nil {
+		return e
+	}
+	return errors.Join(f.Sync(), f.Close())
 }
 func withFileLock(dir string, fn func() error) error {
 	if e := os.MkdirAll(dir, 0700); e != nil {
@@ -215,6 +228,19 @@ func commit(dir string, changes []change) (string, error) {
 func commitWithWriter(dir string, changes []change, write func(string, fileState) error) (string, error) {
 	id := ""
 	e := withFileLock(dir, func() error {
+		unfinished, e := unfinishedOperations(dir)
+		if e != nil {
+			return e
+		}
+		for _, op := range unfinished {
+			for _, prior := range op.Changes {
+				for _, next := range changes {
+					if prior.Path == next.Path {
+						return &migrationConflict{"unfinished operation " + op.ID + "; inspect doctor and rollback before modifying the same resource"}
+					}
+				}
+			}
+		}
 		var pending []change
 		for _, c := range changes {
 			now, e := state(c.Path)
@@ -245,6 +271,9 @@ func commitWithWriter(dir string, changes []change, write func(string, fileState
 			for j := applied - 1; j >= 0; j-- {
 				v := pending[j]
 				current, re := state(v.Path)
+				if re == nil && same(current, v.Before) {
+					continue
+				}
 				if re == nil && !same(current, v.After) {
 					re = fmt.Errorf("rollback conflict: %s", v.Path)
 				}
@@ -268,7 +297,9 @@ func commitWithWriter(dir string, changes []change, write func(string, fileState
 				e = write(c.Path, c.After)
 			}
 			if e != nil {
-				return restore(i, e)
+				// A writer can fail after rename (for example directory fsync).
+				// Inspect this resource too; do not assume an error means no write.
+				return restore(i+1, e)
 			}
 		}
 		op.Status = "committed"
@@ -278,6 +309,38 @@ func commitWithWriter(dir string, changes []change, write func(string, fileState
 		return nil
 	})
 	return id, e
+}
+
+func unfinishedOperations(dir string) ([]operation, error) {
+	result := []operation{}
+	entries, e := os.ReadDir(dir)
+	if os.IsNotExist(e) {
+		return result, nil
+	}
+	if e != nil {
+		return nil, e
+	}
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		s, e := state(filepath.Join(dir, entry.Name()))
+		if e != nil {
+			return nil, e
+		}
+		var op operation
+		if json.Unmarshal(s.Data, &op) != nil || op.Version != 1 || op.ID+".json" != entry.Name() {
+			return nil, &migrationConflict{"invalid operation record: " + entry.Name()}
+		}
+		switch op.Status {
+		case "committed", "rolled-back":
+		case "prepared", "rollback-required":
+			result = append(result, op)
+		default:
+			return nil, &migrationConflict{"unknown operation status: " + entry.Name()}
+		}
+	}
+	return result, nil
 }
 func rollback(dir, id string) error {
 	return rollbackChecked(dir, id, nil)
