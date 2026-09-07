@@ -25,9 +25,9 @@ jobs:
           persist-credentials: false
       - id: map
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          if [ -n "$BASE" ]; then
+          if [ -n "$BASE" ] && [ "$BASE" != 0000000000000000000000000000000000000000 ]; then
             python3 tests/affected.py --base "$BASE" >> "$GITHUB_OUTPUT"
           else
             python3 tests/affected.py --full >> "$GITHUB_OUTPUT"
