@@ -68,4 +68,17 @@ legacy
 sha256sum -c /tmp/legacy-preserved.sha256
 cmp "${cert}.tmp" <(printf 'unrelated user file\n')
 runuser -u legacy-fixture -- ssh -F "$home/.ssh/config" -o BatchMode=yes -o UpdateHostKeys=no fixture-ca true
+mv "${key}.pub" "${key}.pub.saved"
+if legacy; then echo 'partial key pair accepted';exit 1;fi
+mv "${key}.pub.saved" "${key}.pub"
+sha256sum -c /tmp/legacy-preserved.sha256
+mv "$cert" "${cert}.saved"
+ln -s "${cert}.saved" "$cert"
+sha256sum "${cert}.saved" > /tmp/legacy-cert-link-target.sha256
+if legacy; then echo 'certificate symlink accepted';exit 1;fi
+sha256sum -c /tmp/legacy-cert-link-target.sha256
+[[ -L "$cert" ]]
+rm "$cert"
+mv "${cert}.saved" "$cert"
+sha256sum -c /tmp/legacy-preserved.sha256
 echo 'PASS actual old/new legacy entrypoint, default CA path, valid new session, failure preservation and rerun'

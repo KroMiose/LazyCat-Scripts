@@ -30,5 +30,13 @@
   {
     "commit": "e7093e96a4b6d09c4a0f1b689ab2acd5c5ff0592",
     "sha256": "c36247026ce095eb075ba9e423b8553893fdc5dac43a26b5a3317f64c69ac610"
+  },
+  {
+    "commit": "4f5080d7167eedf42b6ce8fc78ae6f6fd19b04ed",
+    "sha256": "1873042c3dc872574b6121f010c442be0fb9e722a277115e5de273c73a5feeda"
+  },
+  {
+    "commit": "9ac712eb6c0b6f59ec75caf9472bbfc8050cc26d",
+    "sha256": "65684a819d649bd0e6581b35c14f0eb2e3678fa8e7e84ae48a066428f10a4228"
   }
 ]
