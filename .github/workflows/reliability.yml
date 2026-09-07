@@ -126,8 +126,32 @@ jobs:
           if-no-files-found: error
   weekly-full:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: checks
+            image: ''
+            suite: ''
+            package_lock: ''
+          - lane: ubuntu
+            image: ubuntu
+            suite: docker
+            package_lock: tests/system/apt/ubuntu.lock.json
+          - lane: debian
+            image: debian
+            suite: docker
+            package_lock: tests/system/apt/debian.lock.json
+          - lane: openwrt
+            image: openwrt
+            suite: core
+            package_lock: tests/system/opkg/openwrt.lock.json
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 90
+    env:
+      TEST_IMAGE: ${{ matrix.image }}
+      TEST_SUITE: ${{ matrix.suite }}
+      PACKAGE_LOCK: ${{ matrix.package_lock }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -136,37 +160,37 @@ jobs:
         with:
           go-version-file: ssh/go.mod
           cache: false
-      - run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils shellcheck
-      - name: Allow QEMU acceleration on this disposable runner when available
+      - name: Install declared host observers
+        run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils shellcheck
+      - name: Allow QEMU acceleration when available
+        if: matrix.image != ''
         run: |
           if [ -e /dev/kvm ]; then sudo chmod a+rw /dev/kvm; fi
-      - name: Rebuild and repeat from independent overlays
+      - name: Full checks, bounded fuzz and shuffled behavior
+        if: matrix.lane == 'checks'
         run: |
-          make check test test-migration test-fuzz
+          make check test test-migration test-fuzz test-linux-files
           seed=$(date +%s)
           python3 tests/run.py --seed "$seed" --output artifacts/shuffled
-          for image in ubuntu debian openwrt; do
-            suite=core
-            if [ "$image" != openwrt ]; then suite=docker; fi
-            fixed=()
-            refresh=()
-            if [ "$image" != openwrt ]; then
-              fixed=(--package-lock "tests/system/apt/$image.lock.json")
-            else
-              fixed=(--package-lock tests/system/opkg/openwrt.lock.json)
-            fi
-            refresh=(--fresh-packages)
-            python3 tests/system/vm.py --image "$image" --suite "$suite" --fresh-download "${fixed[@]}" "${refresh[@]}"
-            mv "artifacts/system/$image" "artifacts/system/$image-first"
-            python3 tests/system/vm.py --image "$image" --suite "$suite" "${fixed[@]}"
-          done
-          python3 tests/system/vm.py --image ubuntu --suite docker
-          python3 tests/system/vm.py --image openwrt --suite core
-          python3 tests/upstream.py
+      - name: First lifecycle with freshly verified image and package downloads
+        if: matrix.image != ''
+        run: python3 tests/system/vm.py --image "$TEST_IMAGE" --suite "$TEST_SUITE" --fresh-download --package-lock "$PACKAGE_LOCK" --fresh-packages
+      - name: Repeat lifecycle from a second independent overlay
+        if: matrix.image != ''
+        run: python3 tests/system/vm.py --image "$TEST_IMAGE" --suite "$TEST_SUITE" --package-lock "$PACKAGE_LOCK"
+      - name: Live upstream installers and interpreter behavior
+        if: matrix.image == 'ubuntu' || matrix.image == 'debian'
+        run: python3 tests/system/vm.py --image "$TEST_IMAGE" --suite upstream
+      - name: Live upstream Docker packages and proxy behavior
+        if: matrix.image == 'ubuntu' || matrix.image == 'debian'
+        run: python3 tests/system/vm.py --image "$TEST_IMAGE" --suite docker
+      - name: Live upstream opkg and reboot lifecycle
+        if: matrix.image == 'openwrt'
+        run: python3 tests/system/vm.py --image openwrt --suite core
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: weekly-full
+          name: weekly-full-${{ matrix.lane }}
           path: artifacts/
           retention-days: ${{ job.status == 'success' && 14 || 90 }}
           if-no-files-found: error
