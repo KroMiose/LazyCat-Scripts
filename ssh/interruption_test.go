@@ -124,3 +124,24 @@ func TestTransactionErrorAfterRenameRestoresCurrentFile(t *testing.T) {
 		t.Fatal("current file not recovered", string(b), e)
 	}
 }
+
+func TestLockRefusesSymlinkParentsBeforeCreatingState(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(root, "unmanaged")
+	if e := os.Mkdir(outside, 0700); e != nil {
+		t.Fatal(e)
+	}
+	alias := filepath.Join(root, "alias")
+	if e := os.Symlink(outside, alias); e != nil {
+		t.Fatal(e)
+	}
+	called := false
+	e := withFileLock(filepath.Join(alias, "nested", "operations"), func() error { called = true; return nil })
+	if e == nil || called {
+		t.Fatal("followed a symlink into an unmanaged directory", e)
+	}
+	entries, e := os.ReadDir(outside)
+	if e != nil || len(entries) != 0 {
+		t.Fatal("lock acquisition created unmanaged state", entries, e)
+	}
+}

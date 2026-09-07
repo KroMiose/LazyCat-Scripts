@@ -25,7 +25,7 @@ make test-full
 - SSH 节点快速测试：服务命令使用模拟，独立标为适配测试。
 - Go SSH：配置/路由、拒绝危险输入、受限元数据解析、事务/冲突/回滚；Linux 旧任务已有真实迁移/触发/卸载证据，macOS 任务迁移与公共 rollback 的任务状态恢复仍待完成。
 - HUD：本地 HTTP 服务、慢响应、并发 Stop、超时后不自动重发；不向真实设备发送，不验证眼镜/手机显示。
-- QEMU：校验锁定镜像后创建独立 overlay；Ubuntu/Debian 使用真实 systemd，OpenWrt 使用真实 procd。Ubuntu 与 Debian 已有受限网络＋锁定本地 apt 源；真实上游另行验证。OpenWrt 新增原始签名索引快照及固定 IPK 锁，已在独立断网 TCG 生命周期验证；托管 KVM 的同锁验证待取得。真实 opkg 软件源另行运行，不混称固定输入覆盖。源码复制进客体 /work 后只读挂载，本地包源同样只读，测试观察者与声明前置依赖写入日志。
+- QEMU：校验锁定镜像后创建独立 overlay；Ubuntu/Debian 使用真实 systemd，OpenWrt 使用真实 procd。Ubuntu 与 Debian 已有受限网络＋锁定本地 apt 源；真实上游另行验证。OpenWrt 新增原始签名索引快照及固定 IPK 锁，已在独立断网 TCG 生命周期验证；托管 KVM 的同锁验证已在 run 34161071064 通过。真实 opkg 软件源另行运行，不混称固定输入覆盖。源码复制进客体 /work 后只读挂载，本地包源同样只读，测试观察者与声明前置依赖写入日志。
 
 每个系统运行单独保存目录，失败不会被下次运行覆盖。初始化失败是 environment-error，进入产品断言后失败是 product-failure；两者均返回非零。缺少 KVM 时使用 TCG，不跳过。驱动结束销毁 overlay 和测试密钥，保留脱敏日志。
 

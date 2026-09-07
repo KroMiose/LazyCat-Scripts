@@ -36,19 +36,25 @@ type operation struct {
 	Changes    []change
 }
 
-func state(path string) (fileState, error) {
-	var out fileState
+func checkPathLinks(path string) error {
 	for p := path; ; p = filepath.Dir(p) {
 		s, e := os.Lstat(p)
 		if e == nil && s.Mode()&os.ModeSymlink != 0 && !(runtime.GOOS == "darwin" && p != path && (p == "/var" || p == "/tmp" || p == "/etc")) {
-			return out, fmt.Errorf("symlink requires explicit adoption: %s", p)
+			return fmt.Errorf("symlink requires explicit adoption: %s", p)
 		}
 		if e != nil && !os.IsNotExist(e) {
-			return out, e
+			return e
 		}
 		if filepath.Dir(p) == p {
 			break
 		}
+	}
+	return nil
+}
+func state(path string) (fileState, error) {
+	var out fileState
+	if e := checkPathLinks(path); e != nil {
+		return out, e
 	}
 	s, e := os.Lstat(path)
 	if os.IsNotExist(e) {
@@ -175,7 +181,14 @@ func syncDirectory(path string) error {
 	return errors.Join(f.Sync(), f.Close())
 }
 func withFileLock(dir string, fn func() error) error {
+	// Refuse aliased parent directories before creating even the lock path.
+	if e := checkPathLinks(dir); e != nil {
+		return e
+	}
 	if e := os.MkdirAll(dir, 0700); e != nil {
+		return e
+	}
+	if e := checkPathLinks(dir); e != nil {
 		return e
 	}
 	if s, e := os.Lstat(dir); e != nil || !s.IsDir() || s.Mode()&os.ModeSymlink != 0 {
