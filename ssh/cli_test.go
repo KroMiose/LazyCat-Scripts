@@ -43,6 +43,14 @@ func TestCLIConfigurationLifecycle(t *testing.T) {
 	call(2, "version", "unexpected")
 	call(2, "unknown-command")
 	call(0, "source", "--file", inventory)
+	fingerprint := "SHA256:" + strings.Repeat("A", 43)
+	call(0, "trust-ca", fingerprint)
+	call(0, "source", "--file", inventory)
+	var stored sourceConfig
+	sourceBytes, e := os.ReadFile(filepath.Join(home, ".lazycat/ssh/source.json"))
+	if e != nil || json.Unmarshal(sourceBytes, &stored) != nil || stored.CA != fingerprint {
+		t.Fatal("changing source cleared trusted CA", e)
+	}
 	generated := filepath.Join(home, ".ssh/config.d/lazycat.conf")
 	call(0, "sync", "--dry-run")
 	if _, e := os.Stat(generated); !os.IsNotExist(e) {

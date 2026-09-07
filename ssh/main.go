@@ -102,12 +102,7 @@ func configure(p paths, args []string) error {
 			return invalid("source --file requires an absolute YAML path")
 		}
 		s := sourceConfig{Version: 1, Local: args[1]}
-		c, e := sourceChange(p, s)
-		if e != nil {
-			return e
-		}
-		_, e = commit(p.Ops, []change{c})
-		return e
+		return saveConfiguredSource(p, s)
 	}
 	if len(args) < 1 || len(args) > 3 {
 		return errors.New("source <raw-https-url> [gist-page-url file-name]")
@@ -117,9 +112,29 @@ func configure(p paths, args []string) error {
 		s.Gist = args[1]
 		s.File = args[2]
 	}
+	return saveConfiguredSource(p, s)
+}
+
+// The configuration location and the administrator's trusted CA are separate
+// choices. Changing a file/URL must not silently clear or replace the trust pin.
+func saveConfiguredSource(p paths, s sourceConfig) error {
+	original, e := state(filepath.Join(p.Meta, "source.json"))
+	if e != nil {
+		return e
+	}
+	previous, e := readSource(p)
+	if e != nil && !os.IsNotExist(e) {
+		return &migrationConflict{"existing source state is unreadable; inspect doctor before replacement"}
+	}
+	if e == nil {
+		s.CA = previous.CA
+	}
 	c, e := sourceChange(p, s)
 	if e != nil {
 		return e
+	}
+	if !same(original, c.Before) {
+		return &migrationConflict{"configuration source changed concurrently; preserved"}
 	}
 	_, e = commit(p.Ops, []change{c})
 	return e
