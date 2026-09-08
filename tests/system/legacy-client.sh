@@ -161,3 +161,36 @@ mv "${ca}.fixture-unavailable" "$ca"
 legacy
 runuser -u legacy-fixture -- ssh -F "$home/.ssh/config" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no fixture-target true
 echo 'PASS legacy config commits independently, one inventory fetch, preserved old certificate login and recovered renewal'
+
+# Generated route aliases must not shadow another inventory host. This uses
+# the same real yq and complete client entrypoint, with no CA/network action.
+cat > /tmp/legacy-inventory/inventory.yaml <<'YAML'
+version: 1
+hosts:
+  box:
+    lan_host: 192.0.2.1
+  box-lan:
+    host: 192.0.2.2
+YAML
+cp -a "$home/.ssh" /tmp/legacy-alias-original
+for implementation in old new; do
+    entry=ssh/client/lazycat-ssh.sh
+    [[ "$implementation" != old ]] || entry=tests/fixtures/legacy-sync-before.sh
+    install -o legacy-fixture -g legacy-fixture -m 755 "$entry" "$home/.local/bin/lazycat-ssh"
+    status=0
+    runuser -u legacy-fixture -- env -i HOME="$home" USER=legacy-fixture PATH=/work:/usr/bin:/bin bash "$home/.local/bin/lazycat-ssh" sync > "/tmp/legacy-alias-$implementation.log" 2>&1 || status=$?
+    cat "/tmp/legacy-alias-$implementation.log"
+    if [[ "$implementation" == old ]]; then
+        [[ "$status" == 0 ]]
+        [[ $(grep -c '^Host box-lan$' "$home/.ssh/config.d/lazycat.conf") == 2 ]]
+        echo 'EXPECTED OLD DEFECT: colliding generated aliases published successfully'
+        # Explicit fixture reset, not a claim that the old client recovers.
+        rm -rf "$home/.ssh"
+        cp -a /tmp/legacy-alias-original "$home/.ssh"
+    else
+        [[ "$status" != 0 ]]
+        grep -F '别名冲突' /tmp/legacy-alias-new.log
+        diff -r /tmp/legacy-alias-original "$home/.ssh"
+    fi
+done
+echo 'PASS real yq and old/new CLI reject generated alias collision without publishing config'

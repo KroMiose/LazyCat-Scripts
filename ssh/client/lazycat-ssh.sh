@@ -479,6 +479,10 @@ lc_append_ssh_host_block() {
   [[ "$host_alias" =~ ^[A-Za-z0-9._-]+$ && "$host_name" =~ ^[A-Za-z0-9._:%-]+$ ]] || lc_die "SSH 别名或主机名无效。"
   [[ -z "$port" ]] || { [[ "$port" =~ ^[0-9]{1,5}$ ]] && (( 10#$port > 0 && 10#$port <= 65535 )); } || lc_die "SSH 端口无效。"
   [[ "$identity" != *'"'* && "$identity" != *'\'* ]] || lc_die "IdentityFile 路径包含不支持的字符。"
+  case "$generated_aliases" in
+    *$'\n'"$host_alias"$'\n'*) lc_die "生成的 SSH 别名冲突：${host_alias}，未修改配置。" ;;
+  esac
+  generated_aliases="${generated_aliases}${host_alias}"$'\n'
   {
     printf 'Host %s\n' "$host_alias"
     printf '    HostName %s\n' "$host_name"
@@ -795,7 +799,7 @@ lc_sync_from_raw_url() (
     lc_log "🔐 检测到 CA 配置，将启用证书模式（短有效期推荐安装后台自动续期）。"
   fi
 
-  local out
+  local out generated_aliases=$'\n'
   out="$(mktemp)"
 
   {

@@ -348,3 +348,5 @@ Zsh移除独立的临时配置/锁/备份实现，复用已有文件事务与GNU
 旧SSH单文件缺库时的bootstrap下载也改为仅显式install允许；四种普通入口的旧下载副作用已复现并保存到artifacts/regression-proof/legacy-bootstrap-2e3b9d5/before.log。新增完整入口回归同时验证显式install仍可获取公共库，随后取消不写安装目录。这个修复不等于安装器多文件更新已经可以自动恢复。
 
 审阅第19项已按原问题范围验收：83939a8 PR34199445002 Debian系统日志2618行复现旧Shell被CA失败阻断同步，2641行证明新版配置提交、单次读取、旧证书真实新连接及恢复续签；Go链路在2555行有独立验证。共28项有最终处置、14项仍未完成；旧Shell双文件事务不在本项结案范围。
+
+旧SSH生成线路别名时增加全清单唯一性检查（保留大小写区别），拒绝box与box-lan等冲突，发布前保留现有配置。旧完整入口在声明的yq查询适配中误报成功并写入重复Host，失败证据artifacts/regression-proof/legacy-alias-426c2fa/before.log保留；新增真实yq系统入口对照待CI。不据此将全部SSH输入矩阵标为完成。

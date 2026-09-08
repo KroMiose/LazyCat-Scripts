@@ -9,6 +9,43 @@ from lib.support import ROOT, environment
 
 
 class LegacySync(unittest.TestCase):
+    def test_generated_alias_collision_does_not_publish_configuration(self):
+        from lib.support import snapshot
+        with tempfile.TemporaryDirectory() as directory:
+            home=Path(directory);binary=home/'bin';binary.mkdir()
+            (binary/'curl').write_text('#!/bin/sh\nprintf "version: 1\\n" > "$4"\n')
+            # Explicit query adapter: two distinct inventory keys generate the
+            # same Host alias. The public sync entrypoint does all rendering.
+            (binary/'yq').write_text('''#!/bin/sh
+case "$2" in
+ '.hosts | tag') echo '!!map';;
+ '.version // ""') echo 1;;
+ '.hosts | keys | .[]') printf 'box\\nbox-lan\\n';;
+ '.default_route // .defaultRoute // "lan"') echo lan;;
+ '.hosts[env(ALIAS)].host // ""') test "$ALIAS" != box-lan || echo 192.0.2.2;;
+ '.hosts[env(ALIAS)].lan_host // .hosts[env(ALIAS)].lanHost // .hosts[env(ALIAS)].lan.host // ""') test "$ALIAS" != box || echo 192.0.2.1;;
+ *) echo '';;
+esac
+exit 0
+''')
+            for path in binary.iterdir():path.chmod(0o755)
+            meta=home/'.lazycat/ssh/meta.env';meta.parent.mkdir(parents=True);meta.write_text('RAW_URL=https://example.invalid/inventory.yaml\n')
+            ssh_dir=home/'.ssh';ssh_dir.mkdir();(ssh_dir/'config').write_text('Host user-entry\n HostName original.invalid\n')
+            before=snapshot(ssh_dir)
+            result=subprocess.run(['/bin/bash',str(ROOT/'ssh/client/lazycat-ssh.sh'),'sync'],env=environment(home,{'PATH':str(binary)+':/usr/bin:/bin'}),capture_output=True,text=True,timeout=10)
+            self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
+            self.assertIn('别名冲突',result.stdout+result.stderr)
+            self.assertEqual(snapshot(ssh_dir),before)
+            # Case-distinct Host patterns are valid. Ask native OpenSSH for
+            # both effective destinations so validation cannot overreach.
+            adapter=binary/'yq';adapter.write_text(adapter.read_text().replace('box-lan','BOX-LAN'))
+            result=subprocess.run(['/bin/bash',str(ROOT/'ssh/client/lazycat-ssh.sh'),'sync'],env=environment(home,{'PATH':str(binary)+':/usr/bin:/bin'}),capture_output=True,text=True,timeout=10)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            for alias,address in (('box-lan','192.0.2.1'),('BOX-LAN','192.0.2.2')):
+                observed=subprocess.run(['/usr/bin/ssh','-G','-F',str(ssh_dir/'config'),alias],env=environment(home),capture_output=True,text=True,timeout=10)
+                self.assertEqual(observed.returncode,0,observed.stderr)
+                self.assertIn('hostname '+address+'\n',observed.stdout)
+
     def test_ca_failure_does_not_block_config_or_fetch_inventory_twice(self):
         # A real locked yq is supplied by the Linux VM driver there. This fast
         # entrypoint test uses a finite YAML-query adapter, not a full parser.

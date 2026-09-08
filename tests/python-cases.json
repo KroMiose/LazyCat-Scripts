@@ -41,6 +41,7 @@
     "test_legacy_source_entrypoint.LegacySource.test_standalone_daily_entrypoint_does_not_fetch_missing_library",
     "test_legacy_source_entrypoint.LegacySource.test_standalone_explicit_install_bootstraps_then_honors_cancel",
     "test_legacy_sync_entrypoint.LegacySync.test_ca_failure_does_not_block_config_or_fetch_inventory_twice",
+    "test_legacy_sync_entrypoint.LegacySync.test_generated_alias_collision_does_not_publish_configuration",
     "test_legacy_yq_entrypoint.LegacyYQ.test_incompatible_implementation_rejected_before_fetch",
     "test_node.NodeTests.test_deployment_transfers_matching_library_and_quotes_arguments",
     "test_node.NodeTests.test_invalid_key_preserves_both_files",
