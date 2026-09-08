@@ -153,11 +153,16 @@ func diagnostics(p paths) map[string]any {
 	}
 	result["managed_block_valid"] = e == nil
 	pending := []string{}
+	nativePending := []map[string]string{}
 	operations, scanError := unfinishedOperations(p.Ops)
 	for _, op := range operations {
 		pending = append(pending, op.ID)
+		if op.Native != nil {
+			nativePending = append(nativePending, map[string]string{"operation_id": op.ID, "phase": op.Native.Phase, "recovery": "rollback " + op.ID})
+		}
 	}
 	result["unfinished_operations"] = pending
+	result["unfinished_native_operations"] = nativePending
 	result["operation_records_valid"] = scanError == nil
 	if scanError != nil {
 		result["operation_error"] = "operation records are unreadable, damaged or unsupported; preserve backups and review before writing"

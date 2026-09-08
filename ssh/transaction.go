@@ -343,7 +343,7 @@ func unfinishedOperations(dir string) ([]operation, error) {
 			return nil, e
 		}
 		var op operation
-		if json.Unmarshal(s.Data, &op) != nil || op.Version != 1 || op.ID+".json" != entry.Name() {
+		if json.Unmarshal(s.Data, &op) != nil || op.Version != 1 || op.ID+".json" != entry.Name() || !validNativePhase(op) {
 			return nil, &migrationConflict{"invalid operation record: " + entry.Name()}
 		}
 		switch op.Status {

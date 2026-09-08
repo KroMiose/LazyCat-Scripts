@@ -106,6 +106,53 @@ until [[ -f "$home/.lazycat/ssh/renew-status.json" ]] && grep -q '"scheduled":tr
     sleep 1
 done
 sha256sum -c /tmp/cert-before-timer
+# Hold only the renewal lock, using a real running service to make the pause
+# window deterministic. The product must not hold the file-operation lock here.
+python3 - "$home/.lazycat/ssh/renew-lock/operation.lock" <<'PYLOCK' &
+import fcntl, pathlib, sys, time
+with open(sys.argv[1], 'r+') as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    pathlib.Path('/tmp/renew-lock-held').touch()
+    time.sleep(30)
+PYLOCK
+lock_holder=$!
+deadline=$((SECONDS+10))
+until [[ -f /tmp/renew-lock-held ]]; do ((SECONDS<deadline)) || exit 1; sleep .1; done
+user_systemctl start --no-block lazycat-ssh-renew.service
+deadline=$((SECONDS+10))
+until [[ "$(user_systemctl show lazycat-ssh-renew.service --property=ActiveState --value)" == activating ]]; do ((SECONDS<deadline)) || exit 1; sleep .1; done
+runuser -u fixture -- env -i HOME="$home" PATH=/usr/bin:/bin XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" sh -c 'echo $$ > "$HOME/native-interruption.pid"; exec /work/lazycat-ssh install-renew 19' > /tmp/native-interrupted.log 2>&1 &
+interrupted_runner=$!
+deadline=$((SECONDS+10))
+interrupted_operation=""
+while [[ -z "$interrupted_operation" ]]; do
+    interrupted_operation=$(python3 - "$home/.lazycat/ssh/operations" <<'PYOP'
+import json, pathlib, sys
+for path in pathlib.Path(sys.argv[1]).glob('*.json'):
+    op=json.loads(path.read_text())
+    if op['Status']=='prepared' and op.get('Native',{}).get('Phase')=='pausing':
+        print(op['ID']);break
+PYOP
+)
+    ((SECONDS<deadline)) || { cat /tmp/native-interrupted.log;exit 1; }
+    sleep .05
+done
+kill -KILL "$(cat "$home/native-interruption.pid")"
+if wait "$interrupted_runner"; then echo 'expected interrupted native command failure';exit 1;fi
+kill "$lock_holder"
+wait "$lock_holder" || true
+deadline=$((SECONDS+15))
+until [[ "$(user_systemctl show lazycat-ssh-renew.service --property=ActiveState --value)" == inactive ]]; do ((SECONDS<deadline)) || exit 1; sleep .1; done
+[[ "$(user_systemctl show lazycat-ssh-renew.timer --property=ActiveState --value)" == inactive ]]
+status=0
+client install-renew 20 || status=$?
+[[ "$status" == 3 ]]
+client rollback "$interrupted_operation"
+[[ "$(user_systemctl show lazycat-ssh-renew.timer --property=ActiveState --value)" == active ]]
+[[ "$(user_systemctl show lazycat-ssh-renew.timer --property=UnitFileState --value)" == enabled ]]
+grep -qx 'OnUnitActiveSec=1min' "$home/.config/systemd/user/lazycat-ssh-renew.timer"
+sha256sum -c /tmp/cert-before-timer
+echo 'PASS SIGKILL after real timer pause: durable record, blocked rerun, recovered original task, no operation-lock deadlock'
 # Updating the interval must preserve independent active/enabled choices.
 minutes=2
 for enabled in enabled disabled enabled-runtime; do
@@ -177,7 +224,7 @@ client rollback "$uninstall_operation"
 [[ "$(user_systemctl show lazycat-ssh-renew.timer --property=ActiveState --value)" == active ]]
 [[ "$(user_systemctl show lazycat-ssh-renew.timer --property=UnitFileState --value)" == enabled ]]
 client uninstall
-echo 'PASS public uninstall rollback restores client files and real timer; repeated uninstall succeeds' 
+echo 'PASS public uninstall rollback restores client files and real timer; repeated uninstall succeeds'
 # With no login and no remaining timer, logind may already have collected the
 # user record. Linger's persistent registration must still be absent.
 [[ ! -e /var/lib/systemd/linger/fixture ]]

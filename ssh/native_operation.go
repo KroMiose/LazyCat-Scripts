@@ -154,7 +154,22 @@ func readOperation(dir, id string) (operation, error) {
 	}
 	return op, nil
 }
+func validNativePhase(op operation) bool {
+	if op.Native == nil {
+		return true
+	}
+	phases := map[string][]string{"prepared": {"prepared", "pausing", "files", "activating"}, "committed": {"complete"}, "rollback-required": {"rollback-pausing", "rollback-files", "rollback-activating"}, "rolled-back": {"rolled-back"}}
+	for _, phase := range phases[op.Status] {
+		if op.Native.Phase == phase {
+			return true
+		}
+	}
+	return false
+}
 func validateNativeOperation(p paths, op operation) error {
+	if !validNativePhase(op) {
+		return &migrationConflict{"invalid native operation phase"}
+	}
 	n := op.Native
 	if n == nil || n.Home != p.Home || n.UID != os.Geteuid() {
 		return &migrationConflict{"native operation belongs to another account or home"}
@@ -164,13 +179,13 @@ func validateNativeOperation(p paths, op operation) error {
 			return &migrationConflict{"native operation belongs to another platform"}
 		}
 		if runtime.GOOS == "darwin" {
-			if s.Launch == nil || !validLaunchDomain(s.Launch.Domain) {
+			if s.Launch == nil || s.Absent || s.Active || s.Enabled != "" || !validLaunchDomain(s.Launch.Domain) {
 				return &migrationConflict{"invalid recorded launchd domain"}
 			}
 			if s.Launch.Loaded && s.Launch.Path != filepath.Join(p.Home, "Library/LaunchAgents/"+launchLabel+".plist") {
 				return &migrationConflict{"invalid recorded launchd path"}
 			}
-		} else if s.Launch != nil || (!s.Absent && s.Enabled != "enabled" && s.Enabled != "disabled" && s.Enabled != "enabled-runtime") {
+		} else if s.Launch != nil || (s.Absent && (s.Active || s.Enabled != "")) || (!s.Absent && s.Enabled != "enabled" && s.Enabled != "disabled" && s.Enabled != "enabled-runtime") {
 			return &migrationConflict{"invalid recorded systemd state"}
 		}
 	}
@@ -192,6 +207,9 @@ func validateNativeOperation(p paths, op operation) error {
 		seen[c.Path] = true
 	}
 	for _, g := range n.Guards {
+		if _, e := hex.DecodeString(g.SHA256); e != nil {
+			return &migrationConflict{"invalid native dependency digest"}
+		}
 		if !allowed[g.Path] || seen[g.Path] || len(g.State.Data) != 0 || len(g.SHA256) != 64 {
 			return &migrationConflict{"invalid native dependency guard"}
 		}
