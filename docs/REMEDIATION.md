@@ -356,3 +356,5 @@ d6fa45e PR34204832725失败：Ubuntu源码和实际归档在Docker恢复场景�
 旧SSH主配置标记校验提前到生成片段发布及chmod/备份之前。真实完整入口先复现“损坏主标记导致失败，却已替换生成文件并修改权限”，旧失败保留artifacts/regression-proof/legacy-marker-d6fa45e/before.log；新入口两文件和权限快照不变。补充真实yq系统场景待CI。这只关闭可预检失败窗口，不承诺并发和双文件中断已解决。
 
 83939a8完整34199467862现已全部通过，作为本轮之前的完整基线；d6fa45e PR与完整中的Ubuntu启动预算失败继续保留，4cda7bf开始验证独立预算与真实start-limit失败场景。
+
+1dd64d0 PR34211599842的Ubuntu源码/归档通过，Debian源码/归档失败：四组Docker属性恢复通过后，新限频场景实际重启成功，与预期失败不符。原system-debian日志与报告已保存artifacts/github/34211599842。场景不再假设daemon-reload保留先前消耗的启动预算；在实际restart边界用最多三次真实systemctl restart耗尽预算，核对有效StartLimitBurst=1和实际Result=start-limit-hit，分别证明应用与恢复失败两次。并非模拟systemctl成功/失败，包装器仅控制真实调用次数；产品代码不改、原失败不覆盖，等待两发行版新系统证据。

@@ -91,13 +91,38 @@ systemctl stop docker.service docker.socket
 systemctl reset-failed docker.service docker.socket
 systemctl start docker.service
 docker info >/dev/null
+# Some systemd versions reset the consumed start budget on daemon-reload.
+# Exhaust it at the actual restart boundary, on both apply and recovery,
+# using real service restarts rather than assuming earlier starts still count.
+cat > "$work/start-limit-inject.sh" <<'BASH'
+systemctl() {
+    if [[ "${1:-}" == restart && "${2:-}" == docker ]]; then
+        command systemctl show docker.service -p StartLimitIntervalUSec -p StartLimitBurst
+        [[ $(command systemctl show docker.service -p StartLimitBurst --value) == 1 ]] || return 91
+        local attempt result
+        for attempt in 1 2 3; do
+            result=0
+            command systemctl restart docker || result=$?
+            if [[ "$result" != 0 ]]; then
+                [[ $(command systemctl show docker.service -p Result --value) == start-limit-hit ]] || return 91
+                printf 'Observed real start-limit-hit at restart attempt %s\n' "$attempt"
+                return "$result"
+            fi
+        done
+        echo 'fixture failed to exhaust the real Docker start budget' >&2
+        return 91
+    fi
+    command systemctl "$@"
+}
+BASH
 status=0
-bash linux/setup_docker_proxy.sh set --url http://127.0.0.1:18081 --restart > "$work/start-limit.log" 2>&1 || status=$?
+BASH_ENV="$work/start-limit-inject.sh" bash linux/setup_docker_proxy.sh set --url http://127.0.0.1:18081 --restart > "$work/start-limit.log" 2>&1 || status=$?
 cat "$work/start-limit.log"
 [[ "$status" == 1 ]]
 cmp "$work/before" "$target"
 [[ $(systemctl show docker.service -p Result --value) == start-limit-hit ]]
 grep -F '旧配置服务恢复失败' "$work/start-limit.log"
+[[ $(grep -c 'Observed real start-limit-hit' "$work/start-limit.log") == 2 ]]
 if systemctl is-active --quiet docker; then echo 'start limit unexpectedly bypassed';exit 1;fi
 python3 - "$target" <<'PY'
 import os,sys
