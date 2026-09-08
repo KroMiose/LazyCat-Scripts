@@ -1309,15 +1309,15 @@ main_menu() {
 main() {
   lc_require_not_root
   if [[ "${1:-}" == check-source ]]; then lc_meta_load || lc_die "配置源数据无效或不存在";lc_log "配置源数据格式有效（未联网）";return;fi
-  [[ -x "${LAZYCAT_SSH_BIN_DIR}/lazycat-ssh" ]] || lc_self_install_if_needed
   # 子命令：用于定时任务/脚本化
   case "${1:-}" in
+    install) [[ $# == 1 ]] || lc_die 'install 不接受参数'; lc_install_yq --install; lc_self_install_if_needed ;;
     sync) lc_sync_from_raw_url ;;
     renew-certs) lc_renew_certs ;;
     install-renew) lc_install_renew_timer ;;
     uninstall-renew) lc_uninstall_renew_timer ;;
     "" ) main_menu ;;
-    * ) lc_die "未知命令：$1（可用：sync / renew-certs / install-renew / uninstall-renew）" ;;
+    * ) lc_die "未知命令：$1（可用：install / sync / renew-certs / install-renew / uninstall-renew）" ;;
   esac
 }
 

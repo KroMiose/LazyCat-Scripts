@@ -185,7 +185,7 @@ hosts:
   script=$(mktemp)
   trap 'rm -f "$script"' EXIT
   curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/client/lazycat-ssh.sh -o "$script"
-  bash "$script"
+  bash "$script" install
 )
 ```
 
@@ -287,3 +287,5 @@ Go 候选现在在暂停续签任务前记录文件候选、原任务状态和�
 纯文件操作继续使用记录格式 1，原生任务操作使用格式 2，新客户端读取两种格式。早期 Go 开发候选不能读取格式 2，不能自动退回这些开发候选继续管理新记录；必须保留当前候选用于检查和恢复。旧 Shell 发布的完整升级/回退仍需独立产物验证，不能用开发候选的文件回滚替代。
 
 Go 候选的定时续签按当前已验证证书的实际起止时间计算续签窗口，而不假定 CA 总会签发 YAML 中请求的完整时长。现有证书更短但仍远离窗口时不重复签发；检查间隔无法在其寿命内容纳至少两次检查时报告错误，不自动改任务间隔或更换密钥。没有有效旧证书时按请求时长检查并尝试续签。
+
+旧 Shell 客户端的普通菜单、sync 和 renew-certs 不再自安装程序，也不再调用 Homebrew 安装缺失依赖；未知命令直接失败。首次安装或明确更新使用 `bash lazycat-ssh.sh install`，Linux 缺少 Mike Farah yq v4 时需先自行安装。已有完整安装的日常连接行为不变；依赖缺失的旧环境会报错，不在定时任务中修复安装。远程旧入口加载公共库的兼容路径仍存在，固定发布包则内嵌公共库。

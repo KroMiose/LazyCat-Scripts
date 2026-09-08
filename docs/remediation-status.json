@@ -155,7 +155,8 @@
       "title": "普通运行隐式承担安装和升级",
       "status": "部分实现，验收未完成",
       "decision": "",
-      "release_complete": false
+      "release_complete": false,
+      "evidence_summary": "旧 Shell 普通菜单、sync、renew-certs及未知命令不再自安装程序或调用brew；显式install负责安装。旧完整入口五个失败子场景与新无副作用回归已验证。远程入口公共库加载和安装器更新恢复仍待完成。"
     },
     {
       "id": 21,

@@ -316,3 +316,5 @@ Squid新增版本化中断记录及 --recover <操作目录>：提交前保存�
 属性指纹使用GNU tar的确定性PAX流与SHA-256，覆盖内容、模式、属主、mtime、ACL及可读取的扩展属性；不包括atime/ctime及文件系统专有标志。新VM驱动包含真实SIGKILL（第一次发布、第二次发布、恢复第一份文件后）、旧版半提交后重跑误报成功、后续属性修改冲突、五种服务状态组合及真实HTTP认证观察，尚待本次CI。首次本地适配驱动在观察镜像尚未构建完时启动失败（exit125，artifacts/squid-recovery-driver/initial-environment-result.*），属于测试初始化失败，不能算产品通过；原始记录保留。
 
 本地断网、只读源码适配验证通过五种中断/服务状态组合，真实执行CLI、flock、SIGKILL、htpasswd及文件/ACL/xattr校验；systemd、Squid parser、监听与HTTP在此轮为模拟，不计完整系统通过。记录：artifacts/squid-recovery-driver/result.json。首次进入驱动后发现跨文件系统rename假设并失败，原日志cross-device-driver-failure.log保留；改用明确的fixture移动后重建环境通过。
+
+旧 Shell 客户端将程序安装/更新和缺失 yq 的 Homebrew 安装收敛到显式 install，普通菜单、sync、renew-certs 和未知命令不再隐式安装。完整入口的旧实现五个子场景失败保存在 artifacts/regression-proof/legacy-install-cfbe632/before.log；修复后新旧安装状态、缺失依赖和未知命令均无安装副作用，5条相关入口测试及完整82条Python测试通过。依赖可见性和brew/curl观察使用明确适配，非真实上游安装证据。现有完整安装不搬路径或换密钥，缺依赖的旧环境需明确修复；远程入口公共库加载及安装器多文件更新恢复仍未结案。

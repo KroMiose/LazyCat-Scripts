@@ -136,6 +136,7 @@ lc_install_yq() {
     fi
   fi
   if ! command -v yq >/dev/null 2>&1; then
+    [[ "${1:-}" == --install ]] || lc_die "缺少 Mike Farah yq v4；请显式运行客户端 install 或自行安装依赖。日常命令不会安装软件。"
     command -v brew >/dev/null 2>&1 || lc_die "旧客户端需要 Mike Farah yq v4；请安装该实现或迁移 Go 客户端。不会安装同名但不兼容的软件包。"
     brew install yq || return 1
   fi
