@@ -145,18 +145,25 @@ func renew(ctx context.Context, p paths, ca authority, src sourceConfig, schedul
 			return e
 		}
 		if scheduled {
-			window, guard, e := scheduledPolicy(p, d)
+			// The issuer may grant less than the requested duration. Base the
+			// window and interval validation on a verified current certificate,
+			// otherwise a healthy short certificate is renewed on every check.
+			var current *ssh.Certificate
+			lifetime := d
+			if certificateState.Exists {
+				c, err := parseCertificate(certificateState.Data)
+				if err == nil && validateCertificate(c, key, src.CA, ca.Principals, d) == nil {
+					current = c
+					lifetime = time.Duration(c.ValidBefore-c.ValidAfter) * time.Second
+				}
+			}
+			window, guard, e := scheduledPolicy(p, lifetime)
 			if e != nil {
 				return e
 			}
 			sourceGuards = append(sourceGuards, guard)
-			if certificateState.Exists {
-				c, e := parseCertificate(certificateState.Data)
-				if e == nil {
-					if validateCertificate(c, key, src.CA, ca.Principals, d) == nil && time.Until(time.Unix(int64(c.ValidBefore), 0)) > window {
-						return nil
-					}
-				}
+			if current != nil && time.Until(time.Unix(int64(current.ValidBefore), 0)) > window {
+				return nil
 			}
 		}
 		keyPath := ca.Key

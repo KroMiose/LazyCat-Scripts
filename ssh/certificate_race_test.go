@@ -18,7 +18,7 @@ func TestCLIRenewCredentialValidationAndConcurrentEdit(t *testing.T) {
 	if b, e := exec.Command("go", "build", "-o", binary, ".").CombinedOutput(); e != nil {
 		t.Fatal(e, string(b))
 	}
-	for _, target := range []string{"certificate", "public", "private", "source", "invalid-timer", "healthy", "expired", "future", "overlong", "wrong-principal", "extra-principal", "wrong-ca", "wrong-key", "host-certificate", "historical-overlong", "duplicate-principals"} {
+	for _, target := range []string{"certificate", "public", "private", "source", "invalid-timer", "healthy", "expired", "future", "overlong", "wrong-principal", "extra-principal", "wrong-ca", "wrong-key", "host-certificate", "historical-overlong", "duplicate-principals", "shorter-healthy", "shorter-interval-invalid"} {
 		t.Run(target, func(t *testing.T) {
 			home := t.TempDir()
 			key := filepath.Join(home, ".ssh/lazycat_ca_ed25519")
@@ -34,6 +34,10 @@ func TestCLIRenewCredentialValidationAndConcurrentEdit(t *testing.T) {
 			signer, signingKey := ca, key
 			duration, principals := "-1m:+12h", "fixture"
 			switch target {
+			case "shorter-healthy":
+				duration = "-1m:+100m"
+			case "shorter-interval-invalid":
+				duration = "-1m:+10m"
 			case "expired":
 				duration = "-2h:-1h"
 			case "future":
@@ -69,6 +73,9 @@ func TestCLIRenewCredentialValidationAndConcurrentEdit(t *testing.T) {
 			response := filepath.Join(home, "response")
 			os.WriteFile(response, signed, 0600)
 			original := []byte("previous certificate preserved\n")
+			if strings.HasPrefix(target, "shorter-") {
+				original = signed
+			}
 			os.WriteFile(cert, original, 0600)
 			fingerprint, e := exec.Command("ssh-keygen", "-lf", ca+".pub").Output()
 			if e != nil {
@@ -122,7 +129,16 @@ cat "$RESPONSE"
 			if target == "healthy" {
 				expected = 0
 			}
-			if target == "invalid-timer" {
+			if strings.HasPrefix(target, "shorter-") {
+				want := 0
+				if target == "shorter-interval-invalid" {
+					want = 1
+				}
+				call(want, "renew-certs", "--scheduled")
+				if _, e := os.Stat(filepath.Join(home, "requests")); !os.IsNotExist(e) {
+					t.Fatal("contacted CA despite actual certificate lifetime policy", e)
+				}
+			} else if target == "invalid-timer" {
 				receipt := filepath.Join(home, ".lazycat/ssh/timer.json")
 				os.WriteFile(receipt, []byte(`{"Version":1,"Minutes":9223372036854775807,"Files":{}}`), 0600)
 				before, _ := os.ReadFile(receipt)

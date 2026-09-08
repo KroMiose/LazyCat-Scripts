@@ -44,6 +44,35 @@ runuser -u fixture -- ssh -F "$home/.ssh/config" -o BatchMode=yes -o UpdateHostK
 sha256sum "$home/.ssh/lazycat_ca_ed25519-cert.pub" > /tmp/certificate-before-scheduled.sha256
 client renew-certs --scheduled
 sha256sum -c /tmp/certificate-before-scheduled.sha256
+cp -p "$home/.ssh/lazycat_ca_ed25519-cert.pub" /tmp/normal-client-cert
+for scenario in healthy-short invalid-interval due-short; do
+    case "$scenario" in
+        healthy-short) span='-1m:+100m' ;;
+        invalid-interval) span='-1m:+10m' ;;
+        due-short) span='-100m:+10m' ;;
+    esac
+    ssh-keygen -q -s /tmp/ca -I "$scenario" -n root -V "$span" /tmp/client.pub
+    cat /tmp/client-cert.pub > "$home/.ssh/lazycat_ca_ed25519-cert.pub"
+    sha256sum "$home/.ssh/lazycat_ca_ed25519-cert.pub" > /tmp/short-client-cert.sha256
+    status=0
+    client renew-certs --scheduled || status=$?
+    if [[ "$scenario" == invalid-interval ]]; then
+        [[ "$status" == 1 ]]
+        sha256sum -c /tmp/short-client-cert.sha256
+    elif [[ "$scenario" == healthy-short ]]; then
+        [[ "$status" == 0 ]]
+        sha256sum -c /tmp/short-client-cert.sha256
+    else
+        [[ "$status" == 0 ]]
+        if sha256sum -c /tmp/short-client-cert.sha256; then
+            echo 'Due short certificate was not renewed'; exit 1
+        fi
+    fi
+    runuser -u fixture -- ssh -F "$home/.ssh/config" -o BatchMode=yes -o UpdateHostKeys=no -o HostKeyAlias=127.0.0.1 fixture-node true
+done
+cat /tmp/normal-client-cert > "$home/.ssh/lazycat_ca_ed25519-cert.pub"
+sha256sum -c /tmp/client-preserved.sha256 /tmp/certificate-before-scheduled.sha256
+echo 'PASS actual short-certificate lifetime: healthy no-op, invalid interval reported, due certificate renewed and new SSH accepted'
 client migrate --check
 client migrate --apply
 # Simulate CA unavailability without breaking the already generated host config.
