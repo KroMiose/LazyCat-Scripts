@@ -192,10 +192,10 @@ func sourceSnapshot(p paths) (sourceConfig, []change, error) {
 	if e != nil {
 		return source, nil, e
 	}
-	if !s.Exists {
-		return source, nil, os.ErrNotExist
-	}
 	observed = append(observed, change{path, s, s})
+	if !s.Exists {
+		return source, observed, os.ErrNotExist
+	}
 	source, e = parseLegacy(s.Data)
 	return source, observed, e
 }

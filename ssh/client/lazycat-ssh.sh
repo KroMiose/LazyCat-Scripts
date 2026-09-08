@@ -18,6 +18,12 @@ __lc_bootstrap_die() {
   exit 1
 }
 
+# Reject before sourcing adjacent/cache code or making a bootstrap request.
+# The client has always required a normal user; the check must protect bootstrap too.
+if [[ "$EUID" -eq 0 ]]; then
+  __lc_bootstrap_die "请不要使用 sudo 运行控制端脚本（它会修改当前用户的 ~/.ssh）。"
+fi
+
 LAZYCAT_SSH_HOME_DEFAULT="${XDG_DATA_HOME:-$HOME/.local/share}/lazycat-ssh"
 LAZYCAT_SSH_HOME="${LAZYCAT_SSH_HOME:-$LAZYCAT_SSH_HOME_DEFAULT}"
 
@@ -1315,4 +1321,3 @@ main() {
 }
 
 main "$@"
-

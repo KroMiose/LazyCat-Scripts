@@ -14,13 +14,6 @@ import (
 var version = "dev"
 
 func outputJSON(v any) error { return json.NewEncoder(os.Stdout).Encode(v) }
-func sourceChange(p paths, s sourceConfig) (change, error) {
-	b, e := json.MarshalIndent(s, "", "  ")
-	if e != nil {
-		return change{}, e
-	}
-	return prepare(filepath.Join(p.Meta, "source.json"), b, 0600)
-}
 func sourceSnapshotChanges(p paths, s sourceConfig, observed []change) ([]change, error) {
 	b, e := json.MarshalIndent(s, "", "  ")
 	if e != nil {
@@ -124,27 +117,21 @@ func configure(p paths, args []string) error {
 // The configuration location and the administrator's trusted CA are separate
 // choices. Changing a file/URL must not silently clear or replace the trust pin.
 func saveConfiguredSource(p paths, s sourceConfig) error {
-	original, e := state(filepath.Join(p.Meta, "source.json"))
-	if e != nil {
-		return e
-	}
-	previous, e := readSource(p)
+	previous, observed, e := sourceSnapshot(p)
 	if e != nil && !os.IsNotExist(e) {
 		return &migrationConflict{"existing source state is unreadable; inspect doctor before replacement"}
 	}
 	if e == nil {
 		s.CA = previous.CA
 	}
-	c, e := sourceChange(p, s)
+	changes, e := sourceSnapshotChanges(p, s, observed)
 	if e != nil {
 		return e
 	}
-	if !same(original, c.Before) {
-		return &migrationConflict{"configuration source changed concurrently; preserved"}
-	}
-	_, e = commit(p.Ops, []change{c})
+	_, e = commit(p.Ops, changes)
 	return e
 }
+
 func diagnostics(p paths) map[string]any {
 	result := map[string]any{"version": version, "read_only": true, "network": "not checked", "config": p.Config, "generated": p.Generated}
 	s, e := readSource(p)
@@ -282,16 +269,16 @@ func run(ctx context.Context, p paths, args []string) error {
 		if len(args) != 2 || !strings.HasPrefix(args[1], "SHA256:") {
 			return errors.New("trust-ca <verified SHA256:fingerprint>")
 		}
-		s, e := readSource(p)
+		s, observed, e := sourceSnapshot(p)
 		if e != nil {
 			return e
 		}
 		s.CA = args[1]
-		c, e := sourceChange(p, s)
+		changes, e := sourceSnapshotChanges(p, s, observed)
 		if e != nil {
 			return e
 		}
-		_, e = commit(p.Ops, []change{c})
+		_, e = commit(p.Ops, changes)
 		return e
 	case "rollback":
 		if len(args) != 2 {

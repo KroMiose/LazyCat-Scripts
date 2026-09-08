@@ -23,7 +23,7 @@ try:
         # public-source snapshot is made traversable; the mount stays read-only.
         frozen.chmod(0o755)
         fingerprint=hashlib.sha256()
-        for folder in ('linux','common','tests'):
+        for folder in ('linux','common','tests','ssh'):
             for path in sorted((ROOT/folder).rglob('*')):
                 if not path.is_file() or '__pycache__' in path.parts:continue
                 relative=path.relative_to(ROOT);data=path.read_bytes()
@@ -33,6 +33,9 @@ try:
         command=['docker','run','--rm','--name',name,'--network','none','--read-only','--user','node','--tmpfs','/tmp:uid=1000,gid=1000','--tmpfs','/home/node:uid=1000,gid=1000','-e','HOME=/home/node','-e','LANG=C','-v',str(frozen)+':/work:ro',lock['image'],'bash','/work/tests/linux-files.sh']
         with (out/'output.log').open('wb') as log:
             result=subprocess.run(command,stdout=log,stderr=subprocess.STDOUT,timeout=300)
+            if result.returncode == 0:
+                root_command=['docker','run','--rm','--name',name,'--network','none','--read-only','--user','root','--tmpfs','/tmp','-v',str(frozen)+':/work:ro',lock['image'],'bash','/work/tests/bootstrap-root.sh','/work']
+                result=subprocess.run(root_command,stdout=log,stderr=subprocess.STDOUT,timeout=60)
         report['exit_code']=result.returncode
         report['status']='passed' if result.returncode==0 else ('environment-error' if result.returncode in (125,126,127) else 'product-failure')
 except (OSError,subprocess.SubprocessError) as error:report['error']=str(error)
