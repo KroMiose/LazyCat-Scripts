@@ -6,7 +6,7 @@ set -euo pipefail
 usermod -p '*' fixture
 ssh-keygen -q -t ed25519 -N '' -f /tmp/access-client
 install -d -o fixture -g fixture -m 700 /home/fixture/.ssh
-printf '# administrator authorization preferences\n' > /tmp/access-original
+{ printf '# administrator authorization preferences\n# disabled reference: '; cat /tmp/access-client.pub; } > /tmp/access-original
 install -o fixture -g fixture -m 640 /tmp/access-original /home/fixture/.ssh/authorized_keys
 sha256sum /tmp/access-client /tmp/access-client.pub > /tmp/access-key.sha256
 connection=(ssh -F /dev/null -i /tmp/access-client -o CertificateFile=none -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=/tmp/known_hosts fixture@127.0.0.1)

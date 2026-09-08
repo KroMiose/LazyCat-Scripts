@@ -2,6 +2,7 @@
   "format_version": 1,
   "scope": "Python isolated/adapted cases only; Go, native scripts and VM scenarios have separate evidence",
   "tests": [
+    "test_access_entrypoint.AccessEntrypoint.test_key_mentioned_only_in_comment_is_not_authorized",
     "test_access_entrypoint.AccessEntrypoint.test_registration_repeat_restricted_key_and_rollback",
     "test_binary_architecture.BinaryArchitecture.test_actual_headers_and_unsupported_formats",
     "test_binary_architecture.BinaryArchitecture.test_native_intel_missing_capability_and_translated_arm",

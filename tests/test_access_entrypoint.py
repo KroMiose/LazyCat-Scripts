@@ -41,3 +41,23 @@ class AccessEntrypoint(unittest.TestCase):
             restricted=auth.read_bytes()
             r=entry();self.assertEqual(r.returncode,0,r.stderr)
             self.assertEqual(auth.read_bytes(),restricted)
+
+    def test_key_mentioned_only_in_comment_is_not_authorized(self):
+        for location in ('comment-line','other-key-comment'):
+            with self.subTest(location=location), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory);env=environment(home);key=home/'client'
+                for name in ('client','other'):
+                    subprocess.run(['ssh-keygen','-q','-t','ed25519','-N','','-f',str(home/name)],env=env,check=True,timeout=10)
+                public=key.with_suffix('.pub').read_text()
+                auth=home/'.ssh/authorized_keys';auth.parent.mkdir(mode=0o700)
+                original=('# disabled key: '+public if location=='comment-line' else
+                          (home/'other.pub').read_text().rstrip()+' disabled-reference '+public.split()[1]+'\n')
+                auth.write_text(original);auth.chmod(0o640)
+                result=subprocess.run(['bash',str(ROOT/'common/setup_ssh_access.sh'),'--public-key',str(key)+'.pub'],
+                    env=env,capture_output=True,text=True,timeout=10)
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                self.assertEqual(auth.read_text(),original+public)
+                # OpenSSH independently sees two different keys only in the
+                # second scenario; comments never count as enabled keys.
+                fingerprints=subprocess.check_output(['ssh-keygen','-lf',str(auth)],env=env,text=True,timeout=10)
+                self.assertEqual(len(fingerprints.splitlines()),1 if location=='comment-line' else 2)

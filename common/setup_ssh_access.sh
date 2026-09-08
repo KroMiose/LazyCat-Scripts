@@ -164,13 +164,28 @@ case "$key_type" in ssh-ed25519|ssh-rsa|ecdsa-sha2-*|sk-ssh-ed25519@openssh.com|
 work=$(mktemp -d)
 trap 'rm -rf "$work"; lc_tx_unlock' EXIT
 printf '%s\n' "$public" > "$work/key.pub"
-ssh-keygen -lf "$work/key.pub" >/dev/null
+key_details=$(ssh-keygen -lf "$work/key.pub")
+fingerprint=$(printf '%s\n' "$key_details" | awk '{print $2}')
 [[ ! -L "$HOME/.ssh" ]] || { echo '.ssh 为符号链接，需要人工采纳' >&2; exit 3; }
 if [[ ! -d "$HOME/.ssh" ]]; then (umask 077; mkdir -p "$HOME/.ssh"); fi
 lc_tx_begin "$HOME/.ssh/authorized_keys"
 # Matching a restricted existing key counts as present; do not append an
 # unrestricted duplicate which would broaden its authorization.
-if awk -v key="$key_data" '{ for(i=1;i<=NF;i++) if($i==key) found=1 } END {exit !found}' "$LC_TX_CANDIDATE"; then
+# Let OpenSSH parse real enabled keys. A base64 value in a comment (including
+# another key's trailing comment) is not proof that this key is authorized.
+parse_status=0
+existing_keys=$(LC_ALL=C ssh-keygen -lf /dev/stdin < "$LC_TX_CANDIDATE" 2> "$work/existing-key-parser.err") || parse_status=$?
+# Empty/comment-only files produce this specific parser result on supported
+# OpenSSH. Do not reinterpret a missing tool, read failure or other diagnostic
+# as an empty authorization list.
+if [[ "$parse_status" != 0 ]]; then
+    parser_message=$(cat "$work/existing-key-parser.err")
+    parser_message=${parser_message%$'\r'}
+    [[ "$parse_status" == 255 && -z "$existing_keys" && "$parser_message" == "/dev/stdin is not a public key file." ]] || {
+        echo '无法读取已有授权公钥，未修改文件' >&2; exit 1;
+    }
+fi
+if printf '%s\n' "$existing_keys" | awk -v key="$fingerprint" '$2==key {found=1} END {exit !found}'; then
     lc_tx_commit
     echo '公钥已存在，保留现有选项与权限。'
     exit 0
