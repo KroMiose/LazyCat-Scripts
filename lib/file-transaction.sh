@@ -1,5 +1,14 @@
 # Single-file candidate/backup protocol. Embedded into standalone release scripts.
 # Call lc_tx_begin, edit "$LC_TX_CANDIDATE", validate, then lc_tx_commit.
+lc_tx_copy() {
+    # GNU cp -p preserves modes/ACLs but silently drops user xattrs. Request
+    # xattr explicitly (rather than --preserve=all, which tolerates failures).
+    case "$(uname -s)" in
+        Linux) cp --preserve=mode,ownership,timestamps,xattr -- "$1" "$2" ;;
+        Darwin) cp -p "$1" "$2" ;;
+        *) echo '未验证的文件属性复制平台，未提交修改' >&2; return 1 ;;
+    esac
+}
 lc_tx_check_path() {
     local parent="$1"
     while [[ -n "$parent" && "$parent" != / ]]; do
@@ -32,14 +41,14 @@ lc_tx_begin() {
         LC_TX_EXISTED=1
         LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')
         printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
-        cp -p "$LC_TX_TARGET" "$LC_TX_OPERATION/before"
+        lc_tx_copy "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { lc_tx_unlock; return 1; }
     else
         (umask 077; : > "$LC_TX_OPERATION/before")
     fi
     LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_OPERATION/before" | awk '{print $1, $3, $4}')
     printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
     printf '%s\n' "$LC_TX_EXISTED" > "$LC_TX_OPERATION/existed"
-    cp -p "$LC_TX_OPERATION/before" "$LC_TX_OPERATION/after"
+    lc_tx_copy "$LC_TX_OPERATION/before" "$LC_TX_OPERATION/after" || { lc_tx_unlock; return 1; }
     LC_TX_CANDIDATE="$LC_TX_OPERATION/after"
     printf 'prepared\n' > "$LC_TX_OPERATION/status"
 }
@@ -88,7 +97,7 @@ lc_tx_commit() {
     fi
     local staged
     staged=$(mktemp "${LC_TX_TARGET}.lazycat-stage.XXXXXX")
-    cp -p "$LC_TX_CANDIDATE" "$staged"
+    lc_tx_copy "$LC_TX_CANDIDATE" "$staged" || { rm -f "$staged"; return 1; }
     if ! mv "$staged" "$LC_TX_TARGET"; then rm -f "$staged"; return 1; fi
     printf 'committed\n' > "$LC_TX_OPERATION/status"
     lc_tx_unlock
@@ -102,7 +111,7 @@ lc_remove_block_candidate() {
         END { exit (bad || inside) ? 1 : 0 }
     ' "$file" || { echo '托管标记损坏，未修改目标文件' >&2; return 3; }
     tmp=$(mktemp "${file}.XXXXXX")
-    cp -p "$file" "$tmp"
+    lc_tx_copy "$file" "$tmp" || { rm -f "$tmp"; return 1; }
     awk -v begin="$begin" -v end="$end" '
         $0 == begin { inside=1; next }
         $0 == end { inside=0; next }

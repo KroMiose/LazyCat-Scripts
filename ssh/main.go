@@ -89,7 +89,11 @@ func syncInventory(ctx context.Context, p paths, args []string) error {
 	}
 	fmt.Println("Configuration synchronized; operation:", id)
 	if !configOnly && in.CA.Host != "" {
-		if e := renew(ctx, p, in.CA, s, false); e != nil {
+		var guards []change
+		for _, c := range sourceChanges {
+			guards = append(guards, change{c.Path, c.After, c.After})
+		}
+		if e := renew(ctx, p, in.CA, s, false, guards); e != nil {
 			return fmt.Errorf("configuration synchronized; certificate unchanged: %w", e)
 		}
 	}
@@ -260,11 +264,11 @@ func run(ctx context.Context, p paths, args []string) error {
 		if len(args) > 1 && !scheduled {
 			return errors.New("renew-certs [--scheduled]")
 		}
-		in, s, _, e := loadInventory(ctx, p)
+		in, s, observed, e := loadInventory(ctx, p)
 		if e != nil {
 			return e
 		}
-		return renew(ctx, p, in.CA, s, scheduled)
+		return renew(ctx, p, in.CA, s, scheduled, observed)
 	case "trust-ca":
 		if len(args) != 2 || !strings.HasPrefix(args[1], "SHA256:") {
 			return errors.New("trust-ca <verified SHA256:fingerprint>")

@@ -57,6 +57,38 @@ func validity(s string) (time.Duration, error) {
 	}
 	return time.Duration(n) * unit, nil
 }
+
+func renewalWindow(d time.Duration, minutes int) (time.Duration, error) {
+	// Check the integer before converting to Duration, which can overflow on
+	// corrupted metadata. Equality is invalid: at least two checks must fit.
+	if d <= 0 || minutes <= 0 || int64(minutes) > int64((d/2)/time.Minute) || time.Duration(minutes)*time.Minute >= d/2 {
+		return 0, errors.New("renewal interval must be positive and less than half certificate validity")
+	}
+	window := max(d/3, 2*time.Duration(minutes)*time.Minute)
+	return min(window, d/2), nil
+}
+
+func scheduledPolicy(p paths, d time.Duration) (time.Duration, change, error) {
+	path := timerReceiptPath(p)
+	s, e := state(path)
+	guard := change{path, s, s}
+	if e != nil {
+		return 0, guard, e
+	}
+	minutes := 30
+	if s.Exists {
+		var receipt timerReceipt
+		if e = json.Unmarshal(s.Data, &receipt); e != nil {
+			return 0, guard, e
+		}
+		if e = validateTimerReceipt(p, receipt); e != nil {
+			return 0, guard, e
+		}
+		minutes = receipt.Minutes
+	}
+	window, e := renewalWindow(d, minutes)
+	return window, guard, e
+}
 func remote(ctx context.Context, host, command string, input []byte) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
@@ -68,7 +100,7 @@ func remote(ctx context.Context, host, command string, input []byte) ([]byte, er
 	}
 	return b, nil
 }
-func renew(ctx context.Context, p paths, ca authority, src sourceConfig, scheduled bool) error {
+func renew(ctx context.Context, p paths, ca authority, src sourceConfig, scheduled bool, sourceGuards []change) error {
 	if ca.Host == "" {
 		return errors.New("CA is not configured")
 	}
@@ -91,38 +123,36 @@ func renew(ctx context.Context, p paths, ca authority, src sourceConfig, schedul
 				result = e
 			}
 		}()
-		pub, e := os.ReadFile(p.Key + ".pub")
-		if e != nil {
+		publicState, e := state(p.Key + ".pub")
+		if e != nil || !publicState.Exists {
 			return errors.New("existing client public key is missing; initialize a key explicitly")
 		}
+		pub := publicState.Data
 		key, _, _, _, e := ssh.ParseAuthorizedKey(pub)
 		if e != nil {
 			return e
 		}
-		private, e := os.ReadFile(p.Key)
-		if e != nil {
+		privateState, e := state(p.Key)
+		if e != nil || !privateState.Exists {
 			return errors.New("client private key missing; refusing implicit replacement")
 		}
-		privateKey, e := privatePublic(private)
+		privateKey, e := privatePublic(privateState.Data)
 		if e != nil || string(privateKey.Marshal()) != string(key.Marshal()) {
 			return errors.New("client private/public keys do not match; original certificate preserved")
 		}
+		certificateState, e := state(p.Cert)
+		if e != nil {
+			return e
+		}
 		if scheduled {
-			minutes := timerInterval(p)
-			if time.Duration(minutes)*time.Minute >= d/2 {
-				return errors.New("renewal interval must be less than half certificate validity")
+			window, guard, e := scheduledPolicy(p, d)
+			if e != nil {
+				return e
 			}
-			b, e := os.ReadFile(p.Cert)
-			if e == nil {
-				c, e := parseCertificate(b)
+			sourceGuards = append(sourceGuards, guard)
+			if certificateState.Exists {
+				c, e := parseCertificate(certificateState.Data)
 				if e == nil {
-					window := d / 3
-					if x := 2 * time.Duration(minutes) * time.Minute; x > window {
-						window = x
-					}
-					if window > d/2 {
-						window = d / 2
-					}
 					if validateCertificate(c, key, src.CA, ca.Principals, d) == nil && time.Until(time.Unix(int64(c.ValidBefore), 0)) > window {
 						return nil
 					}
@@ -152,11 +182,14 @@ func renew(ctx context.Context, p paths, ca authority, src sourceConfig, schedul
 		if e = validateCertificate(cert, key, src.CA, ca.Principals, d); e != nil {
 			return e
 		}
-		c, e := prepare(p.Cert, b, 0644)
-		if e != nil {
-			return e
-		}
-		_, e = commit(p.Ops, []change{c})
+		// Observe before the network round-trip. No-op guards participate in
+		// conflict checks, but are never written or included in the journal.
+		c := prepareObserved(p.Cert, b, 0644, certificateState)
+		_, e = commit(p.Ops, append(sourceGuards, []change{
+			{p.Key, privateState, privateState},
+			{p.Key + ".pub", publicState, publicState},
+			c,
+		}...))
 		return e
 	})
 }

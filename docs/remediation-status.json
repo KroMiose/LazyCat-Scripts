@@ -283,10 +283,10 @@
     {
       "id": 38,
       "title": "安装记录过度依赖托管文本完全相等",
-      "status": "部分实现，验收未完成",
+      "status": "对应审阅缺陷已修复并验证",
       "decision": "",
-      "release_complete": false,
-      "evidence_summary": "实际 HUD v0.1.1 发布二进制创建旧状态后，候选 repair 显式采纳定制规则/超时，重复 setup 保留 Key、偏好和其他 Hooks；旧二进制回退 doctor 可用，候选卸载保留非托管内容。d189c3b run 34176125168 Linux/macOS 行为作业通过。完整发布安装器中断恢复仍待补。"
+      "release_complete": true,
+      "evidence_summary": "真实 HUD v0.1.1 状态经候选 repair --check/显式 adopt 后可重复升级与卸载，手改规则、超时、Key和其他 Hooks 保留。Linux/macOS run 34179540092 通过。此项结案仅针对缺少受控修复入口；发布安装器中断恢复仍由发布契约阻止遗漏。"
     },
     {
       "id": 39,
@@ -299,18 +299,18 @@
     {
       "id": 40,
       "title": "通知产品策略过多依赖模型遵守全局自然语言",
-      "status": "部分实现，验收未完成",
+      "status": "对应审阅缺陷已修复并验证",
       "decision": "确定性去重和格式放程序；模型仍决定通知时机。",
-      "release_complete": false,
-      "evidence_summary": "手动 notify 与 Stop 现在共用 Markdown/控制字符/单行清理；程序承担格式、去重和超时，模型仅决定时机。旧实际二进制把 Markdown 发给观察者，新实现清理后通过；Go race通过，托管验证待执行。"
+      "release_complete": true,
+      "evidence_summary": "确定性 Markdown/控制字符/单行清理由程序执行，配置 CLI 承担开关和 alias；模型保留通知时机与概括判断。旧二进制格式缺陷已有实际请求对照，新版 Linux/macOS run 34177243348、34179540092 通过。"
     },
     {
       "id": 41,
       "title": "部分 HUD 设置只能通过菜单或手改 TOML",
-      "status": "部分实现，验收未完成",
+      "status": "对应审阅缺陷已修复并验证",
       "decision": "",
-      "release_complete": false,
-      "evidence_summary": "完整原生 CLI 已验证 enabled/stop on/off、alias 设置/删除和非法值不写入；Key和其他配置保留。菜单共用配置实现。此次新增原生用例托管验证待执行。"
+      "release_complete": true,
+      "evidence_summary": "enabled/stop on/off、alias 设置/删除及非法值不写入已有真实 CLI 验证，菜单复用配置实现，Key和其他设置保留。Linux/macOS run 34179540092 通过。"
     },
     {
       "id": 42,
