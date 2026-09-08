@@ -85,4 +85,4 @@ jobs:
           retention-days: 90
           if-no-files-found: error
       - name: Declare verified scope
-        run: echo 'Native staging and rendering only. No upgrade/rollback/public-download approval; stable is unchanged.' >> "$GITHUB_STEP_SUMMARY"
+        run: echo 'Native staging, rendering and known-program migration/rollback with constructed configuration. Native launchd has separate reports. No historical formal release or public-download approval; stable is unchanged.' >> "$GITHUB_STEP_SUMMARY"

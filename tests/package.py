@@ -12,6 +12,7 @@ import struct
 import sys
 import tempfile
 import tarfile
+import xml.etree.ElementTree as ET
 ROOT=Path(__file__).resolve().parents[1]
 
 def binary_platform(payload):
@@ -39,7 +40,10 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--assets',required=True,type=Path);parser.add_argument('--expected-platform',choices=['linux/amd64','linux/arm64','darwin/amd64','darwin/arm64']);args=parser.parse_args()
     assets=args.assets.resolve();manifest=json.loads((assets/'manifest.json').read_text())
     out=ROOT/'artifacts/package'/datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ');out.mkdir(parents=True)
-    report=dict(format_version=1,commit=manifest['commit'],source_tree_sha256=manifest['source_tree_sha256'],scope='native-package-stage-and-render',level='native-process',platform=platform.platform(),status='failed',scenarios=[],skipped=0,flaky=0,environment_errors=0,development=manifest['development'],candidate_assets={x['path']:x['sha256'] for x in manifest['assets']})
+    report=dict(format_version=1,commit=manifest['commit'],source_tree_sha256=manifest['source_tree_sha256'],scope='native-package-stage-render-and-known-program-rollback',level='native-process',platform=platform.platform(),status='failed',scenarios=[],skipped=0,flaky=0,environment_errors=0,development=manifest['development'],candidate_assets={x['path']:x['sha256'] for x in manifest['assets']})
+    report['driver_sha256']=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    required=['independent-native-stage','native-render-independent-ssh-parser','packaged-shell-syntax-and-readonly-checker',
+              'native-artifact-known-program-migration-repeat-conflict-rollback']
     try:
         system={'Linux':'linux','Darwin':'darwin'}[platform.system()]
         arch={'x86_64':'amd64','AMD64':'amd64','aarch64':'arm64','arm64':'arm64'}[platform.machine()]
@@ -61,10 +65,10 @@ def main():
         with tempfile.TemporaryDirectory(prefix='lazycat-package-') as directory,(out/'commands.log').open('w') as log:
             root=Path(directory).resolve();bindir=root/'bin';bindir.mkdir();existing=bindir/'lazycat-ssh';existing.write_text('user command preserved\n')
             env={'HOME':str(root),'PATH':'/usr/bin:/bin:/usr/sbin:/sbin','LANG':'C','LAZYCAT_SSH_BIN_DIR':str(bindir)}
-            def run(argv):
+            def run(argv, expected=0):
                 result=subprocess.run(argv,env=env,cwd=root,capture_output=True,text=True,timeout=60)
                 log.write(json.dumps(dict(argv=argv,exit_code=result.returncode,stdout=result.stdout,stderr=result.stderr))+'\n');log.flush()
-                if result.returncode:raise RuntimeError('candidate command failed; see commands.log')
+                if result.returncode!=expected:raise RuntimeError('candidate command returned unexpected status; see commands.log')
                 return result.stdout
             report['bash_version']=run(['/bin/bash','--version']).splitlines()[0]
             if system=='darwin' and 'version 3.2.' not in report['bash_version']:raise ValueError('macOS system Bash 3.2 baseline changed')
@@ -97,8 +101,82 @@ def main():
             checked=json.loads(run(['/bin/bash',str(shell_root/'common/lazycat-check.sh'),'--json']))
             if checked.get('read_only') is not True or checked.get('operations')!=[]:raise AssertionError('packaged checker failed clean baseline')
             report['scenarios'].append(dict(id='packaged-shell-syntax-and-readonly-checker',status='passed'))
+            # Use the downloaded program for migration and public rollback, not
+            # a second source build. This is a known historical program with an
+            # explicitly constructed minimal configuration, not an old release.
+            old_program=(ROOT/'tests/fixtures/legacy-default-ca-client.sh').read_bytes()
+            if hashlib.sha256(old_program).hexdigest()!='2e37d44f18d62122043b80b10a86c864c267ea815adf34c1d48baac205061b64':
+                raise AssertionError('historical program fixture changed')
+            existing.write_bytes(old_program);existing.chmod(0o755)
+            generated=root/'.ssh/config.d/lazycat.conf';generated.parent.mkdir(parents=True)
+            legacy_config=b'Host package-node\n    HostName 192.0.2.10\n    HostKeyAlias package-node\n    User fixture\n    Port 2222\n    IdentitiesOnly yes\n'
+            generated.write_bytes(legacy_config)
+            user_config=root/'.ssh/config'
+            user_bytes=('User preferred-user\nHost *\n# >>> LazyCat SSH BEGIN >>>\nInclude "'+str(generated)+'"\n# <<< LazyCat SSH END <<<\n# user tail without newline').encode()
+            user_config.write_bytes(user_bytes);user_config.chmod(0o640)
+            # Fictional real keypair, with no CA host or remote connection.
+            key=root/'.ssh/user-key'
+            run(['/usr/bin/ssh-keygen','-q','-t','ed25519','-N','','-f',str(key)])
+            key_bytes=key.read_bytes();public_bytes=key.with_suffix('.pub').read_bytes()
+            run([candidate,'source','--file',str(source)])
+            def observe():
+                effective=run(['/usr/bin/ssh','-G','-F',str(user_config),'package-node'])
+                values=dict(line.split(' ',1) for line in effective.splitlines() if ' ' in line)
+                for field,value in {'hostname':'192.0.2.10','user':'preferred-user','port':'2222','hostkeyalias':'package-node'}.items():
+                    if values.get(field)!=value:raise AssertionError('migration changed '+field)
+                if user_config.read_bytes()!=user_bytes or key.read_bytes()!=key_bytes or key.with_suffix('.pub').read_bytes()!=public_bytes:
+                    raise AssertionError('migration changed user configuration or keys')
+                if user_config.stat().st_mode&0o777!=0o640:raise AssertionError('migration changed config mode')
+                return effective
+            before_effective=observe()
+            run([candidate,'migrate','--check'])
+            migration=run([candidate,'migrate','--apply'])
+            operation_lines=[line for line in migration.splitlines() if line.startswith('Migration operation: ')]
+            if len(operation_lines)!=1:raise AssertionError('missing migration operation')
+            operation=operation_lines[0].split(': ',1)[1]
+            if existing.read_bytes()!=Path(candidate).read_bytes():raise AssertionError('installed program differs from actual archive')
+            run([str(existing),'version'])
+            operations=root/'.lazycat/ssh/operations'
+            records=sorted(path.name for path in operations.glob('*.json'))
+            run([candidate,'migrate','--apply'])
+            if sorted(path.name for path in operations.glob('*.json'))!=records:raise AssertionError('repeat migration wrote backups')
+            if observe()!=before_effective:raise AssertionError('migration changed effective SSH parameters')
+            # Later executable edit must block rollback without replacing it.
+            original_installed=existing.read_bytes()
+            existing.write_bytes(original_installed+b'\nuser edit\n')
+            run([candidate,'rollback',operation],expected=3)
+            if existing.read_bytes()!=original_installed+b'\nuser edit\n':raise AssertionError('rollback overwrote later user edit')
+            existing.write_bytes(original_installed)
+            run([candidate,'rollback',operation])
+            if existing.read_bytes()!=old_program:raise AssertionError('rollback failed to restore historical program bytes')
+            if observe()!=before_effective:raise AssertionError('rollback changed effective SSH parameters')
+            report['scenarios'].append(dict(id='native-artifact-known-program-migration-repeat-conflict-rollback',status='passed',
+                baseline='c8ffb57 known program; constructed minimal configuration; no historical formal SSH release',
+                limits='No native tasks, CA signing, network login or installer SIGKILL in this scenario'))
             report['status']='passed'
     except Exception as error:report['error']=str(error)
+    completed={scene['id'] for scene in report['scenarios']}
+    report['scenarios'] += [dict(id=identifier,status='not_run') for identifier in required if identifier not in completed]
+    report['skipped']=sum(scene['status']=='not_run' for scene in report['scenarios'])
+    observations=out/'commands.log'
+    if observations.exists():
+        report['observations']=[{'path':observations.name,'sha256':hashlib.sha256(observations.read_bytes()).hexdigest()}]
+    suite=ET.Element('testsuite',name='native-package',tests=str(len(required)),
+        failures=str(int(report['status']!='passed')),skipped=str(report['skipped']))
+    for scene in report['scenarios']:
+        case=ET.SubElement(suite,'testcase',name=scene['id'])
+        if scene['status']=='not_run':ET.SubElement(case,'skipped',message='prior stage failed; coverage incomplete')
+    if report['status']!='passed':
+        case=ET.SubElement(suite,'testcase',name='package-lifecycle')
+        ET.SubElement(case,'failure',message=report.get('error','incomplete')).text=report.get('error','incomplete')
+        suite.set('tests',str(len(required)+1))
+    ET.ElementTree(suite).write(out/'junit.xml',encoding='utf-8',xml_declaration=True)
+    summary=('## Native package\n\nStatus: '+report['status']+'; candidate commit: `'+report['commit']+'`; platform: '+report.get('native_platform','unknown')+
+        '; not run: '+str(report['skipped'])+'.\n\nActual archive staging, rendering and known-program migration/rollback with constructed configuration. '
+        'This is not a historical formal release upgrade, real login, installer interruption recovery or public download verification.\n')
+    (out/'summary.md').write_text(summary)
+    if os.environ.get('GITHUB_STEP_SUMMARY'):
+        with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as stream:stream.write(summary)
     (out/'result.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
     return 0 if report['status']=='passed' else 1
 if __name__=='__main__':sys.exit(main())
