@@ -139,3 +139,47 @@ sha256sum -c "$work/nondefault.sha256"
 printf '51938\n' | bash linux/setup_squid_proxy.sh
 observer
 echo 'PASS existing nondefault Squid port and credentials survive blank/default rerun without restart'
+
+# An administrator edits while the real interactive prompt is being read.
+# Only read is wrapped; parsing, files and the daemon remain real.
+cat > "$work/prompt-edit.sh" <<'SH'
+read() {
+    if [[ ! -f "$SQUID_FAULT/prompt-edited" ]]; then
+        printf '# concurrent administrator preference\n' >> /etc/squid/squid.conf
+        python3 -c 'import os; os.setxattr("/etc/squid/squid.conf", "user.lazycat-fixture", b"administrator")'
+        touch "$SQUID_FAULT/prompt-edited"
+    fi
+    builtin read "$@"
+}
+SH
+printf '51938\n' | SQUID_FAULT="$work" BASH_ENV="$work/prompt-edit.sh" bash tests/fixtures/squid-port-before.sh
+if grep -q 'concurrent administrator preference' /etc/squid/squid.conf; then
+    echo 'Historical input did not reproduce overwritten administrator edit'; exit 1
+fi
+echo 'EXPECTED OLD DEFECT: prompt-time administrator edit overwritten'
+cp --preserve=mode,ownership,timestamps,xattr "$work/config.before" /etc/squid/squid.conf
+systemctl restart squid
+observer
+rm "$work/prompt-edited"
+pid=$(systemctl show squid --property=MainPID --value)
+status=0
+printf '51938\n' | SQUID_FAULT="$work" BASH_ENV="$work/prompt-edit.sh" bash linux/setup_squid_proxy.sh > "$work/prompt-conflict.log" 2>&1 || status=$?
+cat "$work/prompt-conflict.log"
+[[ "$status" == 3 ]]
+grep -qx '# concurrent administrator preference' /etc/squid/squid.conf
+python3 -c 'import os; assert os.getxattr("/etc/squid/squid.conf", "user.lazycat-fixture") == b"administrator"'
+cmp "$work/passwd.before" /etc/squid/passwd
+[[ "$(systemctl show squid --property=MainPID --value)" == "$pid" ]]
+observer
+# Construct the next declared input explicitly, then verify ordinary updates
+# preserve an existing native extended attribute and nondefault file mode.
+cp --preserve=mode,ownership,timestamps,xattr "$work/config.before" /etc/squid/squid.conf
+chmod 640 /etc/squid/squid.conf
+python3 -c 'import os; os.setxattr("/etc/squid/squid.conf", "user.lazycat-fixture", b"original")'
+printf '51940\n' | bash linux/setup_squid_proxy.sh
+[[ "$(stat -c %a /etc/squid/squid.conf)" == 640 ]]
+python3 -c 'import os; assert os.getxattr("/etc/squid/squid.conf", "user.lazycat-fixture") == b"original"'
+/usr/bin/curl --fail --max-time 15 --noproxy '' --proxy http://127.0.0.1:51940 --proxy-user fixture:fixture-test-only http://127.0.0.1:18080 >/dev/null
+printf '51938\n' | bash linux/setup_squid_proxy.sh
+observer
+echo 'PASS administrator edit conflict, unchanged credentials/service and native attribute preservation'

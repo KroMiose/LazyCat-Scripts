@@ -68,3 +68,34 @@ class AccessEntrypoint(unittest.TestCase):
                 # second scenario; comments never count as enabled keys.
                 fingerprints=subprocess.check_output(['ssh-keygen','-lf',str(auth)],env=env,text=True,timeout=10)
                 self.assertEqual(len(fingerprints.splitlines()),1 if location=='comment-line' else 2)
+
+    def test_default_paste_cancel_invalid_and_explicit_export(self):
+        from lib.support import snapshot
+        with tempfile.TemporaryDirectory() as directory:
+            home=Path(directory);env=environment(home);key=home/'client'
+            subprocess.run(['ssh-keygen','-q','-t','ed25519','-N','','-f',str(key)],env=env,check=True,timeout=10)
+            public=key.with_suffix('.pub').read_text()
+            private=key.read_bytes()
+            entry=['bash',str(ROOT/'common/setup_ssh_access.sh')]
+            initial=snapshot(home)
+            for invalid in ('', 'not-a-key\n', 'command="id" '+public):
+                r=subprocess.run(entry,input=invalid,env=env,capture_output=True,text=True,timeout=10)
+                self.assertNotEqual(r.returncode,0)
+                self.assertEqual(snapshot(home),initial)
+                self.assertNotIn('PRIVATE KEY',r.stdout+r.stderr)
+            invalid_file=home/'invalid.pub';invalid_file.write_text(public+'ssh-ed25519 invalid\n')
+            before=snapshot(home)
+            r=subprocess.run(entry+['--public-key',str(invalid_file)],env=env,capture_output=True,text=True,timeout=10)
+            self.assertEqual(r.returncode,2,r.stdout+r.stderr)
+            self.assertEqual(snapshot(home),before)
+            r=subprocess.run(entry,input=public,env=env,capture_output=True,text=True,timeout=10)
+            self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+            self.assertEqual((home/'.ssh/authorized_keys').read_text(),public)
+            self.assertEqual(key.read_bytes(),private)
+            self.assertNotIn('PRIVATE KEY',r.stdout+r.stderr)
+            self.assertFalse(any(p.name.startswith('id_') for p in (home/'.ssh').iterdir()))
+            before=snapshot(home)
+            r=subprocess.run(entry+['--export-private',str(key)],env=env,capture_output=True,timeout=10)
+            self.assertEqual(r.returncode,0,r.stderr)
+            self.assertEqual(r.stdout,private)
+            self.assertEqual(snapshot(home),before)

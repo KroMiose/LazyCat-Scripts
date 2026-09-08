@@ -52,6 +52,32 @@ lock_operation() {
     flock -n 9 || { log_error '另一项 Squid 安装或更新正在进行，未修改系统。'; return 3; }
 }
 
+squid_copy() {
+    cp --preserve=mode,ownership,timestamps,xattr -- "$1" "$2"
+}
+
+squid_capture() {
+    local target="$1" snapshot="$2"
+    [[ ! -L "$target" && ( ! -e "$target" || -f "$target" ) ]] || { log_error '配置或认证目标不是普通文件，未修改。'; return 3; }
+    if [[ -f "$target" ]]; then
+        LC_ALL=C stat -c '%d:%i:%z' -- "$target" > "${snapshot}.revision"
+        squid_copy "$target" "$snapshot"
+    fi
+    squid_check_original "$target" "$snapshot"
+}
+
+squid_check_original() {
+    local target="$1" snapshot="$2"
+    if [[ -f "$snapshot" ]]; then
+        [[ -f "$target" && ! -L "$target" && "$(LC_ALL=C stat -c '%d:%i:%z' -- "$target")" == "$(cat "${snapshot}.revision")" ]] &&
+            cmp -s "$target" "$snapshot" && return 0
+    elif [[ ! -e "$target" && ! -L "$target" ]]; then
+        return 0
+    fi
+    log_error '配置或凭据被并发修改，已停止；用户修改与备份保留。'
+    return 3
+}
+
 # --- 检查并安装依赖 ---
 install_dependencies() {
     log_step "检查并安装依赖"
@@ -284,21 +310,28 @@ main() {
     check_root
     check_systemd
     lock_operation
+    [[ ! -L /etc/squid ]] || { log_error 'Squid 目录为符号链接，需要先明确采纳。'; return 3; }
     install_dependencies
-    interactive_config
     mkdir -p /etc/squid
     [[ ! -L /etc/squid/squid.conf && ! -L /etc/squid/passwd ]] || { log_error '拒绝替换符号链接'; return 1; }
     local work was_active=0 was_enabled=0 result=0
     work=$(mktemp -d /etc/squid/.lazycat-operation.XXXXXX)
     chmod 700 "$work"
-    [[ ! -f /etc/squid/squid.conf ]] || cp -p /etc/squid/squid.conf "$work/config.before"
-    [[ ! -f /etc/squid/passwd ]] || cp -p /etc/squid/passwd "$work/passwd.before"
+    squid_capture /etc/squid/squid.conf "$work/config.before"
+    squid_capture /etc/squid/passwd "$work/passwd.before"
+    interactive_config
     systemctl is-active --quiet squid && was_active=1
     systemctl is-enabled --quiet squid && was_enabled=1
     SQUID_CANDIDATE="$work/config.after"
     PASSWD_CANDIDATE="$work/passwd.after"
+    [[ ! -f "$work/config.before" ]] || squid_copy "$work/config.before" "$SQUID_CANDIDATE"
     write_squid_config
+    if [[ "$PRESERVE_CREDENTIALS" != 1 && -f "$work/passwd.before" ]]; then
+        cp --attributes-only --preserve=mode,ownership,timestamps,xattr -- "$work/passwd.before" "$PASSWD_CANDIDATE"
+    fi
     validate_config
+    squid_check_original /etc/squid/squid.conf "$work/config.before"
+    squid_check_original /etc/squid/passwd "$work/passwd.before"
     if [[ "$PRESERVE_CREDENTIALS" == 1 ]] && cmp -s "$SQUID_CANDIDATE" /etc/squid/squid.conf; then
         rm -rf "$work"
         log_success '配置及凭据未变化，不重启服务。'
@@ -309,7 +342,7 @@ main() {
     (
         set -e
         if [[ "$PRESERVE_CREDENTIALS" != 1 ]]; then mv "$PASSWD_CANDIDATE" /etc/squid/passwd; fi
-        chmod 644 "$SQUID_CANDIDATE"
+        [[ -f "$work/config.before" ]] || chmod 644 "$SQUID_CANDIDATE"
         mv "$SQUID_CANDIDATE" /etc/squid/squid.conf
         systemctl restart squid
         systemctl enable squid
@@ -318,8 +351,8 @@ main() {
     result=$?
     set -e
     if [[ "$result" != 0 ]]; then
-        if [[ -f "$work/config.before" ]]; then cp -p "$work/config.before" /etc/squid/squid.conf; else rm -f /etc/squid/squid.conf; fi
-        if [[ -f "$work/passwd.before" ]]; then cp -p "$work/passwd.before" /etc/squid/passwd; else rm -f /etc/squid/passwd; fi
+        if [[ -f "$work/config.before" ]]; then squid_copy "$work/config.before" /etc/squid/squid.conf; else rm -f /etc/squid/squid.conf; fi
+        if [[ -f "$work/passwd.before" ]]; then squid_copy "$work/passwd.before" /etc/squid/passwd; else rm -f /etc/squid/passwd; fi
         if [[ "$was_active" == 1 ]]; then systemctl restart squid || log_error '恢复服务失败'; else systemctl stop squid; fi
         if [[ "$was_enabled" == 0 ]]; then systemctl disable squid; fi
         printf 'rollback-attempted\n' > "$work/status"
