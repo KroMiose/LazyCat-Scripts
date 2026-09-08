@@ -14,6 +14,15 @@ import (
 //go:embed legacy-clients.json
 var legacyClients []byte
 
+// Exact build inputs establish ownership for the current source and bundled
+// Shell entrypoints too. These bytes are compared only, never executed.
+//
+//go:embed client/lazycat-ssh.sh
+var currentLegacyClient []byte
+
+//go:embed lib/common.sh
+var currentLegacyCommon []byte
+
 type installationReceipt struct {
 	Version int    `json:"version"`
 	Binary  string `json:"binary"`
@@ -26,6 +35,14 @@ type configReceipt struct {
 }
 
 func knownLegacyClient(data []byte) bool {
+	if bytes.Equal(data, currentLegacyClient) {
+		return true
+	}
+	bundled := bytes.Replace(currentLegacyClient, []byte("\n__lc_source_common\n"),
+		[]byte("\n# Bundled common.sh: no runtime download/cache sourcing.\n"+string(currentLegacyCommon)+"\n"), 1)
+	if bytes.Equal(data, bundled) {
+		return true
+	}
 	var records []struct {
 		SHA256 string `json:"sha256"`
 	}

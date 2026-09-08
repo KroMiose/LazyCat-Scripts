@@ -330,3 +330,9 @@ Zsh补充部分安装检查：已有OMZ目录缺失/空加载文件时，旧入�
 旧Shell同步与CA续签解耦：先校验完整配置及CA输入，再提交配置并使用同一份已下载清单尝试续签；CA失败返回1，分别报告配置已更新、续签失败，旧证书保留。真实CLI/本地HTTP加明确的YAML查询和失败SSH适配器证明旧入口阻断配置且下载两次，新入口保存配置且只下载一次。新增VM场景使用锁定真实yq、真实CA私钥暂时不可用、新配置下旧证书登录、恢复后续签和再登录，待新提交验证。
 
 本地另用真实yq、HTTP与完整旧/新入口验证同步解耦和一次清单读取，结果通过（artifacts/regression-proof/legacy-sync-1bc0cc7/real-yq.log）；SSH故障仍为适配，不将它标为真实登录。最新85条Python完整回归及make check通过。6070ec8完整运行34196825252因仍含已确认的提示注入问题而取消，取消不算通过；当前1bc0cc7系统验证不包含后续Zsh残缺安装及旧SSH同步解耦改动。
+
+Go补充当前源码和当前Shell归档的精确归属识别，保留历史摘要白名单；编译进程序的Shell字节仅作比较，不执行。旧版两个归属单元子场景失败保存在artifacts/regression-proof/current-shell-ownership-9419c87/before.log；新完整SSH race通过（artifacts/go/ssh/20260908T072148.967309Z）。本地开发归档在macOS26 ARM64原生通过实际Shell包→Go迁移→原Shell程序回滚、独立SSH参数和密钥不变、手改拒绝；开发包及本机Go1.27.1证据不能替代托管Go1.26及当前提交完整验证。
+
+对1bc0cc7的真实Actions归档（PR合并测试提交6db2c79）重新运行新增产物迁移场景，旧Go在migrate --check明确返回3：installed command ownership is unknown；原失败报告在artifacts/package/20260908T072501.540429Z及artifacts/regression-proof/current-shell-ownership-9419c87/before-package.log。新开发归档同场景通过；不是源码构建样本冒充实际归档测试。1bc0cc7的PR34197521618已完成Ubuntu/Debian源码系统通过，含五种Squid中断/服务状态组合、真实HTTP认证与ACL/xattr恢复；当前后续SSH同步与归属改动尚不在该证据内。
+
+1bc0cc7的PR34197521618全部必需作业通过，包含Ubuntu/Debian源码及实际归档全系统、macOS原生任务、四平台原生产物、OpenWrt和两平台行为；其中PR合并测试提交为6db2c79。此结果包含CA中断恢复与Squid持久恢复，但不包含后续9419c87的旧SSH同步、Zsh残缺安装以及随后新增的当前Shell归属识别。

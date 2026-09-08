@@ -38,6 +38,7 @@
       "TestCLIInvalidArgumentsHaveNoSideEffects",
       "TestCLIRefusesNonRegularMigrationMetadata",
       "TestCLIRenewCredentialValidationAndConcurrentEdit",
+      "TestCurrentShellOwnershipRequiresExactBytes",
       "TestGeneratedLaunchPlistWithNativeParser",
       "TestInventoryRejectsAmbiguityAndInjection",
       "TestInventoryRejectsNonRegularAndOversizedFiles",

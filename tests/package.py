@@ -40,10 +40,11 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--assets',required=True,type=Path);parser.add_argument('--expected-platform',choices=['linux/amd64','linux/arm64','darwin/amd64','darwin/arm64']);args=parser.parse_args()
     assets=args.assets.resolve();manifest=json.loads((assets/'manifest.json').read_text())
     out=ROOT/'artifacts/package'/datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ');out.mkdir(parents=True)
-    report=dict(format_version=1,commit=manifest['commit'],source_tree_sha256=manifest['source_tree_sha256'],scope='native-package-stage-render-and-known-program-rollback',level='native-process',platform=platform.platform(),status='failed',scenarios=[],skipped=0,flaky=0,environment_errors=0,development=manifest['development'],candidate_assets={x['path']:x['sha256'] for x in manifest['assets']})
+    report=dict(format_version=1,commit=manifest['commit'],source_tree_sha256=manifest['source_tree_sha256'],scope='native-package-stage-render-and-shell-migration-rollback',level='native-process',platform=platform.platform(),status='failed',scenarios=[],skipped=0,flaky=0,environment_errors=0,development=manifest['development'],candidate_assets={x['path']:x['sha256'] for x in manifest['assets']})
     report['driver_sha256']=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     required=['independent-native-stage','native-render-independent-ssh-parser','packaged-shell-syntax-and-readonly-checker',
-              'native-artifact-known-program-migration-repeat-conflict-rollback']
+              'native-artifact-known-program-migration-repeat-conflict-rollback',
+              'native-current-shell-bundle-migration-and-rollback']
     try:
         system={'Linux':'linux','Darwin':'darwin'}[platform.system()]
         arch={'x86_64':'amd64','AMD64':'amd64','aarch64':'arm64','arm64':'arm64'}[platform.machine()]
@@ -153,6 +154,28 @@ def main():
             report['scenarios'].append(dict(id='native-artifact-known-program-migration-repeat-conflict-rollback',status='passed',
                 baseline='c8ffb57 known program; constructed minimal configuration; no historical formal SSH release',
                 limits='No native tasks, CA signing, network login or installer SIGKILL in this scenario'))
+            # The Shell entrypoint differs from raw source because its common
+            # library is bundled. Use the actual archive bytes, not a test-side
+            # imitation of the production bundler's output.
+            bundled_program=(shell_root/'ssh/client/lazycat-ssh.sh').read_bytes()
+            existing.write_bytes(bundled_program);existing.chmod(0o755)
+            run([candidate,'migrate','--check'])
+            migrated=run([candidate,'migrate','--apply'])
+            current_operations=[line.split(': ',1)[1] for line in migrated.splitlines() if line.startswith('Migration operation: ')]
+            if len(current_operations)!=1:raise AssertionError('missing current Shell migration record')
+            if existing.read_bytes()!=Path(candidate).read_bytes():raise AssertionError('current Shell migration did not install candidate')
+            if observe()!=before_effective:raise AssertionError('current Shell migration changed effective parameters')
+            run([candidate,'rollback',current_operations[0]])
+            if existing.read_bytes()!=bundled_program:raise AssertionError('rollback did not restore actual bundled Shell bytes')
+            if observe()!=before_effective:raise AssertionError('current Shell rollback changed user state')
+            modified=bundled_program+b'\n# subsequent user edit\n'
+            existing.write_bytes(modified)
+            records=sorted(path.name for path in operations.glob('*.json'))
+            run([candidate,'migrate','--check'],expected=3)
+            if existing.read_bytes()!=modified or sorted(path.name for path in operations.glob('*.json'))!=records:
+                raise AssertionError('edited current Shell check had side effects')
+            report['scenarios'].append(dict(id='native-current-shell-bundle-migration-and-rollback',status='passed',
+                baseline='actual current Shell archive; constructed minimal configuration; no native tasks or remote login'))
             report['status']='passed'
     except Exception as error:report['error']=str(error)
     completed={scene['id'] for scene in report['scenarios']}
@@ -172,7 +195,7 @@ def main():
         suite.set('tests',str(len(required)+1))
     ET.ElementTree(suite).write(out/'junit.xml',encoding='utf-8',xml_declaration=True)
     summary=('## Native package\n\nStatus: '+report['status']+'; candidate commit: `'+report['commit']+'`; platform: '+report.get('native_platform','unknown')+
-        '; not run: '+str(report['skipped'])+'.\n\nActual archive staging, rendering and known-program migration/rollback with constructed configuration. '
+        '; not run: '+str(report['skipped'])+'.\n\nActual archive staging, rendering, historical known-program and current bundled-Shell migration/rollback with constructed configuration. '
         'This is not a historical formal release upgrade, real login, installer interruption recovery or public download verification.\n')
     (out/'summary.md').write_text(summary)
     if os.environ.get('GITHUB_STEP_SUMMARY'):
