@@ -123,6 +123,9 @@ lc_tx_commit() {
     lc_tx_copy "$LC_TX_CANDIDATE" "$staged" || { rm -f "$staged"; return 1; }
     lc_tx_check_revision || { rm -f "$staged"; return 3; }
     if ! mv "$staged" "$LC_TX_TARGET"; then rm -f "$staged"; return 1; fi
+    # A later metadata-only edit must also prevent destructive rollback. Record
+    # the published inode, not the candidate inode which rename may replace.
+    lc_tx_revision "$LC_TX_TARGET" > "$LC_TX_OPERATION/committed-revision" || return 1
     printf 'committed\n' > "$LC_TX_OPERATION/status"
     lc_tx_unlock
     printf '操作记录与备份：%s\n' "$LC_TX_OPERATION"
@@ -203,12 +206,22 @@ if [[ "${1:-}" == rollback ]]; then
         echo 'Target changed since operation; refusing rollback' >&2
         exit 3
     fi
+    if [[ -e "$operation/committed-revision" || -L "$operation/committed-revision" ]]; then
+        [[ -f "$operation/committed-revision" && ! -L "$operation/committed-revision" ]] || exit 3
+        IFS= read -r committed_revision < "$operation/committed-revision"
+        if [[ "$LC_TX_REVISION" != "$committed_revision" ]]; then
+            rm -rf "$LC_TX_OPERATION"
+            echo '文件或属性在提交后发生变化，拒绝回滚；备份已保留' >&2
+            exit 3
+        fi
+    fi
     lc_tx_copy "$LC_TX_CANDIDATE" "$operation/rollback-current"
     IFS= read -r existed < "$operation/existed"
     if [[ "$existed" == 1 ]]; then
         lc_tx_copy "$operation/before" "$LC_TX_CANDIDATE"
         lc_tx_commit
     elif [[ "$existed" == 0 ]]; then
+        lc_tx_check_revision || exit 3
         cmp -s "$target" "$LC_TX_OPERATION/before" || exit 3
         rm "$target"
         printf 'removed-by-rollback\n' > "$LC_TX_OPERATION/status"

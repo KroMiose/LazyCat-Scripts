@@ -223,7 +223,13 @@ user_systemctl enable lazycat-ssh-renew.timer
 user_systemctl start lazycat-ssh-renew.timer
 for target in "$home/.ssh/config.d/lazycat.conf" "$home/.local/bin/lazycat-ssh"; do
     cp -p "$target" /tmp/uninstall-original
-    printf '\n# user edit\n' >> "$target"
+    # The active renewal service can be executing this inode. Publish the
+    # fixture edit by rename, just as an editor/installer would; direct writes
+    # intermittently fail with ETXTBSY before the product assertion runs.
+    edit_candidate=$(mktemp "${target}.fixture-edit.XXXXXX")
+    cp -p "$target" "$edit_candidate"
+    printf '\n# user edit\n' >> "$edit_candidate"
+    mv "$edit_candidate" "$target"
     sha256sum "$target" "$home/.ssh/config" "$home/.lazycat/ssh/timer.json" "$home/.config/systemd/user/"lazycat-ssh-renew.* > /tmp/uninstall-conflict.sha256
     status=0
     client uninstall > /tmp/uninstall-conflict.log 2>&1 || status=$?
@@ -232,7 +238,9 @@ for target in "$home/.ssh/config.d/lazycat.conf" "$home/.local/bin/lazycat-ssh";
     sha256sum -c /tmp/uninstall-conflict.sha256
     [[ "$(user_systemctl show lazycat-ssh-renew.timer --property=ActiveState --value)" == active ]]
     [[ "$(user_systemctl show lazycat-ssh-renew.timer --property=UnitFileState --value)" == enabled ]]
-    cp -p /tmp/uninstall-original "$target"
+    edit_candidate=$(mktemp "${target}.fixture-restore.XXXXXX")
+    cp -p /tmp/uninstall-original "$edit_candidate"
+    mv "$edit_candidate" "$target"
 done
 echo 'PASS uninstall conflicts preserve client files and real active/enabled task'
 client uninstall-renew

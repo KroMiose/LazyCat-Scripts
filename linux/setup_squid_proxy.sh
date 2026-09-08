@@ -41,6 +41,17 @@ check_systemd() {
     fi
 }
 
+# Linux flock releases with the last process descriptor, including after
+# SIGKILL. Keep the inode in /run; unlinking a held lock creates two lock domains.
+lock_operation() {
+    local lock=/run/lazycat-squid.lock
+    command -v flock >/dev/null || { log_error '缺少 flock，未安装依赖或修改配置。'; return 1; }
+    [[ ! -L "$lock" && ( ! -e "$lock" || -f "$lock" ) ]] || { log_error 'Squid 操作锁路径异常，未修改系统。'; return 3; }
+    (umask 077; : >> "$lock") || return 1
+    exec 9>>"$lock"
+    flock -n 9 || { log_error '另一项 Squid 安装或更新正在进行，未修改系统。'; return 3; }
+}
+
 # --- 检查并安装依赖 ---
 install_dependencies() {
     log_step "检查并安装依赖"
@@ -272,6 +283,7 @@ print_result() {
 main() {
     check_root
     check_systemd
+    lock_operation
     install_dependencies
     interactive_config
     mkdir -p /etc/squid

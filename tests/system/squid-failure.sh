@@ -45,6 +45,28 @@ observer() {
     /usr/bin/curl --fail --max-time 15 --noproxy '' --proxy http://127.0.0.1:51938 --proxy-user fixture:fixture-test-only http://127.0.0.1:18080 >/dev/null
 }
 observer
+# Hold a real independent flock across actual installer invocations. The
+# registered historical script ignores it; the new entrypoint must fail before
+# dependency installation, prompting, candidate creation or service changes.
+exec 8>>/run/lazycat-squid.lock
+flock -n 8
+printf '51938\n' | bash tests/fixtures/squid-port-before.sh
+echo 'EXPECTED OLD DEFECT: existing Squid operation lock ignored'
+find /etc/squid -maxdepth 1 -name '.lazycat-operation.*' -print | sort > "$work/operations.before"
+pid=$(systemctl show squid --property=MainPID --value)
+status=0
+printf '51938\n' | bash linux/setup_squid_proxy.sh > "$work/concurrent.log" 2>&1 || status=$?
+cat "$work/concurrent.log"
+[[ "$status" == 3 ]]
+find /etc/squid -maxdepth 1 -name '.lazycat-operation.*' -print | sort > "$work/operations.after"
+cmp "$work/operations.before" "$work/operations.after"
+sha256sum -c "$work/before.sha256"
+[[ "$(systemctl show squid --property=MainPID --value)" == "$pid" ]]
+flock -u 8
+exec 8>&-
+printf '51938\n' | bash linux/setup_squid_proxy.sh
+observer
+echo 'PASS real Squid lock excludes contenders before side effects and permits retry after release'
 status=0
 printf '51938\nn\nrotated\nnew-fixture-only\n' | PATH="$work/bin:/usr/sbin:/usr/bin:/sbin:/bin" bash linux/setup_squid_proxy.sh --rotate-credentials > "$work/new-parse.log" 2>&1 || status=$?
 cat "$work/new-parse.log"

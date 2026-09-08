@@ -123,6 +123,9 @@ lc_tx_commit() {
     lc_tx_copy "$LC_TX_CANDIDATE" "$staged" || { rm -f "$staged"; return 1; }
     lc_tx_check_revision || { rm -f "$staged"; return 3; }
     if ! mv "$staged" "$LC_TX_TARGET"; then rm -f "$staged"; return 1; fi
+    # A later metadata-only edit must also prevent destructive rollback. Record
+    # the published inode, not the candidate inode which rename may replace.
+    lc_tx_revision "$LC_TX_TARGET" > "$LC_TX_OPERATION/committed-revision" || return 1
     printf 'committed\n' > "$LC_TX_OPERATION/status"
     lc_tx_unlock
     printf '操作记录与备份：%s\n' "$LC_TX_OPERATION"

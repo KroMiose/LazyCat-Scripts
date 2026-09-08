@@ -72,6 +72,7 @@
     "test_system_assets.SystemAssets.test_verified_artifacts_and_known_bad_inputs",
     "test_system_fixture.SystemFixture.test_rate_baseline_accepts_only_success_or_unloaded_unit",
     "test_transaction_attributes.TransactionAttributes.test_concurrent_xattr_change_is_preserved",
+    "test_transaction_attributes.TransactionAttributes.test_rollback_preserves_later_xattr_edit",
     "test_vm_archive.VMArchive.test_plain_and_fwtool_trailer",
     "test_vm_archive.VMArchive.test_snapshot_includes_new_fixtures_and_rejects_source_links",
     "test_vm_archive.VMArchive.test_trailing_junk_and_bad_crc_rejected",
