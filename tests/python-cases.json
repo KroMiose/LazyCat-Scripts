@@ -38,6 +38,8 @@
     "test_inventory.Inventory.test_same_count_cannot_hide_replaced_or_missing_case",
     "test_legacy_source_entrypoint.LegacySource.test_check_source_never_executes_and_preserves_percent_q",
     "test_legacy_source_entrypoint.LegacySource.test_daily_commands_do_not_install_program_or_dependencies",
+    "test_legacy_source_entrypoint.LegacySource.test_standalone_daily_entrypoint_does_not_fetch_missing_library",
+    "test_legacy_source_entrypoint.LegacySource.test_standalone_explicit_install_bootstraps_then_honors_cancel",
     "test_legacy_sync_entrypoint.LegacySync.test_ca_failure_does_not_block_config_or_fetch_inventory_twice",
     "test_legacy_yq_entrypoint.LegacyYQ.test_incompatible_implementation_rejected_before_fetch",
     "test_node.NodeTests.test_deployment_transfers_matching_library_and_quotes_arguments",

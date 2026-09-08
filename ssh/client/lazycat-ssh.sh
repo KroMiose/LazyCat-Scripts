@@ -33,6 +33,7 @@ LAZYCAT_SSH_BIN_DIR="${LAZYCAT_SSH_BIN_DIR:-$LAZYCAT_SSH_BIN_DIR_DEFAULT}"
 REMOTE_BASE_URL="${LAZYCAT_SSH_REMOTE_BASE_URL:-https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh}"
 REMOTE_CLIENT_URL="${REMOTE_BASE_URL}/client/lazycat-ssh.sh"
 REMOTE_LIB_URL="${REMOTE_BASE_URL}/lib/common.sh"
+LAZYCAT_SSH_BOOTSTRAP_COMMAND="${1:-}"
 
 __lc_source_common() {
   local local_candidate=""
@@ -56,7 +57,12 @@ __lc_source_common() {
     return 0
   fi
 
-  # 允许 curl|bash：临时下载 common.sh
+  # A missing installation is not permission for daily commands to download
+  # executable code. Bundled release entries already contain the library.
+  if [[ "$LAZYCAT_SSH_BOOTSTRAP_COMMAND" != install ]]; then
+    __lc_bootstrap_die "安装不完整：缺少 common.sh；请使用完整归档，或显式执行 install 修复。"
+  fi
+  # Explicit installation may bootstrap the library for a standalone entry.
   if ! command -v curl >/dev/null 2>&1; then
     __lc_bootstrap_die "无法找到 common.sh，且系统未安装 curl。请先安装 curl 后重试。"
   fi

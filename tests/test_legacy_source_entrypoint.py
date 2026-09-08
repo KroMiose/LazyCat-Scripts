@@ -5,6 +5,30 @@ import unittest
 from lib.support import ROOT,environment,snapshot
 
 class LegacySource(unittest.TestCase):
+    def test_standalone_daily_entrypoint_does_not_fetch_missing_library(self):
+        for command in ('sync','renew-certs','unknown-command',''):
+            with self.subTest(command=command), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory);script=home/'standalone.sh'
+                script.write_bytes((ROOT/'ssh/client/lazycat-ssh.sh').read_bytes())
+                shims=home/'shims';shims.mkdir()
+                curl=shims/'curl';curl.write_text('#!/bin/sh\necho request > "$HOME/downloaded"\nexit 72\n');curl.chmod(0o755)
+                before=snapshot(home)
+                result=subprocess.run(['/bin/bash',str(script)]+([command] if command else []),input='',env=environment(home,{'PATH':str(shims)+':/usr/bin:/bin'}),capture_output=True,text=True,timeout=10)
+                self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
+                self.assertEqual(snapshot(home),before,result.stdout+result.stderr)
+
+    def test_standalone_explicit_install_bootstraps_then_honors_cancel(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home=Path(directory);script=home/'standalone.sh'
+            script.write_bytes((ROOT/'ssh/client/lazycat-ssh.sh').read_bytes())
+            shims=home/'shims';shims.mkdir()
+            curl=shims/'curl';curl.write_text('#!/bin/sh\necho library-request >> "$HOME/downloaded"\ncp "$FIXTURE_LIBRARY" "$4"\n');curl.chmod(0o755)
+            result=subprocess.run(['/bin/bash',str(script),'install'],input='n\n',env=environment(home,{'PATH':str(shims)+':/usr/bin:/bin','FIXTURE_LIBRARY':str(ROOT/'ssh/lib/common.sh')}),capture_output=True,text=True,timeout=10)
+            self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
+            self.assertIn('用户取消',result.stdout+result.stderr)
+            self.assertEqual((home/'downloaded').read_text(),'library-request\n')
+            self.assertFalse((home/'.local').exists())
+
     def test_check_source_never_executes_and_preserves_percent_q(self):
         with tempfile.TemporaryDirectory() as directory:
             home=Path(directory);meta=home/'.lazycat/ssh/meta.env';meta.parent.mkdir(parents=True)
