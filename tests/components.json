@@ -133,7 +133,8 @@
         "go"
       ],
       "scenarios": [
-        "hud-lifecycle"
+        "hud-lifecycle",
+        "hud-published-history"
       ]
     },
     "packaging": {

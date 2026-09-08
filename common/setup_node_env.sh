@@ -15,6 +15,7 @@ if [[ "${1:-}" == --check ]]; then
     [[ -s "$NVM_DIR/nvm.sh" ]] || { echo "nvm 安装不完整" >&2; exit 1; }
     source "$NVM_DIR/nvm.sh"
     node --version
+    node -e 'if (2 + 2 !== 4) process.exit(1)'
     npm --version
     exit
 fi
@@ -98,28 +99,26 @@ install_nvm_and_node() {
         if ! bash "$installer"; then rm -f "$installer"; return 1; fi
         rm -f "$installer"
 
-        if [ $? -eq 0 ]; then
-            log_success "nvm 安装脚本执行完毕。"
-        else
-            log_error "nvm 安装脚本执行失败。"
-            exit 1
-        fi
+        log_success "nvm 安装脚本执行完毕，继续验证实际命令。"
     fi
 
     # 加载 nvm 到当前 shell session
     export NVM_DIR="$USER_HOME/.nvm"
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    [[ -s "$NVM_DIR/nvm.sh" ]] || { log_error "安装器未生成有效 nvm.sh。"; return 1; }
+    source "$NVM_DIR/nvm.sh"
+    nvm --version || { log_error "nvm 健康检查失败。"; return 1; }
+    if [[ -s "$NVM_DIR/bash_completion" ]]; then source "$NVM_DIR/bash_completion"; fi
 
     # 步骤 3: 交互式安装 Node.js
     log_info "请选择要安装的 Node.js 版本:"
     PS3="请输入选项 (1-3): "
+    local selected=0
     select choice in "安装最新的 LTS (长期支持) 版本" "安装指定的版本号" "退出"; do
         case $choice in
         "安装最新的 LTS (长期支持) 版本")
             log_info "正在安装最新的 Node.js LTS 版本..."
-            nvm install --lts
-            if [ $? -eq 0 ]; then
+            if nvm install --lts; then
+                verify_node_runtime || return 1
                 log_success "Node.js LTS 版本安装成功！"
                 log_info "正在设置默认 Node.js 版本为最新的 LTS..."
                 if [[ ! -s "$NVM_DIR/alias/default" || "$SET_DEFAULT" == 1 ]]; then nvm alias default 'lts/*'; fi
@@ -128,14 +127,15 @@ install_nvm_and_node() {
                 log_error "Node.js LTS 版本安装失败。"
                 return 1
             fi
+            selected=1
             break
             ;;
         "安装指定的版本号")
             read -p "请输入您想安装的 Node.js 版本号 (例如: 18.18.2): " node_version
             if [ -n "$node_version" ]; then
                 log_info "正在安装 Node.js v${node_version}..."
-                nvm install "$node_version"
-                if [ $? -eq 0 ]; then
+                if nvm install "$node_version"; then
+                    verify_node_runtime || return 1
                     log_success "Node.js v${node_version} 安装成功！"
                     log_info "正在设置默认 Node.js 版本为 v${node_version}..."
                     if [[ ! -s "$NVM_DIR/alias/default" || "$SET_DEFAULT" == 1 ]]; then nvm alias default "$node_version"; fi
@@ -147,6 +147,7 @@ install_nvm_and_node() {
             else
                 log_warn "未输入版本号，操作取消。"
             fi
+            selected=1
             break
             ;;
         "退出")
@@ -158,6 +159,14 @@ install_nvm_and_node() {
             ;;
         esac
     done
+    [[ "$selected" == 1 ]] || { log_error "未收到有效安装选择，未完成配置。"; return 1; }
+}
+
+verify_node_runtime() {
+    node --version && node -e 'if (2 + 2 !== 4) process.exit(1)' && npm --version || {
+        log_error "Node/npm 实际运行验证失败，未确认安装成功。"
+        return 1
+    }
 }
 
 # 函数：交互式安装 npm 全局工具
