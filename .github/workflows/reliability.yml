@@ -70,9 +70,11 @@ jobs:
         run: make test-linux-files
       - name: Native HUD lifecycle
         run: |
-          go build -C codex-hud -ldflags '-X main.version=codex-hud-v0.1.1' -o "$RUNNER_TEMP/hud-test" .
+          go build -C codex-hud -ldflags '-X main.version=codex-hud-v0.1.2' -o "$RUNNER_TEMP/hud-test" .
           python3 codex-hud/tests/lifecycle.py "$RUNNER_TEMP/hud-test"
           python3 codex-hud/tests/installer.py "$RUNNER_TEMP/hud-test"
+      - name: Published HUD data upgrade and binary fallback
+        run: python3 codex-hud/tests/history.py "$RUNNER_TEMP/hud-test" --output artifacts/hud-history
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

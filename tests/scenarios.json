@@ -120,6 +120,26 @@
         "owned certificate and temporary resources",
         "fixture CA availability during explicit failure injection"
       ]
+    },
+    {
+      "id": "hud-published-history",
+      "level": "native-process",
+      "initial": "isolated HOME and virtual credentials; actual codex-hud-v0.1.1 native published executable pinned by SHA-256; existing unrelated hook, disabled HUD and hand-edited owned rules/timeouts",
+      "entrypoint": "python3 codex-hud/tests/history.py <candidate-binary> --output <new-evidence-directory>",
+      "preserve": [
+        "fictional key and disabled preference",
+        "custom owned timeout and rules after explicit adoption",
+        "unrelated hooks and rules",
+        "configuration after binary fallback and uninstall"
+      ],
+      "mutations": [
+        "isolated fixture HOME",
+        "candidate integration receipt and backups"
+      ],
+      "limits": [
+        "binary replacement compatibility; not full installer interruption recovery",
+        "candidate built from source; not publicly released candidate"
+      ]
     }
   ]
 }

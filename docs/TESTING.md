@@ -23,7 +23,7 @@ make test-full
 - Python 回归：临时 HOME、环境变量白名单、真实 Bash/BSD 工具；部分用例提取函数，不能替代完整入口验证。历史失败样本固定在 tests/fixtures/legacy，provenance.json 记录来源。
 - Zsh：真实脚本入口、模拟已安装 OMZ 的明确文件样本、真实新交互 Zsh；检查自定义插件保留、仅加载一次、重复运行无备份增长、清理保留 OMZ。没有验证真实 OMZ 下载、主题视觉或系统依赖首次安装。
 - SSH 节点快速测试：服务命令使用模拟，独立标为适配测试。
-- Go SSH：配置/路由、拒绝危险输入、受限元数据解析、事务/冲突/回滚；Linux 旧任务已有真实迁移/触发/卸载证据，macOS 专用账户定时触发和 GUI 历史任务定义采纳已有原生证据；公共 rollback 的任务状态恢复及完整旧客户端升级仍待完成。
+- Go SSH：配置/路由、拒绝危险输入、受限元数据解析、事务/冲突/回滚；Linux 旧任务已有真实迁移/触发/卸载证据，macOS 专用账户定时触发和 GUI 历史任务定义采纳已有原生证据；公共 rollback 已验证 Linux 原启用/运行状态和 macOS 原 domain/停用状态恢复；完整旧客户端发布包升级仍待完成。
 - HUD：本地 HTTP 服务、慢响应、并发 Stop、超时后不自动重发；不向真实设备发送，不验证眼镜/手机显示。
 - QEMU：校验锁定镜像后创建独立 overlay；Ubuntu/Debian 使用真实 systemd，OpenWrt 使用真实 procd。Ubuntu 与 Debian 已有受限网络＋锁定本地 apt 源；真实上游另行验证。OpenWrt 新增原始签名索引快照及固定 IPK 锁，已在独立断网 TCG 生命周期验证；托管 KVM 的同锁验证已在 run 34161071064 通过。真实 opkg 软件源另行运行，不混称固定输入覆盖。源码复制进客体 /work 后只读挂载，本地包源同样只读，测试观察者与声明前置依赖写入日志。
 
@@ -84,3 +84,11 @@ macOS launchd 已在 run 34159699770 的 ARM64 和 AMD64 原生 runner 分别验
 
 
 旧 Shell 客户端的续签入口在 Linux VM 内使用真实 yq、SSH 和 CA。`tests/tools/go.mod`/`go.sum` 固定 yq 及其依赖，驱动在客体外编译并记录摘要，放入只读测试输入。场景明确预置这些运行依赖，不声称覆盖无依赖首次安装。旧脚本和旧公共库来自 4f5080d 的原始样本；旧成功文案后的 RETURN trap 失败及 .tmp 文件覆盖均保留为缺陷证据，再测试修复后的权限、证书、失败和重跑行为。
+
+
+## 新增历史版本与中断证据
+
+- 提交 e6f949c 的 [run 34175119459](https://github.com/KroMiose/LazyCat-Scripts/actions/runs/34175119459) 所有 PR 必需作业通过。真实 systemd 在任务暂停过程中 SIGKILL 后，未完成操作可被发现，重复修改被拒绝，公共 rollback 恢复旧任务；六种运行/启用组合及卸载回滚通过。macOS 原生恢复原 launchd domain、loaded/disabled 偏好通过。新原生操作使用 format 2；历史仅文件日志缺少服务原状态，仍拒绝自动服务回滚。
+- 同轮 Squid 使用真实 parser、daemon 和认证 HTTP 观察者验证 FATAL-only 非零退出、配置/密码共同恢复和监听就绪超时恢复。失败 run 34174135767 保留，不用后续成功覆盖。
+- `python3 codex-hud/tests/history.py <candidate> --output <新目录>` 从正式 v0.1.1 下载按版本库 SHA-256 锁定的原生二进制；验证真实旧状态、显式采纳、重复 setup、二进制回退与卸载。输出下载日志、逐命令结果与阶段报告，全部使用临时 HOME 和虚构 Key。它验证数据兼容，不能替代发布安装器中断恢复或手机通知显示。macOS ARM64 本地通过；Linux/macOS 托管运行结果另行记录。
+- HUD 首次历史测试在回退阶段失败：测试错误地期待被停用的 HUD 显示预览；原程序正确返回“已暂停，未发送”。修正为断言停用偏好，原失败保留于 `artifacts/hud-history/first`，通过记录为 `artifacts/hud-history/corrected`。
