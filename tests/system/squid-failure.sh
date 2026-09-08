@@ -152,7 +152,7 @@ echo 'PASS existing nondefault Squid port and credentials survive blank/default 
 # Only read is wrapped; parsing, files and the daemon remain real.
 cat > "$work/prompt-edit.sh" <<'SH'
 read() {
-    if [[ ! -f "$SQUID_FAULT/prompt-edited" ]]; then
+    if [[ "${1:-}" == -p && ! -f "$SQUID_FAULT/prompt-edited" ]]; then
         printf '# concurrent administrator preference\n' >> /etc/squid/squid.conf
         python3 -c 'import os; os.setxattr("/etc/squid/squid.conf", "user.lazycat-fixture", b"administrator")'
         touch "$SQUID_FAULT/prompt-edited"
