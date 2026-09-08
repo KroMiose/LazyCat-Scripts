@@ -13,7 +13,10 @@
         "existing-config-preserved",
         "repeat-idempotent",
         "failure-recovery",
-        "side-effects-allowlisted"
+        "side-effects-allowlisted",
+        "native-interruption-recovery",
+        "native-public-rollback",
+        "later-task-edits-preserved"
       ]
     },
     {
@@ -237,7 +240,10 @@
         "existing-config-preserved",
         "repeat-idempotent",
         "failure-recovery",
-        "side-effects-allowlisted"
+        "side-effects-allowlisted",
+        "native-interruption-recovery",
+        "native-public-rollback",
+        "later-task-edits-preserved"
       ]
     },
     {
@@ -461,7 +467,10 @@
         "existing-config-preserved",
         "repeat-idempotent",
         "failure-recovery",
-        "side-effects-allowlisted"
+        "side-effects-allowlisted",
+        "native-interruption-recovery",
+        "native-public-rollback",
+        "later-task-edits-preserved"
       ]
     },
     {
@@ -573,7 +582,10 @@
         "existing-config-preserved",
         "repeat-idempotent",
         "failure-recovery",
-        "side-effects-allowlisted"
+        "side-effects-allowlisted",
+        "native-interruption-recovery",
+        "native-public-rollback",
+        "later-task-edits-preserved"
       ]
     },
     {
@@ -736,7 +748,10 @@
         "background-interval-trigger",
         "gui-legacy-adoption",
         "disabled-preference-preserved",
-        "key-preserved"
+        "key-preserved",
+        "native-interruption-recovery",
+        "native-public-rollback",
+        "later-task-edits-preserved"
       ]
     },
     {
@@ -748,7 +763,10 @@
         "background-interval-trigger",
         "gui-legacy-adoption",
         "disabled-preference-preserved",
-        "key-preserved"
+        "key-preserved",
+        "native-interruption-recovery",
+        "native-public-rollback",
+        "later-task-edits-preserved"
       ]
     },
     {

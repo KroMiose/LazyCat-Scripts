@@ -137,6 +137,8 @@ PYOP
     ((SECONDS<deadline)) || { cat /tmp/native-interrupted.log;exit 1; }
     sleep .05
 done
+deadline=$((SECONDS+5))
+until [[ "$(user_systemctl show lazycat-ssh-renew.timer --property=ActiveState --value)" == inactive ]]; do ((SECONDS<deadline)) || exit 1; sleep .05; done
 kill -KILL "$(cat "$home/native-interruption.pid")"
 if wait "$interrupted_runner"; then echo 'expected interrupted native command failure';exit 1;fi
 kill "$lock_holder"

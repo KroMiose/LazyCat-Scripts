@@ -68,7 +68,7 @@ def main():
     frozen=[]
     for folder in ['ssh','linux','common','tests']:
         for path in sorted((ROOT/folder).rglob('*')):
-            if path.is_file() and '__pycache__' not in path.parts and ('fixtures' not in path.parts or path in tuple(ROOT/'tests/fixtures'/name for name in ('legacy-client-before.sh','legacy-common-before.sh','legacy-default-ca-client.sh','legacy-default-ca-common.sh'))):
+            if path.is_file() and '__pycache__' not in path.parts and ('fixtures' not in path.parts or path in tuple(ROOT/'tests/fixtures'/name for name in ('legacy-client-before.sh','legacy-common-before.sh','legacy-default-ca-client.sh','legacy-default-ca-common.sh','legacy/linux/setup_squid_proxy.sh'))):
                 frozen.append((str(path.relative_to(ROOT)),path.read_bytes(),path.stat().st_mode & 0o777))
     source_hash=hashlib.sha256()
     for name,data,mode in frozen:source_hash.update(name.encode()+b'\0'+str(mode).encode()+b'\0'+data)

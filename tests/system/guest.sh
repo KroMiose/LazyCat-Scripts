@@ -89,6 +89,7 @@ sha256sum /etc/squid/passwd > /tmp/passwd-before
 printf '51938\n' | bash linux/setup_squid_proxy.sh
 sha256sum -c /tmp/passwd-before
 systemctl is-active squid
+bash tests/system/squid-failure.sh
 if [[ "$suite" == upstream ]]; then
     test ! -d /home/fixture/.nvm
     test ! -e /home/fixture/.local/bin/uv

@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Real Squid parser/daemon and actual installer entrypoints. Only the parser's
+# input-open failure, one restart return, and display-only IP lookup are injected.
+set -euo pipefail
+work=$(mktemp -d /tmp/squid-fault.XXXXXX)
+cp -p /etc/squid/squid.conf "$work/config.before"
+cp -p /etc/squid/passwd "$work/passwd.before"
+sha256sum /etc/squid/squid.conf /etc/squid/passwd > "$work/before.sha256"
+stat -c '%a %u %g' /etc/squid/squid.conf /etc/squid/passwd > "$work/before.stat"
+mkdir "$work/bin"
+cat > "$work/bin/curl" <<'SH'
+#!/bin/sh
+case "$*" in
+ *https://api.ipify.org*|*https://ifconfig.me*|*https://icanhazip.com*) printf '127.0.0.1\n' ;;
+ *) exec /usr/bin/curl "$@" ;;
+esac
+SH
+cat > "$work/bin/squid" <<'SH'
+#!/bin/sh
+exec /usr/sbin/squid -k parse -f /dev/null/lazycat.conf
+SH
+chmod 755 "$work/bin/"*
+# Verify the fault really comes from Squid, without relying on a fabricated log.
+parser_status=0
+"$work/bin/squid" > "$work/parser.log" 2>&1 || parser_status=$?
+cat "$work/parser.log"
+[[ "$parser_status" != 0 ]]
+if grep -q ERROR "$work/parser.log"; then echo 'parser fixture does not exhibit the declared FATAL-only failure';exit 1;fi
+# Original entrypoint loses this nonzero parser status and reports success.
+printf '51938\nn\nrotated\nnew-fixture-only\n' | PATH="$work/bin:/usr/sbin:/usr/bin:/sbin:/bin" bash tests/fixtures/legacy/linux/setup_squid_proxy.sh > "$work/old.log" 2>&1
+cat "$work/old.log"
+grep -q '配置语法验证通过' "$work/old.log"
+echo 'EXPECTED OLD DEFECT: actual Squid parser failed but original entrypoint reported success'
+# Reconstruct the declared starting state; this is a controlled old/new proof,
+# not a claim that the original installer recovered its own changes.
+cp -p "$work/config.before" /etc/squid/squid.conf
+cp -p "$work/passwd.before" /etc/squid/passwd
+systemctl restart squid
+observer() {
+    /usr/bin/curl --fail --max-time 15 --noproxy '' --proxy http://127.0.0.1:51938 --proxy-user fixture:fixture-test-only http://127.0.0.1:18080 >/dev/null
+}
+observer
+status=0
+printf '51938\nn\nrotated\nnew-fixture-only\n' | PATH="$work/bin:/usr/sbin:/usr/bin:/sbin:/bin" bash linux/setup_squid_proxy.sh --rotate-credentials > "$work/new-parse.log" 2>&1 || status=$?
+cat "$work/new-parse.log"
+[[ "$status" != 0 ]]
+sha256sum -c "$work/before.sha256"
+observer
+# Exercise failure AFTER both candidate files have been committed and the real
+# daemon has stopped. The restoration restart uses the real service manager.
+rm "$work/bin/squid"
+printf 'pending\n' > "$work/fail-restart"
+cat > "$work/bin/systemctl" <<'SH'
+#!/bin/sh
+if [ "$1" = restart ] && [ "$2" = squid ] && [ -f "$SQUID_FAULT/fail-restart" ]; then
+    mv "$SQUID_FAULT/fail-restart" "$SQUID_FAULT/restart-injected"
+    /usr/bin/systemctl stop squid || exit 74
+    exit 73
+fi
+exec /usr/bin/systemctl "$@"
+SH
+chmod 755 "$work/bin/systemctl"
+status=0
+printf '51938\nn\nrotated\nnew-fixture-only\n' | SQUID_FAULT="$work" PATH="$work/bin:/usr/sbin:/usr/bin:/sbin:/bin" bash linux/setup_squid_proxy.sh --rotate-credentials > "$work/new-restart.log" 2>&1 || status=$?
+cat "$work/new-restart.log"
+[[ "$status" != 0 && -f "$work/restart-injected" ]]
+sha256sum -c "$work/before.sha256"
+stat -c '%a %u %g' /etc/squid/squid.conf /etc/squid/passwd > "$work/after.stat"
+cmp "$work/before.stat" "$work/after.stat"
+systemctl is-active --quiet squid
+systemctl is-enabled --quiet squid
+observer
+code=$(/usr/bin/curl --max-time 15 --noproxy '' --proxy http://127.0.0.1:51938 --proxy-user rotated:new-fixture-only -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080)
+[[ "$code" == 407 ]]
+pid=$(systemctl show squid --property=MainPID --value)
+printf '51938\n' | bash linux/setup_squid_proxy.sh
+[[ "$(systemctl show squid --property=MainPID --value)" == "$pid" ]]
+sha256sum -c "$work/before.sha256"
+observer
+echo 'PASS real Squid parser old/new proof, two-file restart recovery, preserved auth/modes/service, and no-restart rerun'
