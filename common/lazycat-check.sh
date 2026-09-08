@@ -139,13 +139,41 @@ if [[ "${1:-}" == rollback ]]; then
     operation="$2"
     IFS= read -r target < "$operation/target"
     [[ "$operation" == "$target".lazycat-operation.* && "$target" == /* ]] || { echo '记录与目标不匹配' >&2; exit 3; }
-    [[ ! -L "$operation/after" && ! -L "$operation/before" && ! -L "$target" ]] || exit 3
-    [[ -f "$target" ]] && cmp -s "$target" "$operation/after" || { echo '目标存在后续修改或已移除，拒绝覆盖' >&2; exit 3; }
+    lc_tx_check_path "$operation" || exit 3
+    for record in target before after existed status; do
+        [[ -f "$operation/$record" && ! -L "$operation/$record" ]] || { echo 'Invalid operation record' >&2; exit 3; }
+    done
+    IFS= read -r existed < "$operation/existed"
+    IFS= read -r status < "$operation/status"
+    case "$existed:$status" in
+        0:prepared|1:prepared|0:committed|1:committed|0:rolled-back|1:rolled-back) ;;
+        *) echo 'Invalid operation state' >&2; exit 3 ;;
+    esac
     trap 'lc_tx_unlock' EXIT
     lc_tx_begin "$target"
-    # Compare the snapshot taken under the lock, not only a pre-lock read.
-    cmp -s "$LC_TX_OPERATION/before" "$operation/after" || { echo '目标被并发修改，停止恢复' >&2;exit 3; }
-    [[ "$LC_TX_METADATA" == "$(LC_ALL=C ls -ldn "$operation/after" | awk '{print $1, $3, $4}')" ]] || { echo '目标权限或属主存在后续修改，停止恢复' >&2;exit 3; }
+    # Read under the same lock used by writers. An uncommitted candidate, or a
+    # rollback interrupted after restoration, can already be in its old state.
+    restored=0
+    if [[ "$existed" == 0 && "$LC_TX_EXISTED" == 0 ]]; then
+        restored=1
+    elif [[ "$existed" == 1 && "$LC_TX_EXISTED" == 1 ]] &&
+        cmp -s "$LC_TX_OPERATION/before" "$operation/before" &&
+        [[ "$LC_TX_METADATA" == "$(LC_ALL=C ls -ldn "$operation/before" | awk '{print $1, $3, $4}')" ]]; then
+        restored=1
+    fi
+    if [[ "$restored" == 1 ]]; then
+        printf 'rolled-back\n' > "$operation/status"
+        rm -rf "$LC_TX_OPERATION"
+        lc_tx_unlock
+        exit 0
+    fi
+    if [[ "$status" == rolled-back || "$LC_TX_EXISTED" != 1 ]] ||
+        ! cmp -s "$LC_TX_OPERATION/before" "$operation/after" ||
+        [[ "$LC_TX_METADATA" != "$(LC_ALL=C ls -ldn "$operation/after" | awk '{print $1, $3, $4}')" ]]; then
+        rm -rf "$LC_TX_OPERATION"
+        echo 'Target changed since operation; refusing rollback' >&2
+        exit 3
+    fi
     cp -p "$LC_TX_CANDIDATE" "$operation/rollback-current"
     IFS= read -r existed < "$operation/existed"
     if [[ "$existed" == 1 ]]; then
@@ -164,8 +192,14 @@ if [[ "${1:-}" == rollback ]]; then
 fi
 [[ $# == 0 || ( $# == 1 && "$1" == --json ) ]] || { echo '用法：lazycat-check.sh [--json] | rollback <操作目录> | recover-lock <目标文件绝对路径>' >&2; exit 2; }
 shopt -s nullglob
-operations=("$HOME"/.*.lazycat-operation.* "$HOME/.ssh"/*.lazycat-operation.*)
-if [[ "$EUID" == 0 ]]; then operations+=(/etc/squid/.lazycat-operation.*); fi
+scan_dirs=("$HOME" "$HOME/.ssh" "$HOME/.ssh/lazycat-hosts" "${XDG_CONFIG_HOME:-$HOME/.config}")
+if [[ "$EUID" == 0 ]]; then scan_dirs+=(/etc/squid /etc/systemd/system/docker.service.d); fi
+operations=()
+for scan_dir in "${scan_dirs[@]}"; do
+    [[ -d "$scan_dir" ]] || continue
+    lc_tx_check_path "$scan_dir" >/dev/null 2>&1 || continue
+    operations+=("$scan_dir"/*.lazycat-operation.* "$scan_dir"/.*.lazycat-operation.*)
+done
 printf '{"format_version":1,"read_only":true,"network":"not checked","operations":['
 separator=''
 for operation in "${operations[@]:-}"; do
@@ -180,4 +214,4 @@ for operation in "${operations[@]:-}"; do
     printf ',"status":'; json_string "$status"; printf '}'
     separator=,
 done
-printf '],"limitations":["Go SSH journals require lazycat-ssh doctor --json","Legacy backups are not proof of ownership","Service behavior and credentials are not tested"]}\n'
+printf '],"limitations":["Only known HOME, SSH, XDG and root service directories are scanned; symlink directories are not followed","Go SSH journals require lazycat-ssh doctor --json","Legacy backups are not proof of ownership","Service behavior and credentials are not tested"]}\n'

@@ -85,3 +85,67 @@ class FileTransactions(unittest.TestCase):
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertEqual(json.loads(result.stdout)['operations'],[])
             self.assertEqual(list(home.iterdir()),[])
+
+    def test_uncommitted_candidate_rollback_and_repeat(self):
+        for existed in (False, True):
+            with self.subTest(existed=existed), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory);target=home/'config'
+                if existed:
+                    target.write_text('original');target.chmod(0o640)
+                script='set -e; source "$1"; trap lc_tx_unlock EXIT; lc_tx_begin "$2"; printf invalid > "$LC_TX_CANDIDATE"; exit 19'
+                r=subprocess.run(['bash','-c',script,'fixture',str(ROOT/'lib/file-transaction.sh'),str(target)],env=environment(home),capture_output=True,text=True,timeout=10)
+                self.assertEqual(r.returncode,19,r.stderr)
+                operation=next(home.glob('config.lazycat-operation.*'))
+                args=['bash',str(ROOT/'common/lazycat-check.sh'),'rollback',str(operation)]
+                for _ in range(2):
+                    r=subprocess.run(args,env=environment(home),capture_output=True,text=True,timeout=10)
+                    self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+                    self.assertEqual(target.exists(),existed)
+                    if existed:
+                        self.assertEqual(target.read_text(),'original');self.assertEqual(target.stat().st_mode&0o777,0o640)
+                self.assertEqual((operation/'status').read_text(),'rolled-back\n')
+                self.assertEqual(len(list(home.glob('config.lazycat-operation.*'))),1)
+                target.write_text('later user edit')
+                r=subprocess.run(args,env=environment(home),capture_output=True,text=True,timeout=10)
+                self.assertEqual(r.returncode,3,r.stdout+r.stderr)
+                self.assertEqual(target.read_text(),'later user edit')
+
+    def test_rollback_sigkill_after_restore_can_resume(self):
+        import signal
+        with tempfile.TemporaryDirectory() as directory:
+            home=Path(directory);target=home/'config';target.write_text('original');target.chmod(0o640)
+            setup='set -e; source "$1"; trap lc_tx_unlock EXIT; lc_tx_begin "$2"; printf changed > "$LC_TX_CANDIDATE"; lc_tx_commit'
+            r=subprocess.run(['bash','-c',setup,'fixture',str(ROOT/'lib/file-transaction.sh'),str(target)],env=environment(home),capture_output=True,text=True,timeout=10)
+            self.assertEqual(r.returncode,0,r.stderr)
+            operation=next(home.glob('config.lazycat-operation.*'))
+            injection=home/'fault.sh';injection.write_text('mv() { command mv "$@"; kill -KILL $$; }\n')
+            checker=['bash',str(ROOT/'common/lazycat-check.sh')]
+            r=subprocess.run(checker+['rollback',str(operation)],env=environment(home,{'BASH_ENV':str(injection)}),capture_output=True,text=True,timeout=10)
+            self.assertEqual(r.returncode,-signal.SIGKILL,r.stderr)
+            self.assertEqual(target.read_text(),'original')
+            r=subprocess.run(checker+['recover-lock',str(target)],env=environment(home),capture_output=True,text=True,timeout=10)
+            self.assertEqual(r.returncode,0,r.stderr)
+            r=subprocess.run(checker+['rollback',str(operation)],env=environment(home),capture_output=True,text=True,timeout=10)
+            self.assertEqual(r.returncode,0,r.stderr)
+            self.assertEqual(target.read_text(),'original');self.assertEqual(target.stat().st_mode&0o777,0o640)
+            self.assertEqual((operation/'rollback-current').read_text(),'changed')
+            self.assertEqual((operation/'status').read_text(),'rolled-back\n')
+
+    def test_checker_finds_nested_owned_records_without_following_links(self):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            home=Path(directory);xdg=home/'custom config'
+            expected=[]
+            for parent in (home,home/'.ssh',home/'.ssh/lazycat-hosts',xdg):
+                operation=parent/'config.lazycat-operation.fixture'
+                operation.mkdir(parents=True);(operation/'status').write_text('prepared\n')
+                expected.append(str(operation))
+            hidden=home/'.zshrc.lazycat-operation.fixture';hidden.mkdir();(hidden/'status').write_text('committed\n');expected.append(str(hidden))
+            external=home/'unscanned';external.mkdir();(external/'status').write_text('prepared\n')
+            (home/'linked.lazycat-operation.fixture').symlink_to(external,target_is_directory=True)
+            from lib.support import snapshot
+            before=snapshot(home)
+            result=subprocess.run(['bash',str(ROOT/'common/lazycat-check.sh'),'--json'],env=environment(home,{'XDG_CONFIG_HOME':str(xdg)}),capture_output=True,text=True,timeout=10)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertEqual(sorted(row['path'] for row in json.loads(result.stdout)['operations']),sorted(expected))
+            self.assertEqual(snapshot(home),before)

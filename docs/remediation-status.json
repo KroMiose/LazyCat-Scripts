@@ -161,7 +161,7 @@
       "status": "部分实现，验收未完成",
       "decision": "",
       "release_complete": false,
-      "evidence_summary": "8c5e029 的 Ubuntu/Debian KVM 验证卸载遇到手改程序或配置时保留 active/enabled 任务；完整卸载统一记录客户端与任务文件，systemd LoadState=not-found。完整旧发布迁移、SIGKILL 原生恢复和公共任务 rollback 仍未完成。"
+      "evidence_summary": "e6f949c run 34175119459 已验证真实 systemd 暂停中 SIGKILL 后发现未完成操作、阻止重跑和公共 rollback；六种运行/启用状态及卸载回滚通过，macOS 原 domain/disabled 恢复通过。完整历史发布安装链路仍未完成。"
     },
     {
       "id": 22,
@@ -176,7 +176,7 @@
       "status": "部分实现，验收未完成",
       "decision": "",
       "release_complete": false,
-      "evidence_summary": "Ubuntu 全系统旧 timer 迁移、保留间隔、实际定时触发、有效证书不重签及卸载/不启用 linger 已通过；macOS 与公共 rollback 任务状态恢复待补。"
+      "evidence_summary": "Linux 真实定时触发、有效证书不重签、六种任务状态回滚及不启用 linger 通过；macOS 原生任务触发和状态回滚通过。完整有效期与检查间隔组合仍待补。"
     },
     {
       "id": 24,
@@ -215,7 +215,7 @@
       "status": "部分实现，验收未完成",
       "decision": "",
       "release_complete": false,
-      "evidence_summary": "Shell 检查器与内容/属性冲突回滚已实现；Go SIGKILL 和 rename 后失败回归证明旧实现失败、新实现恢复且保留后续用户修改。Shell 中断、全部历史目录发现及原生任务公共回滚待补。"
+      "evidence_summary": "Shell 检查器支持已知目录记录发现、内容/属性冲突检查、未提交候选和重复回滚；恢复 rename 后真实 SIGKILL 可续做，Go 原生任务公共 rollback 已验证。Shell ACL/xattr、多文件服务事务和恢复锁自身中断仍待补。"
     },
     {
       "id": 29,
@@ -286,7 +286,7 @@
       "status": "部分实现，验收未完成",
       "decision": "",
       "release_complete": false,
-      "evidence_summary": "HUD repair 只读检查与显式采纳已实现，升级保留已采纳定制；原生历史安装矩阵待补。"
+      "evidence_summary": "实际 HUD v0.1.1 发布二进制创建旧状态后，候选 repair 显式采纳定制规则/超时，重复 setup 保留 Key、偏好和其他 Hooks；旧二进制回退 doctor 可用，候选卸载保留非托管内容。d189c3b run 34176125168 Linux/macOS 行为作业通过。完整发布安装器中断恢复仍待补。"
     },
     {
       "id": 39,

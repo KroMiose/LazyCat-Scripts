@@ -92,3 +92,5 @@ macOS launchd 已在 run 34159699770 的 ARM64 和 AMD64 原生 runner 分别验
 - 同轮 Squid 使用真实 parser、daemon 和认证 HTTP 观察者验证 FATAL-only 非零退出、配置/密码共同恢复和监听就绪超时恢复。失败 run 34174135767 保留，不用后续成功覆盖。
 - `python3 codex-hud/tests/history.py <candidate> --output <新目录>` 从正式 v0.1.1 下载按版本库 SHA-256 锁定的原生二进制；验证真实旧状态、显式采纳、重复 setup、二进制回退与卸载。输出下载日志、逐命令结果与阶段报告，全部使用临时 HOME 和虚构 Key。它验证数据兼容，不能替代发布安装器中断恢复或手机通知显示。macOS ARM64 本地通过；Linux/macOS 托管运行结果另行记录。
 - HUD 首次历史测试在回退阶段失败：测试错误地期待被停用的 HUD 显示预览；原程序正确返回“已暂停，未发送”。修正为断言停用偏好，原失败保留于 `artifacts/hud-history/first`，通过记录为 `artifacts/hud-history/corrected`。
+
+Shell 检查器恢复测试覆盖未提交候选（原文件存在/不存在）、重复回滚、恢复 rename 后真实 SIGKILL、恢复后的用户编辑冲突和嵌套操作记录发现。旧 c935a59 对未提交候选错误返回冲突，原始结果保留在 `artifacts/regression-proof/shell-rollback-c935a59/before.log`。新增测试本地通过；它不代表多文件服务事务、ACL/xattr 或恢复锁自身 SIGKILL 已全部验证。
