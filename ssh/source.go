@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -185,26 +186,75 @@ func fetch(ctx context.Context, raw string) ([]byte, error) {
 	}
 	return b, e
 }
-func loadInventory(ctx context.Context, p paths) (inventory, sourceConfig, error) {
-	s, e := readSource(p)
+func sourceSnapshot(p paths) (sourceConfig, []change, error) {
+	var source sourceConfig
+	path := filepath.Join(p.Meta, "source.json")
+	s, e := state(path)
 	if e != nil {
-		return inventory{}, s, e
+		return source, nil, e
 	}
+	observed := []change{{path, s, s}}
+	if s.Exists {
+		e = json.Unmarshal(s.Data, &source)
+		if e == nil && source.Version != 1 {
+			e = errors.New("unsupported source version")
+		}
+		return source, observed, e
+	}
+	path = filepath.Join(p.Meta, "meta.env")
+	s, e = state(path)
+	if e != nil {
+		return source, nil, e
+	}
+	if !s.Exists {
+		return source, nil, os.ErrNotExist
+	}
+	observed = append(observed, change{path, s, s})
+	source, e = parseLegacy(s.Data)
+	return source, observed, e
+}
+func readInventoryFile(path string) ([]byte, error) {
+	info, e := os.Stat(path)
+	if e != nil {
+		return nil, e
+	}
+	if !info.Mode().IsRegular() {
+		return nil, invalid("inventory must be a regular file")
+	}
+	file, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if e != nil {
+		return nil, e
+	}
+	defer file.Close()
+	info, e = file.Stat()
+	if e != nil {
+		return nil, e
+	}
+	if !info.Mode().IsRegular() {
+		return nil, invalid("inventory must be a regular file")
+	}
+	b, e := io.ReadAll(io.LimitReader(file, 4<<20+1))
+	if len(b) > 4<<20 {
+		return nil, invalid("configuration too large")
+	}
+	return b, e
+}
+func loadInventory(ctx context.Context, p paths) (inventory, sourceConfig, []change, error) {
+	s, observed, e := sourceSnapshot(p)
+	if e != nil {
+		return inventory{}, s, observed, e
+	}
+	in, s, e := loadInventorySource(ctx, s)
+	return in, s, observed, e
+}
+func loadInventorySource(ctx context.Context, s sourceConfig) (inventory, sourceConfig, error) {
 	if s.Local != "" {
 		if !filepath.IsAbs(s.Local) || s.Raw != "" || s.Gist != "" {
 			return inventory{}, s, invalid("local source must be absolute and cannot mix with a URL")
 		}
-		file, e := os.Open(s.Local)
+		b, e := readInventoryFile(s.Local)
 		if e != nil {
 			return inventory{}, s, e
-		}
-		defer file.Close()
-		b, e := io.ReadAll(io.LimitReader(file, 4<<20+1))
-		if e != nil {
-			return inventory{}, s, e
-		}
-		if len(b) > 4<<20 {
-			return inventory{}, s, invalid("configuration too large")
 		}
 		in, e := parseInventory(b)
 		return in, s, e

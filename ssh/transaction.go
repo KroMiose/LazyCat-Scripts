@@ -226,6 +226,9 @@ func journal(dir string, op operation) error {
 }
 func prepare(path string, data []byte, mode uint32) (change, error) {
 	before, e := state(path)
+	return prepareObserved(path, data, mode, before), e
+}
+func prepareObserved(path string, data []byte, mode uint32, before fileState) change {
 	if before.Exists {
 		mode = before.Mode
 	}
@@ -233,7 +236,7 @@ func prepare(path string, data []byte, mode uint32) (change, error) {
 	if before.Exists {
 		after.UID, after.GID, after.Xattrs = before.UID, before.GID, before.Xattrs
 	}
-	return change{path, before, after}, e
+	return change{path, before, after}
 }
 func commit(dir string, changes []change) (string, error) {
 	return commitWithWriter(dir, changes, writeState)
@@ -262,7 +265,7 @@ func commitWithWriter(dir string, changes []change, write func(string, fileState
 				return e
 			}
 			if !same(now, c.Before) {
-				return fmt.Errorf("concurrent modification: %s", c.Path)
+				return &migrationConflict{"concurrent modification: " + c.Path}
 			}
 			if !same(c.Before, c.After) {
 				pending = append(pending, c)
@@ -289,7 +292,7 @@ func commitWithWriter(dir string, changes []change, write func(string, fileState
 					continue
 				}
 				if re == nil && !same(current, v.After) {
-					re = fmt.Errorf("rollback conflict: %s", v.Path)
+					re = &migrationConflict{"rollback conflict: " + v.Path}
 				}
 				if re == nil {
 					re = write(v.Path, v.Before)
@@ -305,7 +308,7 @@ func commitWithWriter(dir string, changes []change, write func(string, fileState
 		for i, c := range pending {
 			now, e := state(c.Path)
 			if e == nil && !same(now, c.Before) {
-				e = fmt.Errorf("concurrent modification: %s", c.Path)
+				e = &migrationConflict{"concurrent modification: " + c.Path}
 			}
 			if e == nil {
 				e = write(c.Path, c.After)
@@ -390,7 +393,7 @@ func rollbackChecked(dir, id string, check func(operation) error) error {
 				return e
 			}
 			if !same(now, c.After) && !same(now, c.Before) {
-				return fmt.Errorf("rollback would overwrite later changes: %s", c.Path)
+				return &migrationConflict{"rollback would overwrite later changes: " + c.Path}
 			}
 		}
 		for i := len(op.Changes) - 1; i >= 0; i-- {
@@ -403,7 +406,7 @@ func rollbackChecked(dir, id string, check func(operation) error) error {
 				continue
 			}
 			if !same(now, c.After) {
-				return fmt.Errorf("rollback conflict: %s", c.Path)
+				return &migrationConflict{"rollback conflict: " + c.Path}
 			}
 			if e := writeState(c.Path, c.Before); e != nil {
 				return e

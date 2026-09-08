@@ -69,11 +69,7 @@ func compareGenerated(old, candidate []byte) error {
 	return nil
 }
 func migrate(ctx context.Context, p paths, apply bool) error {
-	src, e := readSource(p)
-	if e != nil {
-		return e
-	}
-	in, _, e := loadInventory(ctx, p)
+	in, src, observed, e := loadInventory(ctx, p)
 	if e != nil {
 		return e
 	}
@@ -88,7 +84,11 @@ func migrate(ctx context.Context, p paths, apply bool) error {
 		return e
 	}
 	candidate := render(cs)
-	old, e := os.ReadFile(p.Generated)
+	generatedBefore, e := state(p.Generated)
+	old := generatedBefore.Data
+	if e == nil && !generatedBefore.Exists {
+		e = os.ErrNotExist
+	}
 	if e != nil {
 		return e
 	}
@@ -118,11 +118,8 @@ func migrate(ctx context.Context, p paths, apply bool) error {
 	if e != nil {
 		return e
 	}
-	program, e := prepare(p.Binary, b, 0755)
-	if e != nil {
-		return e
-	}
-	source, e := sourceChange(p, src)
+	program := prepareObserved(p.Binary, b, 0755, current)
+	sourceChanges, e := sourceSnapshotChanges(p, src, observed)
 	if e != nil {
 		return e
 	}
@@ -135,7 +132,7 @@ func migrate(ctx context.Context, p paths, apply bool) error {
 	if e != nil {
 		return e
 	}
-	changes := []change{program, source, receipt, configReceipt}
+	changes := append(sourceChanges, program, receipt, configReceipt, change{p.Generated, generatedBefore, generatedBefore})
 	if adoption != nil {
 		changes = append(changes, adoption.Changes...)
 	}

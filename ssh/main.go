@@ -21,6 +21,18 @@ func sourceChange(p paths, s sourceConfig) (change, error) {
 	}
 	return prepare(filepath.Join(p.Meta, "source.json"), b, 0600)
 }
+func sourceSnapshotChanges(p paths, s sourceConfig, observed []change) ([]change, error) {
+	b, e := json.MarshalIndent(s, "", "  ")
+	if e != nil {
+		return nil, e
+	}
+	if len(observed) == 0 || observed[0].Path != filepath.Join(p.Meta, "source.json") {
+		return nil, errors.New("missing source snapshot")
+	}
+	changes := append([]change(nil), observed...)
+	changes[0] = prepareObserved(changes[0].Path, b, 0600, changes[0].Before)
+	return changes, nil
+}
 func syncInventory(ctx context.Context, p paths, args []string) error {
 	dry, configOnly := false, false
 	for _, arg := range args {
@@ -33,7 +45,7 @@ func syncInventory(ctx context.Context, p paths, args []string) error {
 			return errors.New("unknown sync argument")
 		}
 	}
-	in, s, e := loadInventory(ctx, p)
+	in, s, observed, e := loadInventory(ctx, p)
 	if e != nil {
 		return e
 	}
@@ -68,15 +80,9 @@ func syncInventory(ctx context.Context, p paths, args []string) error {
 		}
 	}
 
-	a, e := prepare(p.Generated, generated, 0600)
-	if e != nil {
-		return e
-	}
-	b, e := prepare(p.Config, include, 0600)
-	if e != nil {
-		return e
-	}
-	c, e := sourceChange(p, s)
+	a := prepareObserved(p.Generated, generated, 0600, old)
+	b := prepareObserved(p.Config, include, 0600, original)
+	sourceChanges, e := sourceSnapshotChanges(p, s, observed)
 	if e != nil {
 		return e
 	}
@@ -84,7 +90,7 @@ func syncInventory(ctx context.Context, p paths, args []string) error {
 	if e != nil {
 		return e
 	}
-	id, e := commit(p.Ops, []change{a, b, c, receipt})
+	id, e := commit(p.Ops, append(sourceChanges, a, b, receipt))
 	if e != nil {
 		return e
 	}
@@ -238,7 +244,7 @@ func run(ctx context.Context, p paths, args []string) error {
 		if len(args) != 3 || args[1] != "--file" {
 			return errors.New("render --file <yaml>")
 		}
-		b, e := os.ReadFile(args[2])
+		b, e := readInventoryFile(args[2])
 		if e != nil {
 			return e
 		}
@@ -267,7 +273,7 @@ func run(ctx context.Context, p paths, args []string) error {
 		if len(args) > 1 && !scheduled {
 			return errors.New("renew-certs [--scheduled]")
 		}
-		in, s, e := loadInventory(ctx, p)
+		in, s, _, e := loadInventory(ctx, p)
 		if e != nil {
 			return e
 		}

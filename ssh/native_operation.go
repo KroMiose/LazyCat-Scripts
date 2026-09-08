@@ -196,7 +196,7 @@ func validateNativeOperation(p paths, op operation) error {
 		return &migrationConflict{"native operation cannot change session domains"}
 	}
 	allowed := map[string]bool{p.Config: true, p.Generated: true, p.Binary: true, timerReceiptPath(p): true}
-	for _, name := range []string{"source.json", "installation.json", "managed-config.json"} {
+	for _, name := range []string{"source.json", "meta.env", "installation.json", "managed-config.json"} {
 		allowed[filepath.Join(p.Meta, name)] = true
 	}
 	for path := range timerFiles(p, 30) {
