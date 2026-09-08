@@ -115,6 +115,14 @@ sha256sum -c "$work/before.sha256"
 observer
 [[ -z "$(ss -H -ltn 'sport = :51939')" ]]
 rm "$work/bin/ss"
+# The injected empty ss output also prevents confirmation of automatic
+# restoration. Its failed attempt must remain pending until a real observer
+# can verify explicit recovery, rather than being reported as complete.
+for operation in /etc/squid/.lazycat-operation.*; do
+    if [[ -f "$operation/journal-version" && "$(cat "$operation/status")" == restoring ]]; then
+        bash linux/setup_squid_proxy.sh --recover "$operation"
+    fi
+done
 pid=$(systemctl show squid --property=MainPID --value)
 printf '51938\n' | bash linux/setup_squid_proxy.sh
 [[ "$(systemctl show squid --property=MainPID --value)" == "$pid" ]]
@@ -237,3 +245,12 @@ cp --preserve=mode,ownership,timestamps,xattr "$work/passwd.before" /etc/squid/p
 /usr/bin/systemctl restart squid
 observer
 echo 'PASS failure recovery preserves later administrator edit and reports unresolved pair/service state'
+
+# The administrator explicitly restored both fixture files above. Complete the
+# pending record only after the public recovery command verifies that state.
+for operation in /etc/squid/.lazycat-operation.*; do
+    if [[ -f "$operation/journal-version" && "$(cat "$operation/status")" == recovery-conflict ]]; then
+        bash linux/setup_squid_proxy.sh --recover "$operation"
+    fi
+done
+python3 tests/system/squid-interruption.py

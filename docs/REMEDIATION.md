@@ -308,3 +308,11 @@ Squid失败恢复增加发布后的文件版本与候选内容复查：失败期
 检查器支持 --scan-dir <绝对目录>，用于首次CA初始化中断后还未登记的自定义位置；默认仅增加CA默认目录及合法两行位置记录指向的目录，不遍历其他机器或整个文件系统。通过FIFO充当候选私钥的测试证明发现状态记录不打开密钥；目录去重并拒绝显式符号链接路径。整对密钥恢复仍需明确处理。
 
 1062037的PR34189159804全部必需作业通过，包括Ubuntu/Debian源码及实际归档系统中的Squid管理员交互期间修改保护、原生属性保留、健康短证书不重签、不合理间隔报错、临期真实续签及新SSH登录。该证据早于随后新增的Squid恢复冲突、CA候选发现与默认Python选择补充测试。
+
+6757acd的PR34190289196及完整运行34190285088均通过，包括登记的固定输入重建、重复overlay、真实上游和实际归档验证。该结果不包含后续Squid持久恢复实现。
+
+Squid新增版本化中断记录及 --recover <操作目录>：提交前保存配置/认证的前后内容与属性指纹、原systemd运行/启用状态；prepared/restoring/recovery-conflict阻止普通重跑。恢复前同时验证两份文件与备份，恢复中断可再次执行；只有文件、监听及原服务状态确认后才标记rolled-back。支持active/inactive与enabled/disabled/enabled-runtime；其他状态先审阅，不自动解除mask。记录位于root私有目录，/etc/squid允许其他身份写入时拒绝建立恢复记录。旧格式缺少恢复信息时明确拒绝自动恢复，不补造原服务状态。
+
+属性指纹使用GNU tar的确定性PAX流与SHA-256，覆盖内容、模式、属主、mtime、ACL及可读取的扩展属性；不包括atime/ctime及文件系统专有标志。新VM驱动包含真实SIGKILL（第一次发布、第二次发布、恢复第一份文件后）、旧版半提交后重跑误报成功、后续属性修改冲突、五种服务状态组合及真实HTTP认证观察，尚待本次CI。首次本地适配驱动在观察镜像尚未构建完时启动失败（exit125，artifacts/squid-recovery-driver/initial-environment-result.*），属于测试初始化失败，不能算产品通过；原始记录保留。
+
+本地断网、只读源码适配验证通过五种中断/服务状态组合，真实执行CLI、flock、SIGKILL、htpasswd及文件/ACL/xattr校验；systemd、Squid parser、监听与HTTP在此轮为模拟，不计完整系统通过。记录：artifacts/squid-recovery-driver/result.json。首次进入驱动后发现跨文件系统rename假设并失败，原日志cross-device-driver-failure.log保留；改用明确的fixture移动后重建环境通过。

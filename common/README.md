@@ -66,3 +66,5 @@ bash common/lazycat-check.sh recover-lock /absolute/.bashrc
 `recover-lock` 不恢复文件，也不删除事务备份：确认原 PID 已不存在后，将锁移到同目录的 `.lazycat-lock.recovered.*` 中保留，再允许检查与恢复。PID 仍存在（包括被系统复用）、锁不完整或另一恢复正在进行时均拒绝。恢复进程本身被强杀留下 `.recovery` 时仍需人工审阅；不把所有中断状态都当成可自动清理。
 
 检查器会发现 CA 默认目录、合法位置记录指向的目录及显式 `--scan-dir` 下的初始化候选；只读取阶段记录，不读取私钥或自动补齐密钥对。Squid 的 `recovery-conflict` 表示文件或服务仍待处理，不能用通用单文件 `rollback` 直接恢复整项服务。
+
+Squid 新记录使用其自身的 `setup_squid_proxy.sh --recover <操作目录>` 恢复两份文件及原服务状态，具体限制见 [Linux 工具说明](../linux/README.md)。恢复涉及真实服务操作；旧格式记录不推测缺失的原状态。

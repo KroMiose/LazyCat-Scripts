@@ -56,15 +56,6 @@ squid_copy() {
     cp --preserve=mode,ownership,timestamps,xattr -- "$1" "$2"
 }
 
-squid_check_directory() {
-    local mode
-    [[ ! -L /etc && ! -L /etc/squid ]] || { log_error 'Squid 路径包含符号链接，需要先审阅'; return 3; }
-    [[ -e /etc/squid ]] || return 0
-    [[ -d /etc/squid && "$(stat -c %u /etc/squid)" == 0 ]] || return 3
-    mode=$(stat -c %a /etc/squid)
-    [[ "$mode" =~ ^[0-7]{3,4}$ ]] && (( (8#$mode & 0022) == 0 )) || { log_error 'Squid 目录允许其他身份写入，不能建立可信恢复记录'; return 3; }
-}
-
 squid_capture() {
     local target="$1" snapshot="$2"
     [[ ! -L "$target" && ( ! -e "$target" || -f "$target" ) ]] || { log_error '配置或认证目标不是普通文件，未修改。'; return 3; }
@@ -87,116 +78,14 @@ squid_check_original() {
     return 3
 }
 
-# Canonical GNU tar stream includes content, mode, owner, mtime, ACLs and all
-# readable xattrs. Normalize only archive names and access/change timestamps.
-# This permits recovery after rename even when its subsequent journal write was
-# interrupted. Private contents flow only through a pipe to SHA-256.
-squid_fingerprint() {
-    local target="$1"
-    if [[ ! -e "$target" && ! -L "$target" ]]; then printf 'absent\n'; return; fi
-    [[ -f "$target" && ! -L "$target" ]] || return 3
-    tar --format=pax --numeric-owner --acls --xattrs --xattrs-include='*' \
-        --pax-option=exthdr.name=resource.pax,delete=atime,delete=ctime \
-        --transform='s|.*|resource|' -cf - -C "${target%/*}" -- "${target##*/}" | sha256sum | awk '{print $1}'
-}
-
-squid_record() {
-    local directory="$1" name="$2" value="$3" temporary
-    temporary=$(mktemp "$directory/.record.XXXXXX") || return 1
-    printf '%s\n' "$value" > "$temporary" || return 1
-    mv "$temporary" "$directory/$name"
-}
-
-squid_pending() {
-    local directory status
-    for directory in /etc/squid/.lazycat-operation.*; do
-        [[ -d "$directory" && ! -L "$directory" ]] || continue
-        [[ -f "$directory/status" && ! -L "$directory/status" ]] || continue
-        IFS= read -r status < "$directory/status" || return 3
-        case "$status" in
-            prepared|restoring|recovery-conflict)
-                log_error "存在未完成操作：$directory；请先运行 --recover <操作目录>。旧格式无法自动恢复时需审阅。"
-                return 3 ;;
-        esac
-    done
-}
-
-squid_recover_operation() {
-    local work="$1" resource target before expected current status active enabled port deadline record
-    squid_check_directory
-    [[ "${work%/*}" == /etc/squid && "${work##*/}" == .lazycat-operation.* && ! -L /etc/squid && ! -L "$work" ]] || return 3
-    [[ "$(stat -c '%u:%a' -- "$work")" == 0:700 ]] || { log_error '恢复目录归属或权限无效'; return 3; }
-    for record in journal-version status service.active service.enabled config.before-fingerprint config.after-fingerprint passwd.before-fingerprint passwd.after-fingerprint; do
-        [[ -f "$work/$record" && ! -L "$work/$record" && "$(stat -c %u -- "$work/$record")" == 0 ]] || { log_error '恢复记录缺失或格式不支持，未修改文件'; return 3; }
-    done
-    [[ "$(cat "$work/journal-version")" == 1 ]] || return 3
-    IFS= read -r status < "$work/status"
-    case "$status" in prepared|restoring|recovery-conflict|rolled-back) ;; *) log_error '该操作不是可恢复的中断记录'; return 3 ;; esac
-    active=$(cat "$work/service.active"); enabled=$(cat "$work/service.enabled")
-    case "$active" in active|inactive) ;; *) return 3 ;; esac
-    case "$enabled" in enabled|disabled|enabled-runtime) ;; *) return 3 ;; esac
-    # Validate both resources before touching either. A copied backup alone is
-    # not evidence: compare its full recorded fingerprint and the live file.
-    for resource in config passwd; do
-        target=/etc/squid/passwd
-        [[ "$resource" != config ]] || target=/etc/squid/squid.conf
-        before=$(cat "$work/$resource.before-fingerprint")
-        expected=$(cat "$work/$resource.after-fingerprint")
-        [[ "$before" == absent || "$before" =~ ^[a-f0-9]{64}$ ]] || return 3
-        [[ "$expected" =~ ^[a-f0-9]{64}$ ]] || return 3
-        [[ "$(squid_fingerprint "$work/$resource.before")" == "$before" && "$(squid_fingerprint "$work/$resource.expected")" == "$expected" ]] || { log_error '备份或候选已改变，未恢复'; return 3; }
-        current=$(squid_fingerprint "$target") || return 3
-        if [[ "$current" != "$before" && ( "$status" == rolled-back || "$current" != "$expected" ) ]]; then
-            squid_record "$work" status recovery-conflict
-            log_error "文件或属性不匹配，未覆盖任一文件或再次切换服务：$work"
-            return 3
-        fi
-        if [[ "$current" != "$before" && -e "$work/$resource.published-revision" ]]; then
-            [[ -f "$work/$resource.published-revision" && ! -L "$work/$resource.published-revision" && "$(stat -c '%d:%i:%z' -- "$target")" == "$(cat "$work/$resource.published-revision")" ]] || { squid_record "$work" status recovery-conflict; return 3; }
-        fi
-    done
-    if [[ "$status" == rolled-back ]]; then
-        [[ "$(systemctl show squid --property=ActiveState --value)" == "$active" && "$(systemctl show squid --property=UnitFileState --value)" == "$enabled" ]] || return 3
-        log_success '已恢复，文件和服务状态未变化。'
-        return
+squid_can_restore() {
+    local target="$1" before="$2" expected="$3" revision="$4"
+    if [[ -f "$revision" && ! -L "$revision" ]]; then
+        [[ -f "$target" && ! -L "$target" && "$(LC_ALL=C stat -c '%d:%i:%z' -- "$target")" == "$(cat "$revision")" ]] &&
+            cmp -s "$target" "$expected" && return 0
+        return 3
     fi
-    squid_record "$work" status restoring
-    for resource in config passwd; do
-        target=/etc/squid/passwd
-        [[ "$resource" != config ]] || target=/etc/squid/squid.conf
-        before=$(cat "$work/$resource.before-fingerprint")
-        current=$(squid_fingerprint "$target") || return 3
-        [[ "$current" != "$before" ]] || continue
-        [[ "$current" == "$(cat "$work/$resource.after-fingerprint")" ]] || { squid_record "$work" status recovery-conflict; return 3; }
-        if [[ "$before" == absent ]]; then
-            rm -- "$target"
-        else
-            record=$(mktemp "${target}.lazycat-restore.XXXXXX")
-            squid_copy "$work/$resource.before" "$record"
-            # Recheck after staging, not merely before a potentially slow copy.
-            [[ "$(squid_fingerprint "$target")" == "$current" ]] || { rm -f "$record"; squid_record "$work" status recovery-conflict; return 3; }
-            mv "$record" "$target"
-        fi
-    done
-    case "$enabled" in
-        enabled) systemctl enable squid ;;
-        disabled) systemctl disable squid ;;
-        enabled-runtime) systemctl disable squid; systemctl enable --runtime squid ;;
-    esac
-    if [[ "$active" == active ]]; then
-        systemctl restart squid
-        port=$(awk '$1=="http_port" && NF==2 && $2~/^[0-9]+$/ {n++;p=$2} END {if(n==1)print p}' /etc/squid/squid.conf)
-        deadline=$((SECONDS+20))
-        until systemctl is-active --quiet squid && { [[ -z "$port" ]] || ss -H -ltn "sport = :$port" | grep -q .; }; do
-            ((SECONDS < deadline)) || return 1
-            sleep .1
-        done
-    else
-        systemctl stop squid
-    fi
-    [[ "$(systemctl show squid --property=ActiveState --value)" == "$active" && "$(systemctl show squid --property=UnitFileState --value)" == "$enabled" ]] || return 1
-    squid_record "$work" status rolled-back
-    log_success "文件与原服务状态已恢复，备份保留：$work"
+    squid_check_original "$target" "$before"
 }
 
 # --- 检查并安装依赖 ---
@@ -431,21 +320,18 @@ main() {
     check_root
     check_systemd
     lock_operation
-    squid_check_directory
-    squid_pending
+    [[ ! -L /etc/squid ]] || { log_error 'Squid 目录为符号链接，需要先明确采纳。'; return 3; }
     install_dependencies
-    (umask 022; mkdir -p /etc/squid)
-    squid_check_directory
+    mkdir -p /etc/squid
     [[ ! -L /etc/squid/squid.conf && ! -L /etc/squid/passwd ]] || { log_error '拒绝替换符号链接'; return 1; }
-    local work active enabled result=0 recovery_result=0 resource before expected
+    local work was_active=0 was_enabled=0 result=0
     work=$(mktemp -d /etc/squid/.lazycat-operation.XXXXXX)
     chmod 700 "$work"
     squid_capture /etc/squid/squid.conf "$work/config.before"
     squid_capture /etc/squid/passwd "$work/passwd.before"
     interactive_config
-    active=$(systemctl show squid --property=ActiveState --value)
-    enabled=$(systemctl show squid --property=UnitFileState --value)
-    case "$active:$enabled" in active:enabled|active:disabled|active:enabled-runtime|inactive:enabled|inactive:disabled|inactive:enabled-runtime) ;; *) log_error '原服务状态需要先审阅，未修改文件'; return 3 ;; esac
+    systemctl is-active --quiet squid && was_active=1
+    systemctl is-enabled --quiet squid && was_enabled=1
     SQUID_CANDIDATE="$work/config.after"
     PASSWD_CANDIDATE="$work/passwd.after"
     [[ ! -f "$work/config.before" ]] || squid_copy "$work/config.before" "$SQUID_CANDIDATE"
@@ -461,21 +347,9 @@ main() {
         log_success '配置及凭据未变化，不重启服务。'
         return
     fi
-    [[ -f "$work/config.before" ]] || chmod 644 "$SQUID_CANDIDATE"
     squid_copy "$SQUID_CANDIDATE" "$work/config.expected"
-    if [[ "$PRESERVE_CREDENTIALS" != 1 ]]; then squid_copy "$PASSWD_CANDIDATE" "$work/passwd.expected"; else squid_copy "$work/passwd.before" "$work/passwd.expected"; fi
-    for resource in config passwd; do
-        before=$(squid_fingerprint "$work/$resource.before")
-        expected=$(squid_fingerprint "$work/$resource.expected")
-        squid_record "$work" "$resource.before-fingerprint" "$before"
-        squid_record "$work" "$resource.after-fingerprint" "$expected"
-    done
-    squid_record "$work" service.active "$active"
-    squid_record "$work" service.enabled "$enabled"
-    squid_record "$work" journal-version 1
-    squid_record "$work" status prepared
-    squid_check_original /etc/squid/squid.conf "$work/config.before"
-    squid_check_original /etc/squid/passwd "$work/passwd.before"
+    if [[ "$PRESERVE_CREDENTIALS" != 1 ]]; then squid_copy "$PASSWD_CANDIDATE" "$work/passwd.expected"; fi
+    printf 'prepared\n' > "$work/status"
     set +e
     (
         set -e
@@ -493,12 +367,18 @@ main() {
     result=$?
     set -e
     if [[ "$result" != 0 ]]; then
-        set +e
-        (set -e; squid_recover_operation "$work")
-        recovery_result=$?
-        set -e
-        log_error "应用失败；恢复结果=$recovery_result，记录：$work"
-        [[ "$recovery_result" != 3 ]] || return 3
+        if ! squid_can_restore /etc/squid/squid.conf "$work/config.before" "$work/config.expected" "$work/config.published-revision" ||
+           ! squid_can_restore /etc/squid/passwd "$work/passwd.before" "$work/passwd.expected" "$work/passwd.published-revision"; then
+            printf 'recovery-conflict\n' > "$work/status"
+            log_error "应用失败，且文件或属性已被外部修改；未覆盖任一文件或再次切换服务。请检查：$work"
+            return 3
+        fi
+        if [[ -f "$work/config.before" ]]; then squid_copy "$work/config.before" /etc/squid/squid.conf; else rm -f /etc/squid/squid.conf; fi
+        if [[ -f "$work/passwd.before" ]]; then squid_copy "$work/passwd.before" /etc/squid/passwd; else rm -f /etc/squid/passwd; fi
+        if [[ "$was_active" == 1 ]]; then systemctl restart squid || log_error '恢复服务失败'; else systemctl stop squid; fi
+        if [[ "$was_enabled" == 0 ]]; then systemctl disable squid; fi
+        printf 'rollback-attempted\n' > "$work/status"
+        log_error "应用失败，备份与恢复记录: $work"
         return 1
     fi
     printf 'committed\n' > "$work/status"
@@ -506,15 +386,7 @@ main() {
     if [[ "$PRESERVE_CREDENTIALS" != 1 ]]; then print_result; else log_success "代理配置完成，旧凭据保留。"; fi
 }
 
-if [[ "${1:-}" == --recover ]]; then
-    [[ $# == 2 ]] || { echo '--recover <操作目录>' >&2; exit 2; }
-    check_root
-    check_systemd
-    lock_operation
-    squid_recover_operation "$2"
-    exit
-fi
 ROTATE_CREDENTIALS=0
 if [[ "${1:-}" == --rotate-credentials ]]; then ROTATE_CREDENTIALS=1; shift; fi
-[[ $# == 0 ]] || { echo '用法：setup_squid_proxy.sh [--rotate-credentials | --recover <操作目录>]' >&2; exit 2; }
+[[ $# == 0 ]] || { echo '用法：setup_squid_proxy.sh [--rotate-credentials]' >&2; exit 2; }
 main "$@"
