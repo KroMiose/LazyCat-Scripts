@@ -350,3 +350,5 @@ Zsh移除独立的临时配置/锁/备份实现，复用已有文件事务与GNU
 审阅第19项已按原问题范围验收：83939a8 PR34199445002 Debian系统日志2618行复现旧Shell被CA失败阻断同步，2641行证明新版配置提交、单次读取、旧证书真实新连接及恢复续签；Go链路在2555行有独立验证。共28项有最终处置、14项仍未完成；旧Shell双文件事务不在本项结案范围。
 
 旧SSH生成线路别名时增加全清单唯一性检查（保留大小写区别），拒绝box与box-lan等冲突，发布前保留现有配置。旧完整入口在声明的yq查询适配中误报成功并写入重复Host，失败证据artifacts/regression-proof/legacy-alias-426c2fa/before.log保留；新增真实yq系统入口对照待CI。不据此将全部SSH输入矩阵标为完成。
+
+d6fa45e PR34204832725失败：Ubuntu源码和实际归档在Docker恢复场景首次reset_fixture重启触发systemd start-limit-hit；原test.log/state.log与product-failure报告保留。之前真实拉取/删除生命周期已通过，但其重启预算污染了后续独立场景。fixture现在在每组开始显式reset-failed，不修改产品恢复策略；另新增真实StartLimitBurst=1场景，要求产品返回1、保留文件属性、报告旧服务恢复失败并保持失败状态，之后由fixture显式清理。新系统验证待执行，不以Debian通过代替Ubuntu。

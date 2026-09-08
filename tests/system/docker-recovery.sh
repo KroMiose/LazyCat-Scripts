@@ -32,6 +32,10 @@ reset_fixture() {
     cp --preserve=mode,ownership,timestamps,xattr "$work/before" "$staged"
     mv "$staged" "$target"
     systemctl daemon-reload
+    # Each old/new case declares a fresh start budget. Previous lifecycle
+    # restarts must not exhaust Ubuntu's StartLimitBurst before fault injection.
+    # This is fixture preparation only; product recovery never clears limits.
+    systemctl reset-failed docker.service docker.socket
     systemctl restart docker
     docker info >/dev/null
     rm -f "$work/injected"
@@ -75,5 +79,32 @@ PY
     done
 done
 # Explicit fixture reconciliation for later scenes; not product recovery.
+reset_fixture
+limit=/etc/systemd/system/docker.service.d/lazycat-fixture-start-limit.conf
+cat > "$limit" <<'UNIT'
+[Unit]
+StartLimitIntervalSec=300
+StartLimitBurst=1
+UNIT
+systemctl daemon-reload
+systemctl stop docker.service docker.socket
+systemctl reset-failed docker.service docker.socket
+systemctl start docker.service
+docker info >/dev/null
+status=0
+bash linux/setup_docker_proxy.sh set --url http://127.0.0.1:18081 --restart > "$work/start-limit.log" 2>&1 || status=$?
+cat "$work/start-limit.log"
+[[ "$status" == 1 ]]
+cmp "$work/before" "$target"
+[[ $(systemctl show docker.service -p Result --value) == start-limit-hit ]]
+grep -F '旧配置服务恢复失败' "$work/start-limit.log"
+if systemctl is-active --quiet docker; then echo 'start limit unexpectedly bypassed';exit 1;fi
+python3 - "$target" <<'PY'
+import os,sys
+assert os.getxattr(sys.argv[1],'user.lazycat-docker')==b'original preference'
+PY
+echo 'PASS real Docker start limit: original failure retained, config restored, unavailable service reported'
+# Explicit reconciliation of the deliberately exhausted test service.
+rm "$limit"
 reset_fixture
 echo 'PASS real Docker failure recovery preserves attrs; later metadata edits stop recovery and service changes'
