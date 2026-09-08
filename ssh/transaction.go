@@ -82,7 +82,7 @@ func state(path string) (fileState, error) {
 	if e != nil {
 		return out, e
 	}
-	out.Data, e = os.ReadFile(path)
+	out.Data, e = readRegularFile(path, 0)
 	out.Exists = true
 	out.Mode = uint32(s.Mode().Perm())
 	return out, e
@@ -368,7 +368,7 @@ func rollbackChecked(dir, id string, check func(operation) error) error {
 		return errors.New("invalid operation id")
 	}
 	return withFileLock(dir, func() error {
-		b, e := os.ReadFile(filepath.Join(dir, id+".json"))
+		b, e := readRegularFile(filepath.Join(dir, id+".json"), 0)
 		if e != nil {
 			return e
 		}

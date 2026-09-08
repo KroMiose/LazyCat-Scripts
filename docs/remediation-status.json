@@ -167,9 +167,10 @@
     {
       "id": 22,
       "title": "CA 自定义设置只存在于本次进程",
-      "status": "部分实现，验收未完成",
+      "status": "对应审阅缺陷已修复并验证",
       "decision": "",
-      "release_complete": false
+      "release_complete": true,
+      "evidence_summary": "e5b92ef PR34182244567 Linux/macOS 真实旧/新完整菜单跨进程对照通过：旧版遗忘自定义目录/名称，新版继续读取原密钥。2a33c56 的Ubuntu/Debian实际CA init/show/重复拒绝/签发也通过，整体运行在后续sudo测试缺少夹具时失败。位置记录事务/回滚另有本地真实入口验证；CA密钥创建的多资源中断恢复仍未全覆盖。"
     },
     {
       "id": 23,

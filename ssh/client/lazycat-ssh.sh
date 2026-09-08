@@ -625,6 +625,7 @@ lc_ca_fetch_and_sign_cert() (
 
   lc_log "⏳ 正在拉取配置（用于读取 CA 参数）..."
   curl -fsSL "$RAW_URL" -o "$tmp_yaml" || return 1
+  [[ "$(yq -r '.version // ""' "$tmp_yaml")" == 1 ]] || lc_die '仅支持 YAML version: 1，未请求签发。'
 
   local ca_ssh_host ca_key_path ca_principals ca_validity
   # 约定：用户必须先配置好 `ssh <sshHost>` 能直连 CA 服务器
@@ -697,7 +698,8 @@ lc_ca_fetch_and_sign_cert() (
   lc_log "✅ 证书已更新：${CA_CERT_PATH}"
 )
 
-lc_sync_from_raw_url() {
+lc_sync_from_raw_url() (
+  trap 'rm -f -- "${tmp_yaml:-}" "${tmp_json:-}" "${out:-}" "${tmp_config:-}"' EXIT
   lc_install_yq
   lc_need_cmd curl
 
@@ -741,7 +743,6 @@ lc_sync_from_raw_url() {
 
   local tmp_yaml
   tmp_yaml="$(mktemp)"
-  trap 'rm -f "${tmp_yaml:-}"' RETURN
 
   lc_log "⏳ 正在拉取配置..."
   curl -fsSL "$RAW_URL" -o "$tmp_yaml"
@@ -749,8 +750,8 @@ lc_sync_from_raw_url() {
   # schema 校验
   local version
   version="$(yq -r '.version // ""' "$tmp_yaml")"
-  if [[ -z "$version" ]] || [[ "$version" == "null" ]]; then
-    lc_die "YAML 缺少 version 字段。"
+  if [[ "$version" != 1 ]]; then
+    lc_die "仅支持 YAML version: 1。"
   fi
   local hosts_type
   hosts_type="$(yq -r '.hosts | tag' "$tmp_yaml")"
@@ -778,11 +779,7 @@ lc_sync_from_raw_url() {
   if [[ -n "$ca_host" ]] && [[ "$ca_host" != "null" ]]; then
     ca_enabled="1"
     lc_log "🔐 检测到 CA 配置，将启用证书模式（短有效期推荐安装后台自动续期）。"
-    lc_ca_fetch_and_sign_cert
   fi
-
-  mkdir -p "$SSH_DIR" "$SSH_CONFIG_D"
-  chmod 700 "$SSH_DIR"
 
   local out
   out="$(mktemp)"
@@ -951,6 +948,10 @@ lc_sync_from_raw_url() {
     done
   done <<<"$aliases"
 
+  # Validate all inventory fields before requesting credentials or modifying
+  # user directories. Existing SSH directory permissions belong to the user.
+  if [[ "$ca_enabled" == 1 ]]; then lc_ca_fetch_and_sign_cert; fi
+  (umask 077; mkdir -p "$SSH_DIR" "$SSH_CONFIG_D")
   umask 077
   mv "$out" "${LAZYCAT_CONF}.tmp"
   mv "${LAZYCAT_CONF}.tmp" "$LAZYCAT_CONF"
@@ -981,7 +982,7 @@ lc_sync_from_raw_url() {
   lc_log "  - 写入: ${LAZYCAT_CONF}"
   lc_log "  - 更新: ${SSH_CONFIG}（Include 标记块）"
   lc_log ""
-}
+)
 
 lc_show_current() {
   if [[ -f "$LAZYCAT_CONF" ]]; then

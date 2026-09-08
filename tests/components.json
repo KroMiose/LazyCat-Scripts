@@ -31,7 +31,8 @@
         "native-package",
         "ssh-launchd",
         "ssh-launchd-gui",
-        "legacy-client-renewal"
+        "legacy-client-renewal",
+        "legacy-input-validation"
       ]
     },
     "shell-proxy": {

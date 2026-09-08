@@ -72,7 +72,7 @@ python3 tests/system/vm.py --image ubuntu --suite docker --package-lock tests/sy
 
 包源更新使用单独的准备步骤：`python3 tests/system/vm.py --image ubuntu --export-package-lock artifacts/proposed.lock.json`。它仅下载、不安装包，结果是 environment-prepared，不能算产品验证。审阅原始来源和摘要，再用新的独立场景验证后才能更新仓库锁文件。`--fresh-packages` 重新从锁定 URL 下载且校验；每周第一轮执行它，以发现旧包入口失效。
 
-候选产物工作流采用 GitHub 官方的 ubuntu-24.04、ubuntu-24.04-arm、macos-15-intel、macos-15 四类 runner，并断言实际架构。官方标签表见 https://docs.github.com/en/actions/reference/runners/github-hosted-runners 。尚未远程执行的矩阵不计为已通过。
+候选产物工作流采用 GitHub 官方的 ubuntu-24.04、ubuntu-24.04-arm、macos-15-intel、macos-15 四类 runner，并断言实际架构。官方标签表见 https://docs.github.com/en/actions/reference/runners/github-hosted-runners 。四个平台已有托管运行结果，例如 e5b92ef 的完整运行 34182250412；此结果只覆盖该提交登记的场景，不代表后续提交或完整发布契约通过。
 
 
 发布最低覆盖要求由 `tests/release-contract.json` 维护；这是必须取得的证据清单，不是已通过列表。`scripts/release_check.py` 核对每个必测 ID 的平台、真实执行级别、行为/副作用断言，以及相对于报告的观察日志路径和 SHA-256。报告必须绑定当前清单摘要、候选提交和冻结源码摘要；产物必须包括四平台 SSH 包、Shell 包、安装器和一致的 SHA256SUMS。缺平台、只编译、任意名称的绿色场景、空日志及过期清单均不能通过。
@@ -97,6 +97,6 @@ Shell 检查器恢复测试覆盖未提交候选（原文件存在/不存在）�
 
 完整运行 34176462302（c935a59）失败：Ubuntu 前两份固定环境通过，上游场景中真实 Node/Python 安装也通过，但随后重新安装续签任务触发 systemd `start-limit-hit`。失败状态又阻止自动恢复，留下未完成操作。这是产品恢复缺陷，不归类为网络故障。Debian、OpenWrt 和完整检查线通过不能覆盖该失败。
 
-新增限频场景为专用用户管理器声明 60 秒内最多启动两次，由故障边界适配器真实启停 systemd 任务至限频；断言原命令非零、任务文件恢复未安装状态、凭据保留、无未完成日志，以及下一次显式安装可用。正常的六种偏好组合在每组开始前明确清除专用测试任务的启动计数；这属于场景初始化，不属于产品逻辑。产品仅可在原本无任务且本次新安装的激活阶段失败时，恢复文件后清除该任务自己的限频失败记录；已有失败任务仍拒绝自动改动。Linux 适配测试通过，真实系统结果待本次场景运行。
+新增限频场景为专用用户管理器声明 60 秒内最多启动两次，由故障边界适配器真实启停 systemd 任务至限频；断言原命令非零、任务文件恢复未安装状态、凭据保留、无未完成日志，以及下一次显式安装可用。正常的六种偏好组合在每组开始前明确清除专用测试任务的启动计数；这属于场景初始化，不属于产品逻辑。产品仅可在原本无任务且本次新安装的激活阶段失败时，恢复文件后清除该任务自己的限频失败记录；已有失败任务仍拒绝自动改动。Linux 适配测试通过；0ee75f7 的 PR 34179540092 中 Ubuntu/Debian 真实限流、失败恢复和显式重装均通过。
 
 f22d7e3 的 PR 34178623052 和完整运行 34178662431 均失败在新增场景初始化：systemd 已回收 inactive/disabled 的任务对象，定向 reset-failed 返回精确的 “Unit … not loaded”，此时对象及启动计数已经不存在。驱动随后区分这项有效空基线与权限等其他错误，并新增成功、已卸载对象、权限失败三条驱动测试。原运行保留失败；新的报告把已声明的基线初始化阶段归为 environment-error，仍阻止通过，不把它包装为产品场景成功。

@@ -140,4 +140,7 @@ printf 'go-client-lifecycle\n' > /tmp/lazycat-phase
 bash tests/system/client.sh
 printf 'legacy-client-lifecycle\n' > /tmp/lazycat-phase
 bash tests/system/legacy-client.sh
+printf 'legacy-input-lifecycle\n' > /tmp/lazycat-phase
+runuser -u fixture -- env -i HOME=/home/fixture USER=fixture PATH=/usr/bin:/bin \
+    python3 tests/legacy_input.py --yq /work/yq --output /tmp/legacy-input-evidence
 echo 'PASS full-system SSH login/rejection, sudo grant/revoke, Squid auth/credential preservation'

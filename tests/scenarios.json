@@ -155,6 +155,27 @@
         "temporary config and per-turn state",
         "local HTTP fixture requests only"
       ]
+    },
+    {
+      "id": "legacy-input-validation",
+      "level": "real-process-local-http",
+      "initial": "independent temporary HOME for each input/implementation; SSH directory 0750 and user config 0640; frozen c8ffb57, prevalidation-fix and current client/library; supplied yq v4.53.2; local HTTP only",
+      "entrypoint": "python3 tests/legacy_input.py --yq <real-yq-binary> --output <new-evidence-directory>",
+      "preserve": [
+        "user SSH config content and mode on invalid input",
+        "user SSH directory mode",
+        "absence of generated configuration on invalid input",
+        "no persistent temporary downloads on rejected current input"
+      ],
+      "mutations": [
+        "isolated HOME and evidence directory",
+        "historical defect observations inside their own independent HOME"
+      ],
+      "faults": [
+        "newline directive injection",
+        "unsupported version: 2"
+      ],
+      "observer": "real OpenSSH parser; ProxyCommand is inspected without a connection or execution"
     }
   ]
 }

@@ -55,6 +55,16 @@ def extract_image(source, destination):
                 raise ValueError('uncompressed image exceeds 2 GiB bound')
             out.write(chunk)
 
+def source_snapshot(root=ROOT):
+    frozen=[]
+    for folder in ('ssh','linux','common','tests'):
+        for path in sorted((root/folder).rglob('*')):
+            if '__pycache__' in path.parts:continue
+            if path.is_symlink():raise ValueError('source symlink requires review: '+str(path.relative_to(root)))
+            if path.is_file():
+                frozen.append((str(path.relative_to(root)),path.read_bytes(),path.stat().st_mode & 0o777))
+    return frozen
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--image',choices=['ubuntu','debian','openwrt'],required=True);parser.add_argument('--suite',choices=['core','upstream','docker'],default='core');parser.add_argument('--fresh-download',action='store_true');parser.add_argument('--package-lock',type=Path);parser.add_argument('--fresh-packages',action='store_true');parser.add_argument('--export-package-lock',type=Path);args=parser.parse_args()
     if args.package_lock and args.export_package_lock:parser.error('cannot use and create a package lock together')
@@ -63,21 +73,17 @@ def main():
     lock=json.loads((ROOT/'tests/system/images.lock.json').read_text())[args.image]
     out=ROOT/'artifacts/system'/args.image/datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ');out.mkdir(parents=True,exist_ok=True)
     report={'format_version':1,'image':lock,'suite':args.suite,'level':'full-system-qemu','host':platform.platform(),'started_at':datetime.now(timezone.utc).isoformat(),'network':'live upstream repositories; not offline fixed-input coverage','status':'environment-error','phase':'prepare'}
-    # Freeze source BEFORE downloading or booting. Long-running local tests must
-    # not accidentally compile or copy edits made later in the same worktree.
-    frozen=[]
-    for folder in ['ssh','linux','common','tests']:
-        for path in sorted((ROOT/folder).rglob('*')):
-            if path.is_file() and '__pycache__' not in path.parts and ('fixtures' not in path.parts or path in tuple(ROOT/'tests/fixtures'/name for name in ('legacy-client-before.sh','legacy-common-before.sh','legacy-default-ca-client.sh','legacy-default-ca-common.sh','legacy/linux/setup_squid_proxy.sh'))):
-                frozen.append((str(path.relative_to(ROOT)),path.read_bytes(),path.stat().st_mode & 0o777))
-    source_hash=hashlib.sha256()
-    for name,data,mode in frozen:source_hash.update(name.encode()+b'\0'+str(mode).encode()+b'\0'+data)
-    report['source_tree_sha256']=source_hash.hexdigest()
-    report['commit']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
-    report['dirty_worktree']=bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True))
-    report['runner']={k:os.environ[k] for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH'] if k in os.environ}
     proc=None
     try:
+        # Freeze source BEFORE downloading or booting. Long-running local tests must
+        # not accidentally compile or copy edits made later in the same worktree.
+        frozen=source_snapshot()
+        source_hash=hashlib.sha256()
+        for name,data,mode in frozen:source_hash.update(name.encode()+b'\0'+str(mode).encode()+b'\0'+data)
+        report['source_tree_sha256']=source_hash.hexdigest()
+        report['commit']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+        report['dirty_worktree']=bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True))
+        report['runner']={k:os.environ[k] for k in ['ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH'] if k in os.environ}
         for name in ['qemu-system-x86_64','qemu-img','ssh','ssh-keygen','tar']:
             if not shutil.which(name):raise RuntimeError('required executable missing: '+name)
         cache=ROOT/'.test-cache/images';cache.mkdir(parents=True,exist_ok=True)
@@ -191,7 +197,7 @@ def main():
                         report.setdefault('diagnostic_errors',[]).append(str(error))
                     try:
                         with (out/'state.log').open('wb') as f:
-                            subprocess.run(ssh+['cat /tmp/lazycat-evidence.txt 2>/dev/null; command -v journalctl >/dev/null && journalctl -n 150 --no-pager || logread'],stdout=f,stderr=subprocess.STDOUT,timeout=30)
+                            subprocess.run(ssh+['cat /tmp/lazycat-evidence.txt 2>/dev/null; if test -d /tmp/legacy-input-evidence; then cat /tmp/legacy-input-evidence/*; fi; command -v journalctl >/dev/null && journalctl -n 150 --no-pager || logread'],stdout=f,stderr=subprocess.STDOUT,timeout=30)
                     except (OSError,subprocess.TimeoutExpired) as error:
                         report.setdefault('diagnostic_errors',[]).append(str(error))
 

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"golang.org/x/crypto/ssh"
 	"math"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -42,7 +41,7 @@ func knownLegacyClient(data []byte) bool {
 	return false
 }
 func installedOwnership(p paths, data []byte) bool {
-	b, e := os.ReadFile(filepath.Join(p.Meta, "installation.json"))
+	b, e := readConfigurationFile(filepath.Join(p.Meta, "installation.json"))
 	var r installationReceipt
 	return e == nil && json.Unmarshal(b, &r) == nil && r.Version == 1 && r.Binary == p.Binary && r.SHA256 == digest(data)
 }
@@ -51,7 +50,7 @@ func managedConfigChange(p paths, data []byte) (change, error) {
 	return prepare(filepath.Join(p.Meta, "managed-config.json"), b, 0600)
 }
 func checkManagedConfig(p paths, data []byte) error {
-	b, e := os.ReadFile(filepath.Join(p.Meta, "managed-config.json"))
+	b, e := readConfigurationFile(filepath.Join(p.Meta, "managed-config.json"))
 	if e != nil {
 		return &migrationConflict{"generated configuration has no ownership receipt; run migrate --check first"}
 	}
@@ -65,7 +64,7 @@ func checkManagedConfig(p paths, data []byte) error {
 // Derive the previous CA identity from an existing, cryptographically verified
 // certificate, never from the newly downloaded inventory or remote CA output.
 func adoptExistingCA(p paths, principals string) (string, error) {
-	certData, e := os.ReadFile(p.Cert)
+	certData, e := readConfigurationFile(p.Cert)
 	if e != nil {
 		return "", &migrationConflict{"existing CA certificate missing; fingerprint requires explicit verification"}
 	}
@@ -73,7 +72,7 @@ func adoptExistingCA(p paths, principals string) (string, error) {
 	if e != nil {
 		return "", &migrationConflict{"existing certificate cannot establish previous CA identity"}
 	}
-	publicData, e := os.ReadFile(p.Key + ".pub")
+	publicData, e := readConfigurationFile(p.Key + ".pub")
 	if e != nil {
 		return "", e
 	}
@@ -96,6 +95,7 @@ func adoptExistingCA(p paths, principals string) (string, error) {
 		if !want[p] {
 			return "", &migrationConflict{"existing certificate principals differ"}
 		}
+		delete(want, p)
 	}
 	verifier := ssh.CertChecker{Clock: func() time.Time { return time.Unix(int64(cert.ValidAfter), 0).Add(time.Second) }}
 	if e = verifier.CheckCert(expected[0], cert); e != nil {

@@ -200,6 +200,12 @@ func sourceSnapshot(p paths) (sourceConfig, []change, error) {
 	return source, observed, e
 }
 func readConfigurationFile(path string) ([]byte, error) {
+	return readRegularFile(path, 4<<20)
+}
+
+// A zero limit is used for operation journals containing an actual binary;
+// those are larger than configuration files, but still must never be FIFOs.
+func readRegularFile(path string, limit int64) ([]byte, error) {
 	info, e := os.Stat(path)
 	if e != nil {
 		return nil, e
@@ -219,8 +225,11 @@ func readConfigurationFile(path string) ([]byte, error) {
 	if !info.Mode().IsRegular() {
 		return nil, invalid("configuration input must be a regular file")
 	}
-	b, e := io.ReadAll(io.LimitReader(file, 4<<20+1))
-	if len(b) > 4<<20 {
+	if limit == 0 {
+		return io.ReadAll(file)
+	}
+	b, e := io.ReadAll(io.LimitReader(file, limit+1))
+	if int64(len(b)) > limit {
 		return nil, invalid("configuration too large")
 	}
 	return b, e

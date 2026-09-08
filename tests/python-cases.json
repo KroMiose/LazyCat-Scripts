@@ -64,6 +64,7 @@
     "test_runtime_entrypoint.RuntimeEntrypoint.test_python_existing_tools_and_failed_health_preserve_preferences",
     "test_system_fixture.SystemFixture.test_rate_baseline_accepts_only_success_or_unloaded_unit",
     "test_vm_archive.VMArchive.test_plain_and_fwtool_trailer",
+    "test_vm_archive.VMArchive.test_snapshot_includes_new_fixtures_and_rejects_source_links",
     "test_vm_archive.VMArchive.test_trailing_junk_and_bad_crc_rejected",
     "test_zsh_entrypoint.ZshEntrypoint.test_damaged_block_preserves_user_content",
     "test_zsh_entrypoint.ZshEntrypoint.test_existing_plugins_repeat_and_cleanup",

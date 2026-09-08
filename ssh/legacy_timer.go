@@ -40,7 +40,7 @@ func legacyTimerPlan(ctx context.Context, p paths) (*timerAdoption, error) {
 	return nil, nil
 found:
 	if _, e := os.Stat(timerReceiptPath(p)); e == nil {
-		b, e := os.ReadFile(timerReceiptPath(p))
+		b, e := readConfigurationFile(timerReceiptPath(p))
 		if e != nil {
 			return nil, e
 		}
