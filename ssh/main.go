@@ -51,11 +51,10 @@ func syncInventory(ctx context.Context, p paths, args []string) error {
 	if e != nil {
 		return e
 	}
-	remainder, e := stripBlock(original.Data)
+	include, e := syncInclude(original.Data, p.Generated)
 	if e != nil {
 		return e
 	}
-	include := []byte(begin + "\nInclude " + sshQuote(p.Generated) + "\n" + end + "\n" + string(remainder))
 	for _, w := range in.Warnings {
 		fmt.Fprintln(os.Stderr, "unknown field retained at source:", w)
 	}
@@ -146,7 +145,7 @@ func diagnostics(p paths) map[string]any {
 	}
 	b, e := readConfigurationFile(p.Config)
 	if e == nil {
-		_, e = stripBlock(b)
+		_, e = managedInclude(b, p.Generated)
 	}
 	result["managed_block_valid"] = e == nil
 	pending := []string{}

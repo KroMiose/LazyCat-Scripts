@@ -6,7 +6,7 @@ LazyCat SSH 是一套轻量级的 SSH 基础设施管理工具，旨在通过 **
 
 本项目定位为个人管理员工具。CA SSH 账户有直接使用 CA 私钥签发的权限，不是面向团队的受限授权服务。已有 root 身份创建的 CA 继续由原身份管理，不因文档改为普通用户入口而搬迁。
 
-Go 候选客户端与验证边界见 [整改记录](../docs/REMEDIATION.md) 和 [测试契约](../docs/TESTING.md)。当前公开 Shell 入口尚未切换到 Go。
+Go 候选客户端与验证边界见 [整改记录](../docs/REMEDIATION.md) 和 [测试契约](../docs/TESTING.md)。当前公开 Shell 入口尚未切换到 Go。Go 同步保留已有托管 Include 的位置；标记内有未知手改指令时返回冲突，不自动覆盖或卸载。
 
 它解决了传统 `authorized_keys` 管理痛点：
 

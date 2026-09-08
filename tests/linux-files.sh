@@ -37,3 +37,6 @@ PY
 # File rollback does not promise to reverse an explicit directory move.
 [[ -f "$HOME/Downloads/user-file" ]]
 echo 'PASS Linux XDG real file move, user preference preservation and repeat'
+
+# Native xattr concurrency observer; only user files, no network or services.
+python3 -B -m unittest discover -s /work/tests -p test_transaction_attributes.py

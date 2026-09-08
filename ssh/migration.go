@@ -69,6 +69,13 @@ func compareGenerated(old, candidate []byte) error {
 	return nil
 }
 func migrate(ctx context.Context, p paths, apply bool) error {
+	configBefore, e := state(p.Config)
+	if e != nil {
+		return e
+	}
+	if _, e = managedInclude(configBefore.Data, p.Generated); e != nil {
+		return e
+	}
 	in, src, observed, e := loadInventory(ctx, p)
 	if e != nil {
 		return e
@@ -132,7 +139,7 @@ func migrate(ctx context.Context, p paths, apply bool) error {
 	if e != nil {
 		return e
 	}
-	changes := append(sourceChanges, program, receipt, configReceipt, change{p.Generated, generatedBefore, generatedBefore})
+	changes := append(sourceChanges, program, receipt, configReceipt, change{p.Generated, generatedBefore, generatedBefore}, change{p.Config, configBefore, configBefore})
 	if adoption != nil {
 		changes = append(changes, adoption.Changes...)
 	}
@@ -182,6 +189,9 @@ func uninstall(p paths, purge bool) error {
 	// No broad rm -rf: credentials and unknown resources are never removed.
 	s, e := state(p.Config)
 	if e != nil {
+		return e
+	}
+	if _, e = managedInclude(s.Data, p.Generated); e != nil {
 		return e
 	}
 	data, e := stripBlock(s.Data)

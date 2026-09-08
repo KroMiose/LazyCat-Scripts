@@ -26,33 +26,41 @@ fi
 for component in "$@"; do
     case "$component" in uv|pyenv|poetry|pdm) ;; *) echo "未知组件: $component" >&2; exit 2 ;; esac
 done
-command -v curl >/dev/null || { echo '需要 curl，请先通过包管理器安装。' >&2; exit 1; }
-work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+work=''
+trap 'if [[ -n "$work" ]]; then rm -rf "$work"; fi' EXIT
 for component in "$@"; do
     if command -v "$component" >/dev/null 2>&1; then
         "$component" --version
         printf '%s 已安装，保留版本及配置。\n' "$component"
         continue
     fi
+    # An existing component only needs its own health check. Check installer
+    # dependencies only when that component actually needs installation.
+    case "$component" in
+        uv|poetry|pdm) command -v curl >/dev/null || { echo '需要 curl，请先通过包管理器安装。' >&2; exit 1; } ;;
+    esac
+    case "$component" in
+        poetry|pdm) command -v python3 >/dev/null || { echo '需要 python3' >&2; exit 1; } ;;
+        pyenv)
+            [[ ! -e "$HOME/.pyenv" ]] || { echo '.pyenv 已存在但命令不可用；请先检查，不覆盖。' >&2; exit 1; }
+            command -v git >/dev/null || { echo '需要 git' >&2; exit 1; }
+            ;;
+    esac
+    if [[ -z "$work" ]]; then work=$(mktemp -d); fi
     case "$component" in
     uv)
         curl -fLsS --connect-timeout 10 --max-time 120 https://astral.sh/uv/0.10.0/install.sh -o "$work/uv.sh"
         UV_NO_MODIFY_PATH=1 sh "$work/uv.sh"
         ;;
     pyenv)
-        [[ ! -e "$HOME/.pyenv" ]] || { echo '.pyenv 已存在但命令不可用；请先检查，不覆盖。' >&2; exit 1; }
-        command -v git >/dev/null || { echo '需要 git' >&2; exit 1; }
         git clone --branch v2.6.3 --depth 1 https://github.com/pyenv/pyenv.git "$HOME/.pyenv"
         printf '%s\n' 'pyenv 已安装；编译 Python 所需系统依赖请按目标发行版安装。'
         ;;
     poetry)
-        command -v python3 >/dev/null || { echo '需要 python3' >&2; exit 1; }
         curl -fLsS --connect-timeout 10 --max-time 120 https://install.python-poetry.org -o "$work/poetry.py"
         python3 "$work/poetry.py" --version 2.1.3
         ;;
     pdm)
-        command -v python3 >/dev/null || { echo '需要 python3' >&2; exit 1; }
         curl -fLsS --connect-timeout 10 --max-time 120 https://raw.githubusercontent.com/pdm-project/pdm/2.25.9/install-pdm.py -o "$work/pdm.py"
         python3 "$work/pdm.py" --version 2.25.9
         ;;

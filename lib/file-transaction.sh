@@ -9,6 +9,23 @@ lc_tx_copy() {
         *) echo '未验证的文件属性复制平台，未提交修改' >&2; return 1 ;;
     esac
 }
+# inode plus nanosecond ctime detects metadata-only edits (including ACL/xattr)
+# without adding Python/getfattr as an installation dependency.
+lc_tx_revision() {
+    case "$(uname -s)" in
+        Linux) LC_ALL=C stat -c '%d:%i:%z' -- "$1" ;;
+        Darwin) LC_ALL=C stat -f '%d:%i:%Fc' "$1" ;;
+        *) return 1 ;;
+    esac
+}
+lc_tx_check_revision() {
+    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    if [[ "$LC_TX_EXISTED" == 1 ]]; then
+        [[ -f "$LC_TX_TARGET" && "$(lc_tx_revision "$LC_TX_TARGET")" == "$LC_TX_REVISION" ]] || { echo '文件或属性被并发修改，已停止' >&2; return 3; }
+    else
+        [[ ! -e "$LC_TX_TARGET" && ! -L "$LC_TX_TARGET" ]] || { echo '目标被并发创建，已停止' >&2; return 3; }
+    fi
+}
 lc_tx_check_path() {
     local parent="$1"
     while [[ -n "$parent" && "$parent" != / ]]; do
@@ -39,12 +56,14 @@ lc_tx_begin() {
     if [[ -e "$LC_TX_TARGET" ]]; then
         [[ -f "$LC_TX_TARGET" ]] || { lc_tx_unlock; echo '目标不是普通文件' >&2; return 3; }
         LC_TX_EXISTED=1
+        LC_TX_REVISION=$(lc_tx_revision "$LC_TX_TARGET") || { lc_tx_unlock; return 1; }
         LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')
         printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
         lc_tx_copy "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { lc_tx_unlock; return 1; }
     else
         (umask 077; : > "$LC_TX_OPERATION/before")
     fi
+    lc_tx_check_revision || { lc_tx_unlock; return 3; }
     LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_OPERATION/before" | awk '{print $1, $3, $4}')
     printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
     printf '%s\n' "$LC_TX_EXISTED" > "$LC_TX_OPERATION/existed"
@@ -83,7 +102,7 @@ lc_tx_unlock() {
     LC_TX_LOCK_OWNED=0
 }
 lc_tx_commit() {
-    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    lc_tx_check_revision || return 3
     if [[ "$LC_TX_EXISTED" == 1 ]]; then
         [[ "$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] || { echo '文件权限或属主被并发修改' >&2; return 3; }
         cmp -s "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { echo '检测到并发修改，已停止' >&2; return 3; }
@@ -98,6 +117,7 @@ lc_tx_commit() {
     local staged
     staged=$(mktemp "${LC_TX_TARGET}.lazycat-stage.XXXXXX")
     lc_tx_copy "$LC_TX_CANDIDATE" "$staged" || { rm -f "$staged"; return 1; }
+    lc_tx_check_revision || { rm -f "$staged"; return 3; }
     if ! mv "$staged" "$LC_TX_TARGET"; then rm -f "$staged"; return 1; fi
     printf 'committed\n' > "$LC_TX_OPERATION/status"
     lc_tx_unlock

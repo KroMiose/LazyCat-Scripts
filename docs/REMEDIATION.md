@@ -246,3 +246,12 @@ CA位置记录改用同一套Shell文件事务，公共检查器增加~/.lazycat
 旧Shell客户端进一步将字段验证前置到目录权限修改和CA请求之前，未知YAML版本拒绝同步和续签，并用作用域EXIT清理临时文件。真实yq v4.53.2、本地HTTP和OpenSSH解析器对照：原c8ffb57把换行写成有效ProxyCommand；此前修复版虽拒绝字段却把0750目录改为0700；当前入口保留0750目录、0640用户配置，不生成片段、不残留下载。仅解析ProxyCommand，未执行或连接注入目标。证据在artifacts/legacy-input/frozen-source；新增VM入口复用同一测试驱动。
 
 Go迁移和配置同步的四种FIFO元数据完整CLI在2a33c56均等待到3秒测试截止；统一普通文件读取后立即拒绝并保留用户状态。小配置仍限4MiB，包含程序备份的操作记录保留原有大文件支持，但也不读取FIFO。原超时证据在artifacts/regression-proof/metadata-fifo-2a33c56/before.log；修复后的SSH Go race通过。一次未清理os导入的编译失败另行保留，没有计作产品通过。
+
+
+Go同步保留既有托管Include块的位置及原字节，避免改变SSH先出现参数优先的行为。0cce6d9完整CLI加真实ssh -G对照复现用户从preferred-user变为清单用户；修复后重复同步的参数、配置字节和0640权限均保留（artifacts/go/ssh/20260908T034602.881008Z为旧失败，20260908T034717.319700Z为新Go race）。托管块内手改指令在同步、迁移检查、卸载与purge时返回3；迁移把主配置也纳入提交前并发检查。这里只执行测试自建配置的ssh -G，不执行用户Match exec。
+
+Python已有组件不再依赖curl或临时目录工具；仅在需要安装对应组件时检查其依赖。无curl/git/mktemp的PATH对照中，原版连已有组件健康检查也拒绝；新入口正确保留现有工具，并传播损坏工具的退出17。历史失败见artifacts/regression-proof/python-dependencies-0cce6d9；这些组件使用明确的版本命令替身，不冒充真实首次安装验证。
+
+Shell事务通过设备/inode/纳秒ctime复查备份与最终提交阶段的并发变化，覆盖内容不变但ACL/xattr变化的情况，无新增Python/getfattr运行依赖。真实代理入口在候选生成及最终暂存两个位置注入原生xattr改动，旧版均错误提交，新版macOS拒绝并保留用户改动。首次测试误用macOS Python不存在的os.setxattr，已改为系统xattr命令并保留夹具错误日志。Linux验证接入断网容器；此修复不表示公共回滚的历史ACL/xattr比较、多文件服务事务或检查到rename之间的竞争已全部解决。
+
+新增70条Python用例、make check、SSH Go race及锁定Linux ARM64断网容器均通过；后者记录为artifacts/linux-files/20260908T035142.079439Z，包含真实Linux xattr并发保留。此本地构建使用Go1.27.1，CI按go.mod的1.26系列执行，两者分别记录。

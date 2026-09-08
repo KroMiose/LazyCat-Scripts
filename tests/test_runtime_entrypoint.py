@@ -56,3 +56,26 @@ npm() { [ "$FAILURE" != npm ] || return 14; printf '10.8.2\\n'; }
                 self.assertNotIn('declare -x', result.stdout)
                 if broken:
                     self.assertNotIn('选定组件验证完成', result.stdout)
+
+    def test_python_existing_tools_need_no_install_dependencies(self):
+        # Use the real UID command and deliberately omit download/install tools
+        # from PATH. Fake component executables only observe health-check calls.
+        import shutil
+        for broken in (False, True):
+            with self.subTest(broken=broken), tempfile.TemporaryDirectory() as directory:
+                home = Path(directory)
+                binary = home/'.local/bin'
+                binary.mkdir(parents=True)
+                (binary/'id').symlink_to(shutil.which('id'))
+                for tool in ('uv', 'pyenv', 'poetry', 'pdm'):
+                    path = binary/tool
+                    path.write_text('#!/bin/sh\n[ "$1" = --version ] || exit 29\n' +
+                                    ('exit 17\n' if broken and tool == 'uv' else 'printf "fixture-version\\n"\n'))
+                    path.chmod(0o755)
+                before = snapshot(home)
+                result = subprocess.run([shutil.which('bash'), str(ROOT/'linux/setup_python_env.sh'),
+                                         'uv', 'pyenv', 'poetry', 'pdm'],
+                    env=environment(home, {'PATH': str(binary)}), capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 17 if broken else 0, result.stdout+result.stderr)
+                self.assertEqual(snapshot(home), before)
+                self.assertNotIn('需要 curl', result.stderr)
