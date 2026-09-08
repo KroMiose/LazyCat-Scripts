@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -69,8 +70,8 @@ func (s *linuxTimerState) restore(ctx context.Context) error {
 	if s.active {
 		action = "start"
 	}
-	if _, e = timerCommand(ctx, action, "lazycat-ssh-renew.timer"); e != nil {
-		return e
+	if output, err := timerCommand(ctx, action, "lazycat-ssh-renew.timer"); err != nil {
+		return fmt.Errorf("systemctl %s timer: %w: %s", action, err, strings.TrimSpace(string(output)))
 	}
 	after, e := readLinuxTimerState(ctx)
 	if e != nil {

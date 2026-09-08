@@ -60,6 +60,7 @@ case "$1" in
    --property=ActiveState) if [ "$2" = lazycat-ssh-renew.service ]; then echo inactive; else cat "$NATIVE_FIXTURE/active"; fi ;;
    --property=UnitFileState) cat "$NATIVE_FIXTURE/enabled" ;;
    --property=DropInPaths) : ;;
+   --property=Result) if [ -f "$NATIVE_FIXTURE/start-limit" ]; then echo start-limit-hit; else echo success; fi ;;
    *) exit 91 ;;
   esac ;;
  stop)
@@ -67,7 +68,8 @@ case "$1" in
   grep -q '"Phase": "\(pausing\|rollback-pausing\)"' "$NATIVE_OPERATIONS/"*.json
   printf 'inactive\n' > "$NATIVE_FIXTURE/active"
   crash stop ;;
- start) printf 'active\n' > "$NATIVE_FIXTURE/active" ;;
+ start) if [ -f "$NATIVE_FIXTURE/start-limit" ]; then printf 'failed\n' > "$NATIVE_FIXTURE/active"; exit 1; fi; printf 'active\n' > "$NATIVE_FIXTURE/active" ;;
+ reset-failed) test "$2" = lazycat-ssh-renew.timer; rm -f "$NATIVE_FIXTURE/start-limit"; printf 'inactive\n' > "$NATIVE_FIXTURE/active" ;;
  disable) printf 'disabled\n' > "$NATIVE_FIXTURE/enabled" ;;
  enable) if [ "$2" = --runtime ]; then echo enabled-runtime; else echo enabled; fi > "$NATIVE_FIXTURE/enabled" ;;
  daemon-reload) crash daemon-reload ;;
@@ -255,5 +257,91 @@ func TestNativePublicRollbackPreservesLaterChanges(t *testing.T) {
 	active, _ := os.ReadFile(filepath.Join(fixture, "active"))
 	if string(active) != "active\n" {
 		t.Fatal("task not restarted after recovery")
+	}
+}
+
+func TestNativeFreshInstallStartLimitRestoresAbsence(t *testing.T) {
+	p := nativeFixture(t)
+	for path := range timerFiles(p, 30) {
+		if e := os.Remove(path); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if e := os.Remove(timerReceiptPath(p)); e != nil {
+		t.Fatal(e)
+	}
+	fixture := os.Getenv("NATIVE_FIXTURE")
+	os.WriteFile(filepath.Join(fixture, "active"), []byte("inactive\n"), 0600)
+	os.WriteFile(filepath.Join(fixture, "enabled"), []byte("disabled\n"), 0600)
+	os.WriteFile(filepath.Join(fixture, "start-limit"), []byte("inject\n"), 0600)
+	before, _ := os.ReadFile(p.Binary)
+	err := run(context.Background(), p, []string{"install-renew", "30"})
+	if exitCode(err) != 1 {
+		t.Fatalf("expected original start failure after successful recovery, got %v", err)
+	}
+	for path := range timerFiles(p, 30) {
+		if _, e := os.Stat(path); !os.IsNotExist(e) {
+			t.Fatal("failed installation left task file", path, e)
+		}
+	}
+	if _, e := os.Stat(timerReceiptPath(p)); !os.IsNotExist(e) {
+		t.Fatal("failed installation left receipt", e)
+	}
+	pending, e := unfinishedOperations(p.Ops)
+	if e != nil || len(pending) != 0 {
+		t.Fatal("failed installation left unfinished operation", pending, e)
+	}
+	after, _ := os.ReadFile(p.Binary)
+	if string(before) != string(after) {
+		t.Fatal("failed task installation changed client")
+	}
+	calls, _ := os.ReadFile(filepath.Join(fixture, "calls"))
+	if !strings.Contains(string(calls), "reset-failed lazycat-ssh-renew.timer\n") {
+		t.Fatal("owned failed timer was not cleared")
+	}
+	if e = run(context.Background(), p, []string{"install-renew", "30"}); e != nil {
+		t.Fatal("explicit rerun failed", e)
+	}
+}
+
+func TestNativeExistingFailedTaskIsNotReset(t *testing.T) {
+	p := nativeFixture(t)
+	fixture := os.Getenv("NATIVE_FIXTURE")
+	os.WriteFile(filepath.Join(fixture, "active"), []byte("failed\n"), 0600)
+	os.WriteFile(filepath.Join(fixture, "start-limit"), []byte("preexisting\n"), 0600)
+	before, _ := os.ReadFile(os.Getenv("NATIVE_TIMER"))
+	if e := run(context.Background(), p, []string{"install-renew", "31"}); exitCode(e) != 3 {
+		t.Fatal("preexisting failed task was adopted", e)
+	}
+	calls, _ := os.ReadFile(filepath.Join(fixture, "calls"))
+	if strings.Contains(string(calls), "reset-failed") {
+		t.Fatal("preexisting user failure was reset")
+	}
+	after, _ := os.ReadFile(os.Getenv("NATIVE_TIMER"))
+	if string(before) != string(after) {
+		t.Fatal("preexisting failed task was changed")
+	}
+}
+
+func TestNativeMissingFileWithExistingFailedStateIsNotAdopted(t *testing.T) {
+	p := nativeFixture(t)
+	for path := range timerFiles(p, 30) {
+		os.Remove(path)
+	}
+	os.Remove(timerReceiptPath(p))
+	fixture := os.Getenv("NATIVE_FIXTURE")
+	os.WriteFile(filepath.Join(fixture, "active"), []byte("failed\n"), 0600)
+	os.WriteFile(filepath.Join(fixture, "start-limit"), []byte("preexisting\n"), 0600)
+	if e := run(context.Background(), p, []string{"install-renew", "30"}); exitCode(e) != 3 {
+		t.Fatal("preexisting failed cache was adopted", e)
+	}
+	calls, _ := os.ReadFile(filepath.Join(fixture, "calls"))
+	if strings.Contains(string(calls), "reset-failed") {
+		t.Fatal("preexisting failed cache was reset")
+	}
+	for path := range timerFiles(p, 30) {
+		if _, e := os.Stat(path); !os.IsNotExist(e) {
+			t.Fatal("preexisting failed state was changed", path, e)
+		}
 	}
 }

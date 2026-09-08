@@ -16,7 +16,8 @@
         "side-effects-allowlisted",
         "native-interruption-recovery",
         "native-public-rollback",
-        "later-task-edits-preserved"
+        "later-task-edits-preserved",
+        "native-start-limit-failure-recovery"
       ]
     },
     {
@@ -243,7 +244,8 @@
         "side-effects-allowlisted",
         "native-interruption-recovery",
         "native-public-rollback",
-        "later-task-edits-preserved"
+        "later-task-edits-preserved",
+        "native-start-limit-failure-recovery"
       ]
     },
     {

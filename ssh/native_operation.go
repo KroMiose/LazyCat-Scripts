@@ -63,6 +63,10 @@ func readNative(p paths, domain string) (nativeState, error) {
 		return s, e
 	}
 	if load == "not-found" {
+		active, err := read("ActiveState")
+		if err != nil || active != "inactive" {
+			return s, &migrationConflict{"missing unit retains a running or failed manager state; preserved"}
+		}
 		s.Absent = true
 		return s, nil
 	}
@@ -442,6 +446,53 @@ func executeNative(p paths, changes []change, before, after nativeState, verify 
 	fmt.Println("Native operation:", op.ID)
 	return op.ID, nil
 }
+
+// Only a fresh task whose activation belongs to this unfinished operation
+// can have its own start-limit failure cleared. Existing failed tasks and
+// later user edits remain conflicts. The caller preflights all file guards.
+func ownStartLimitFailure(op operation) (nativeState, bool) {
+	n := op.Native
+	if runtime.GOOS != "linux" || n == nil || !n.Before.Absent || n.After.Absent || op.Status == "committed" || op.Status == "rolled-back" {
+		return nativeState{}, false
+	}
+	switch n.Phase {
+	case "activating", "rollback-pausing", "rollback-files", "rollback-activating":
+	default:
+		return nativeState{}, false
+	}
+	read := func(unit, prop string) (string, error) {
+		b, e := timerCommand(context.Background(), "show", unit, "--property="+prop, "--value")
+		return strings.TrimSpace(string(b)), e
+	}
+	for _, unit := range []string{"lazycat-ssh-renew.timer", "lazycat-ssh-renew.service"} {
+		if value, e := read(unit, "DropInPaths"); e != nil || value != "" {
+			return nativeState{}, false
+		}
+	}
+	for prop, want := range map[string]string{"ActiveState": "failed", "Result": "start-limit-hit"} {
+		if value, e := read("lazycat-ssh-renew.timer", prop); e != nil || value != want {
+			return nativeState{}, false
+		}
+	}
+	load, e := read("lazycat-ssh-renew.timer", "LoadState")
+	if e != nil {
+		return nativeState{}, false
+	}
+	if load == "not-found" {
+		return nativeState{Platform: "linux", Absent: true}, true
+	}
+	if load != "loaded" {
+		return nativeState{}, false
+	}
+	enabled, e := read("lazycat-ssh-renew.timer", "UnitFileState")
+	if e != nil || (enabled != n.After.Enabled && !(op.Status == "rollback-required" && enabled == "disabled")) {
+		return nativeState{}, false
+	}
+	current := nativePaused(n.After)
+	current.Enabled = enabled
+	return current, true
+}
+
 func rollbackNative(p paths, id string) error {
 	op, e := readOperation(p.Ops, id)
 	if e != nil {
@@ -468,6 +519,12 @@ func rollbackNative(p paths, id string) error {
 		}
 	}
 	current, e := readNative(p, nativeDomain(n.Before))
+	resetOwnFailure := false
+	if e != nil || (current.Absent && op.Status == "rollback-required") {
+		if recovered, ok := ownStartLimitFailure(op); ok {
+			current, e, resetOwnFailure = recovered, nil, true
+		}
+	}
 	if e != nil {
 		return e
 	}
@@ -506,6 +563,11 @@ func rollbackNative(p paths, id string) error {
 	}
 	if e = checkNativeTarget(op, true); e != nil {
 		return e
+	}
+	if resetOwnFailure {
+		if _, e = timerCommand(context.Background(), "reset-failed", "lazycat-ssh-renew.timer"); e != nil {
+			return e
+		}
 	}
 	if e = applyNative(p, n.Before); e != nil {
 		return e

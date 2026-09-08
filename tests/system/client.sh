@@ -161,6 +161,10 @@ for enabled in enabled disabled enabled-runtime; do
     for active in active inactive; do
         user_systemctl stop lazycat-ssh-renew.timer
         user_systemctl disable lazycat-ssh-renew.timer
+        # Each preference combination starts with an explicit rate-counter
+        # baseline. Rate exhaustion has a separate real failure scenario below.
+        [[ "$(user_systemctl show lazycat-ssh-renew.service --property=ActiveState --value)" == inactive ]]
+        user_systemctl reset-failed lazycat-ssh-renew.timer lazycat-ssh-renew.service
         case "$enabled" in
             enabled) user_systemctl enable lazycat-ssh-renew.timer ;;
             enabled-runtime) user_systemctl enable --runtime lazycat-ssh-renew.timer ;;
@@ -200,6 +204,54 @@ done
 echo 'PASS uninstall conflicts preserve client files and real active/enabled task'
 client uninstall-renew
 [[ ! -e "$home/.config/systemd/user/lazycat-ssh-renew.timer" ]]
+# Declare a slow, deterministic rate-limit fixture through the disposable user
+# manager, not by editing product-owned units or disabling system protection.
+rate_config=/etc/systemd/user.conf.d/90-lazycat-rate-fixture.conf
+[[ ! -e "$rate_config" ]]
+mkdir -p /etc/systemd/user.conf.d
+printf '[Manager]\nDefaultStartLimitIntervalSec=60s\nDefaultStartLimitBurst=2\n' > "$rate_config"
+systemctl restart "user@$uid.service"
+mkdir -p /tmp/lazycat-rate-bin
+cat > /tmp/lazycat-rate-bin/systemctl <<'RATE'
+#!/bin/sh
+set -eu
+if [ "$*" = '--user start lazycat-ssh-renew.timer' ] && [ -f /tmp/lazycat-rate-once ]; then
+    rm /tmp/lazycat-rate-once
+    test "$(/usr/bin/systemctl --user show lazycat-ssh-renew.timer --property=StartLimitBurst --value)" = 2
+    for attempt in 1 2 3; do
+        /usr/bin/systemctl --user stop lazycat-ssh-renew.timer
+        if ! /usr/bin/systemctl --user start lazycat-ssh-renew.timer; then
+            /usr/bin/systemctl --user show lazycat-ssh-renew.timer --property=Result --value > /tmp/lazycat-rate-result
+            exit 1
+        fi
+    done
+    echo 'fixture failed to exhaust the real rate limit' >&2
+    exit 91
+fi
+exec /usr/bin/systemctl "$@"
+RATE
+chmod 755 /tmp/lazycat-rate-bin/systemctl
+touch /tmp/lazycat-rate-once
+chown fixture:fixture /tmp/lazycat-rate-once
+status=0
+runuser -u fixture -- env -i HOME="$home" USER=fixture PATH=/tmp/lazycat-rate-bin:/usr/bin:/bin XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" /work/lazycat-ssh install-renew 30 > /tmp/lazycat-rate.log 2>&1 || status=$?
+cat /tmp/lazycat-rate.log
+[[ "$status" == 1 ]]
+grep -qx start-limit-hit /tmp/lazycat-rate-result
+[[ ! -e "$home/.config/systemd/user/lazycat-ssh-renew.timer" ]]
+[[ ! -e "$home/.config/systemd/user/lazycat-ssh-renew.service" ]]
+[[ ! -e "$home/.lazycat/ssh/timer.json" ]]
+[[ "$(user_systemctl show lazycat-ssh-renew.timer --property=LoadState --value)" == not-found ]]
+client doctor --json > /tmp/lazycat-rate-doctor.json
+python3 - <<'RATECHECK'
+import json
+with open('/tmp/lazycat-rate-doctor.json') as f:
+    assert json.load(f)['unfinished_native_operations']==[]
+RATECHECK
+sha256sum -c /tmp/cert-before-timer
+rm "$rate_config"
+systemctl restart "user@$uid.service"
+echo 'PASS real systemd start-limit failure: original nonzero result, absent task restored, credentials preserved'
 client install-renew 30
 uninstall_operation=$(client uninstall | tee /tmp/full-uninstall.log | awk '/^Native operation:/ {print $3}')
 [[ ! -e "$home/.config/systemd/user/lazycat-ssh-renew.timer" ]]
