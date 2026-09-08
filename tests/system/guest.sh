@@ -92,7 +92,15 @@ runuser -u fixture -- sudo -n true
 cp -p /etc/sudoers.d/99-nopasswd-fixture /tmp/sudo-owned
 printf '1\nyes\n' | SUDO_USER=fixture bash linux/setup_sudo_nopasswd.sh
 cmp /etc/sudoers.d/99-nopasswd-fixture /tmp/sudo-owned
-printf '# manual administrator note\n' >> /etc/sudoers.d/99-nopasswd-fixture
+# An independently broken rule must not make an unchanged grant look healthy.
+printf 'THIS IS NOT A VALID SUDOERS RULE\n' > /etc/sudoers.d/98-fixture-broken
+chmod 0440 /etc/sudoers.d/98-fixture-broken
+printf '1\nyes\n' | SUDO_USER=fixture bash tests/fixtures/sudo-confirm-before.sh
+if printf '1\nyes\n' | SUDO_USER=fixture bash linux/setup_sudo_nopasswd.sh; then echo 'invalid effective sudo policy reported healthy';exit 1;fi
+cmp /etc/sudoers.d/99-nopasswd-fixture /tmp/sudo-owned
+rm /etc/sudoers.d/98-fixture-broken
+visudo -c
+printf '# manual administrator note\n'  >> /etc/sudoers.d/99-nopasswd-fixture
 cp -p /etc/sudoers.d/99-nopasswd-fixture /tmp/sudo-manual
 # Original full entrypoint removes the administrator's edited resource.
 printf '2\ny\n' | SUDO_USER=fixture bash tests/fixtures/legacy/linux/setup_sudo_nopasswd.sh

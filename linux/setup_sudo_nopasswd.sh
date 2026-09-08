@@ -85,6 +85,8 @@ enable_nopasswd() {
     printf '%s\n' "$CONFIG_CONTENT" > "$candidate"
     chmod 0440 "$candidate"
     if ! visudo -c -f "$candidate"; then rm -f "$candidate" "$backup"; return 1; fi
+    # An unchanged owned line is not evidence that the complete policy is valid.
+    if ! visudo -c; then rm -f "$candidate" "$backup"; return 1; fi
     if ! check_rule_revision "$observed"; then rm -f "$candidate" "$backup"; return 3; fi
     if [[ -f "$SUDOERS_FILE" ]] && cmp -s "$candidate" "$SUDOERS_FILE"; then
         rm -f "$candidate" "$backup"
