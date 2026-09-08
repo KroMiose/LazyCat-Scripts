@@ -30,3 +30,25 @@ class HostEntrypoint(unittest.TestCase):
             r=subprocess.run(['bash',str(ROOT/'common/add_ssh_config.sh'),'--alias','demo','--host','new.example','--user','fixture'],env=environment(home),capture_output=True,timeout=10,cwd=home)
             self.assertEqual(r.returncode,3);self.assertEqual(config.read_text(),original)
             self.assertFalse((home/'SHOULD_NOT_EXIST').exists())
+
+    def test_repeat_preserves_include_position_and_refuses_edited_block(self):
+        for edited in (False, True):
+            with self.subTest(edited=edited), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory);env=environment(home)
+                args=['bash',str(ROOT/'common/add_ssh_config.sh'),'--alias','demo','--host','192.0.2.10','--user','generated-user']
+                r=subprocess.run(args,env=env,capture_output=True,text=True,timeout=10)
+                self.assertEqual(r.returncode,0,r.stderr)
+                config=home/'.ssh/config'
+                original='User preferred-user\nHost *\n Port 2222\n'+config.read_text()+'\n# preserve last line'
+                if edited:
+                    original=original.replace('# --- LAZYCAT HOSTS END ---','User manually-edited\n# --- LAZYCAT HOSTS END ---')
+                config.write_text(original)
+                for _ in range(2):
+                    r=subprocess.run(args,env=env,capture_output=True,text=True,timeout=10)
+                    self.assertEqual(r.returncode,3 if edited else 0,r.stdout+r.stderr)
+                    self.assertEqual(config.read_text(),original)
+                if not edited:
+                    observed=subprocess.run(['ssh','-G','-F',str(config),'demo'],env=env,capture_output=True,text=True,timeout=10)
+                    self.assertEqual(observed.returncode,0,observed.stderr)
+                    self.assertIn('user preferred-user\n',observed.stdout)
+                    self.assertIn('port 2222\n',observed.stdout)

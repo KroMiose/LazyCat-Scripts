@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+from go_inventory import collect, check
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('module',choices=['ssh','codex-hud']);p.add_argument('--run');p.add_argument('--fuzz',choices=['FuzzInventory','FuzzLegacyMetadata']);a=p.parse_args()
 started=datetime.now(timezone.utc)
@@ -23,6 +24,9 @@ record={'format_version':1,'component':a.module,'command':command,'started_at':s
 try:
     record['commit']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
     record['go_version']=subprocess.check_output(['go','version'],text=True).strip()
+    inventory=collect(a.run,a.fuzz)
+    record['inventory_differences']=check(inventory)
+    record['expected_tests']=inventory[a.module]['selected']
     result=subprocess.run(command,cwd=ROOT/a.module,capture_output=True,text=True,timeout=240)
     (out/'events.jsonl').write_text(result.stdout)
     (out/'stderr.log').write_text(result.stderr)
@@ -36,6 +40,12 @@ try:
         if event.get('Output'):state['output'].append(event['Output'])
         if event['Action'] in ('pass','fail','skip'):
             state['status']=event['Action'];state['duration']=event.get('Elapsed',0)
+    actual_top={test['name'] for test in tests.values() if '/' not in test['name']}
+    record['missing_tests']=sorted(set(record['expected_tests'])-actual_top)
+    record['unexpected_tests']=sorted(actual_top-set(record['expected_tests']))
+    inventory_failed=bool(record['inventory_differences'] or record['missing_tests'] or record['unexpected_tests'] or not record['expected_tests'])
+    if inventory_failed:
+        tests['inventory']={'name':'required-case-inventory','package':a.module,'status':'fail','output':[json.dumps({key:record[key] for key in ('inventory_differences','missing_tests','unexpected_tests')})]}
     record['tests']=list(tests.values())
     record['exit_code']=result.returncode
     record['skipped']=sum(t['status']=='skip' for t in tests.values())

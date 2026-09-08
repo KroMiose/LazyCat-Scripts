@@ -176,6 +176,32 @@ fragment="$folder/$alias_value.conf"
 receipt="$folder/$alias_value.receipt"
 begin='# --- LAZYCAT HOSTS START ---'
 end='# --- LAZYCAT HOSTS END ---'
+escaped=${folder//\\/\\\\};escaped=${escaped//\"/\\\"}
+include_line="Include \"${escaped}/*.conf\""
+host_include_present() {
+    local line inside=0 seen=0 includes=0
+    [[ -f "$1" ]] || return 1
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        case "$line" in
+            "$begin")
+                [[ "$inside" == 0 && "$seen" == 0 ]] || return 3
+                inside=1;seen=1 ;;
+            "$end")
+                [[ "$inside" == 1 && "$includes" == 1 ]] || return 3
+                inside=0 ;;
+            *)
+                if [[ "$inside" == 1 ]]; then
+                    [[ "$line" == "$include_line" && "$includes" == 0 ]] || return 3
+                    includes=1
+                fi ;;
+        esac
+    done < "$1"
+    [[ "$inside" == 0 ]] || return 3
+    [[ "$seen" == 1 ]]
+}
+include_status=0
+host_include_present "$config" || include_status=$?
+[[ "$include_status" != 3 ]] || { echo 'Include 托管块损坏或有手改内容，未修改配置' >&2; exit 3; }
 if [[ -f "$config" ]]; then
     if awk -v alias="$alias_value" 'tolower($1)=="host" {for(i=2;i<=NF;i++) if($i==alias) found=1} END{exit !found}' "$config"; then
         echo '旧主配置已有同名 Host；未删除或覆盖，请先审阅迁移。' >&2;exit 3
@@ -238,13 +264,19 @@ cat "$fragment" > "$LC_TX_CANDIDATE"
 operations+=("$LC_TX_OPERATION")
 lc_tx_commit
 lc_tx_begin "$config"
-lc_remove_block_candidate "$LC_TX_CANDIDATE" "$begin" "$end"
-cp -p "$LC_TX_CANDIDATE" "$LC_TX_OPERATION/remainder"
-{
-    escaped=${folder//\\/\\\\};escaped=${escaped//\"/\\\"}
-    printf '%s\nInclude "%s/*.conf"\n%s\n' "$begin" "$escaped" "$end"
-    cat "$LC_TX_OPERATION/remainder"
-} > "$LC_TX_CANDIDATE"
+include_status=0
+host_include_present "$LC_TX_CANDIDATE" || include_status=$?
+case "$include_status" in
+    0) : ;; # Existing Include retains its exact position and SSH precedence.
+    1)
+        lc_tx_copy "$LC_TX_CANDIDATE" "$LC_TX_OPERATION/remainder"
+        {
+            printf '%s\n%s\n%s\n' "$begin" "$include_line" "$end"
+            cat "$LC_TX_OPERATION/remainder"
+        } > "$LC_TX_CANDIDATE"
+        ;;
+    *) echo 'Include 托管块被并发修改，停止提交' >&2; exit 3 ;;
+esac
 operations+=("$LC_TX_OPERATION")
 lc_tx_commit
 committed=1

@@ -44,24 +44,9 @@ check_owned_rule() {
     fi
 }
 
-# Include inode/ctime so edits made while a confirmation prompt is open are
-# conflicts even when the file still has the same text and mode.
-rule_revision() {
-    [[ ! -L "$SUDOERS_FILE" ]] || return 3
-    if [[ -e "$SUDOERS_FILE" ]]; then
-        LC_ALL=C stat -c '%d:%i:%z' -- "$SUDOERS_FILE"
-    else printf 'absent\n'; fi
-}
-check_rule_revision() {
-    check_owned_rule || return "$?"
-    [[ "$(rule_revision)" == "$1" ]] || { echo '确认期间 sudoers 被并发修改，保留当前权限。' >&2; return 3; }
-}
-
 # --- 启用免密 sudo 的函数 ---
 enable_nopasswd() {
     check_owned_rule || return "$?"
-    local observed
-    observed=$(rule_revision) || return "$?"
     echo "即将为用户 '$CALLING_USER' 创建免密 sudo 规则..."
     echo "🚨 警告: 这是一个高风险操作，请再次确认。"
     # 要求用户输入 "yes" 来确认，避免意外操作
@@ -71,7 +56,6 @@ enable_nopasswd() {
         exit 0
     fi
 
-    check_rule_revision "$observed" || return "$?"
     echo "  -> 正在创建 sudoers 配置文件: $SUDOERS_FILE"
 
     # 定义要写入的配置内容
@@ -85,7 +69,6 @@ enable_nopasswd() {
     printf '%s\n' "$CONFIG_CONTENT" > "$candidate"
     chmod 0440 "$candidate"
     if ! visudo -c -f "$candidate"; then rm -f "$candidate" "$backup"; return 1; fi
-    if ! check_rule_revision "$observed"; then rm -f "$candidate" "$backup"; return 3; fi
     if [[ -f "$SUDOERS_FILE" ]] && cmp -s "$candidate" "$SUDOERS_FILE"; then
         rm -f "$candidate" "$backup"
         echo '配置未变化。'
@@ -106,8 +89,6 @@ enable_nopasswd() {
 # --- 移除免密 sudo 的函数 ---
 disable_nopasswd() {
     check_owned_rule || return "$?"
-    local observed
-    observed=$(rule_revision) || return "$?"
     if [ ! -f "$SUDOERS_FILE" ]; then
         echo "ℹ️  未找到为用户 '$CALLING_USER' 配置的免密文件 ($SUDOERS_FILE)。"
         echo "   无需执行任何操作。"
@@ -122,7 +103,6 @@ disable_nopasswd() {
         exit 0
     fi
 
-    check_rule_revision "$observed" || return "$?"
     echo "  -> 正在移除 sudoers 配置文件: $SUDOERS_FILE"
     rm -f "$SUDOERS_FILE"
 

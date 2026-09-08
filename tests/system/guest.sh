@@ -104,6 +104,32 @@ for choice in 1 2; do
     cmp /etc/sudoers.d/99-nopasswd-fixture /tmp/sudo-manual
     runuser -u fixture -- sudo -n true
 done
+# Inject an administrator edit precisely while the confirmation read returns;
+# all sudo/visudo/file operations remain real inside this disposable guest.
+cat > /tmp/sudo-confirm-race.sh <<'RACE'
+read() {
+    builtin read "$@" || return
+    for last in "$@"; do :; done
+    if [[ "$last" == confirm ]]; then
+        printf '# edit while confirmation was open\n' >> /etc/sudoers.d/99-nopasswd-fixture
+    fi
+}
+RACE
+cp -p /tmp/sudo-owned /etc/sudoers.d/99-nopasswd-fixture
+printf '2\ny\n' | SUDO_USER=fixture BASH_ENV=/tmp/sudo-confirm-race.sh bash tests/fixtures/sudo-confirm-before.sh
+[[ ! -e /etc/sudoers.d/99-nopasswd-fixture ]]
+if runuser -u fixture -- sudo -n true; then echo 'historical confirmation race did not revoke permission';exit 1;fi
+for choice in 1 2; do
+    confirmation=yes
+    [[ "$choice" == 1 ]] || confirmation=y
+    cp -p /tmp/sudo-owned /etc/sudoers.d/99-nopasswd-fixture
+    result=0
+    printf '%s\n%s\n' "$choice" "$confirmation" | SUDO_USER=fixture BASH_ENV=/tmp/sudo-confirm-race.sh bash linux/setup_sudo_nopasswd.sh || result=$?
+    [[ "$result" == 3 ]]
+    grep -qx '# edit while confirmation was open' /etc/sudoers.d/99-nopasswd-fixture
+    runuser -u fixture -- sudo -n true
+ done
+rm /tmp/sudo-confirm-race.sh
 cp -p /tmp/sudo-owned /etc/sudoers.d/99-nopasswd-fixture
 printf '2\ny\n' | SUDO_USER=fixture bash linux/setup_sudo_nopasswd.sh
 if runuser -u fixture -- sudo -n true; then echo 'sudo permission not revoked'; exit 1; fi

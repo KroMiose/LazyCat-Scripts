@@ -18,6 +18,7 @@ def main():
     subprocess.run(['shellcheck','--severity=error',*[str(p) for p in files]],check=True)
     graph()
     subprocess.run([sys.executable,str(ROOT/'tests/inventory.py')],check=True)
+    subprocess.run([sys.executable,str(ROOT/'tests/go_inventory.py')],check=True)
     from test_release_gate import gate
     gate.release_contract()
     manifest=json.loads((ROOT/'tests/scenarios.json').read_text())

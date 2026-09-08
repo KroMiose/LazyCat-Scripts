@@ -1,0 +1,6 @@
+{
+  "commit": "ef6f48b",
+  "path": "linux/setup_sudo_nopasswd.sh",
+  "sha256": "2dad6ba58097e60f67f16724d512917f1858ad525a8ed7cd5671867426a890f1",
+  "scope": "historical confirmation race regression; only execute inside disposable Linux guest"
+}

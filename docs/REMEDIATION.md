@@ -255,3 +255,10 @@ Python已有组件不再依赖curl或临时目录工具；仅在需要安装对�
 Shell事务通过设备/inode/纳秒ctime复查备份与最终提交阶段的并发变化，覆盖内容不变但ACL/xattr变化的情况，无新增Python/getfattr运行依赖。真实代理入口在候选生成及最终暂存两个位置注入原生xattr改动，旧版均错误提交，新版macOS拒绝并保留用户改动。首次测试误用macOS Python不存在的os.setxattr，已改为系统xattr命令并保留夹具错误日志。Linux验证接入断网容器；此修复不表示公共回滚的历史ACL/xattr比较、多文件服务事务或检查到rename之间的竞争已全部解决。
 
 新增70条Python用例、make check、SSH Go race及锁定Linux ARM64断网容器均通过；后者记录为artifacts/linux-files/20260908T035142.079439Z，包含真实Linux xattr并发保留。此本地构建使用Go1.27.1，CI按go.mod的1.26系列执行，两者分别记录。
+
+
+0cce6d9完整运行34184584092的Ubuntu、Debian、OpenWrt常规系统作业通过，sudo新增归属保护与旧客户端输入验证已真实完成。Debian观察日志另保存在artifacts/github/34184571603；该PR整体因新提交取消Ubuntu而不算通过。完整线路仍需等待后续overlay及上游步骤。
+
+添加Host的Shell入口也修复了重跑移动Include的问题，保留原位置、用户优先级和无换行文件尾；在写片段前拒绝托管块内手改。ef6f48b旧失败见artifacts/regression-proof/host-include-ef6f48b，新完整入口及真实ssh -G检查通过。另补sudo确认期间的并发编辑检查，删除旧规则前和候选替换前重新确认归属与文件版本；新旧对照加入真实VM，当前尚未取得该新增场景运行结果。
+
+Go新增tests/go-cases.json，按Go语法树枚举顶层测试与fuzz目标，考虑原生构建约束；quality核对声明，运行器核对应执行用例是否全部产生结果。新增测试包会要求扩展清单支持，不能悄悄遗漏。真实临时Go模块的已知成功及“Go退出0但必测声明被删”反向检查通过，后者驱动/JUnit/JSON均失败。子用例及fuzz seed继续用运行事件报告，不将顶层清单当作所有动态组合已覆盖。72条Python、HUD race、SSH目标用例和15秒fuzz验证通过。
