@@ -1,0 +1,44 @@
+name: environment-locks
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/environment-locks.yml'
+      - 'tests/system/export-packages.sh'
+      - 'tests/system/packages.py'
+      - 'tests/system/opkg.py'
+      - 'tests/system/export-opkg.sh'
+      - 'tests/system/images.lock.json'
+permissions:
+  contents: read
+jobs:
+  proposed-package-lock:
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ubuntu, debian, openwrt]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install host test driver prerequisites
+        run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils curl
+      - name: Enable available VM acceleration
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod a+rw /dev/kvm; fi
+      - name: Resolve authenticated package metadata and verify archives
+        env:
+          TEST_IMAGE: ${{ matrix.image }}
+        run: python3 tests/system/vm.py --image "$TEST_IMAGE" --export-package-lock "artifacts/proposed/$TEST_IMAGE.lock.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: proposed-packages-${{ matrix.image }}
+          path: artifacts/
+          retention-days: 90
+          if-no-files-found: error
+      - name: State preparation scope
+        if: always()
+        run: echo 'Environment preparation only. Proposed locks are not adopted automatically and do not prove product installation. A fresh offline lifecycle must pass before adoption.' >> "$GITHUB_STEP_SUMMARY"

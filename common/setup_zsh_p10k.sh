@@ -6,15 +6,180 @@
 #           以及 zsh-autosuggestions 和 zsh-syntax-highlighting 插件。
 #           它会自动处理 git, curl, zsh 的依赖安装。
 # 适用系统: 主流 Linux (Debian/Ubuntu, RHEL/CentOS, Arch) & macOS
-# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_zsh_p10k.sh)"
+# 仓库入口: bash common/setup_zsh_p10k.sh；安装与兼容说明见 common/README.md。
 # ==============================================================================
 
 set -euo pipefail
 
+# lazycat-file-transaction:begin
+# Single-file candidate/backup protocol. Embedded into standalone release scripts.
+# Call lc_tx_begin, edit "$LC_TX_CANDIDATE", validate, then lc_tx_commit.
+lc_tx_copy() {
+    # GNU cp -p preserves modes/ACLs but silently drops user xattrs. Request
+    # xattr explicitly (rather than --preserve=all, which tolerates failures).
+    case "$(uname -s)" in
+        Linux) cp --preserve=mode,ownership,timestamps,xattr -- "$1" "$2" ;;
+        Darwin) cp -p "$1" "$2" ;;
+        *) echo '未验证的文件属性复制平台，未提交修改' >&2; return 1 ;;
+    esac
+}
+# inode plus nanosecond ctime detects metadata-only edits (including ACL/xattr)
+# without adding Python/getfattr as an installation dependency.
+lc_tx_revision() {
+    case "$(uname -s)" in
+        Linux) LC_ALL=C stat -c '%d:%i:%z' -- "$1" ;;
+        Darwin) LC_ALL=C stat -f '%d:%i:%Fc' "$1" ;;
+        *) return 1 ;;
+    esac
+}
+# Automatic failure recovery may only replace the exact revision we published.
+# Missing revision evidence is a conflict, not permission to discard user attrs.
+lc_tx_matches_committed() {
+    local target="$1" operation="$2"
+    [[ -f "$target" && ! -L "$target" && -f "$operation/after" && ! -L "$operation/after" &&
+       -f "$operation/committed-revision" && ! -L "$operation/committed-revision" ]] || return 3
+    [[ "$(lc_tx_revision "$target")" == "$(cat "$operation/committed-revision")" ]] &&
+        cmp -s "$target" "$operation/after" || return 3
+}
+lc_tx_check_revision() {
+    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    if [[ "$LC_TX_EXISTED" == 1 ]]; then
+        [[ -f "$LC_TX_TARGET" && "$(lc_tx_revision "$LC_TX_TARGET")" == "$LC_TX_REVISION" ]] || { echo '文件或属性被并发修改，已停止' >&2; return 3; }
+    else
+        [[ ! -e "$LC_TX_TARGET" && ! -L "$LC_TX_TARGET" ]] || { echo '目标被并发创建，已停止' >&2; return 3; }
+    fi
+}
+lc_tx_check_path() {
+    local parent="$1"
+    while [[ -n "$parent" && "$parent" != / ]]; do
+        if [[ -L "$parent" ]]; then
+            case "$parent" in
+                /var|/tmp|/etc) [[ "$(uname -s)" == Darwin && "$parent" != "$1" ]] || { echo '路径包含符号链接，需要先明确采纳' >&2; return 3; } ;;
+                *) echo '路径包含符号链接，需要先明确采纳' >&2; return 3 ;;
+            esac
+        fi
+        parent="${parent%/*}"
+    done
+}
+lc_tx_begin() {
+    LC_TX_TARGET="$1"
+    [[ "$LC_TX_TARGET" == /* && "$LC_TX_TARGET" != *$'\n'* && "$LC_TX_TARGET" != *$'\r'* ]] || { echo '事务目标必须是绝对单行路径' >&2; return 2; }
+    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    LC_TX_LOCK="${LC_TX_TARGET}.lazycat-lock"
+    LC_TX_LOCK_OWNED=0
+    [[ ! -e "${LC_TX_LOCK}.recovery" && ! -L "${LC_TX_LOCK}.recovery" ]] || { echo '锁恢复正在进行或中断，请检查恢复记录' >&2; return 3; }
+    (umask 077; mkdir "$LC_TX_LOCK") || { echo "操作锁已存在，请检查并发或中断状态：$LC_TX_LOCK" >&2; return 3; }
+    LC_TX_LOCK_OWNED=1
+    # Bash $$ identifies the original shell even inside a live subshell.
+    # exec makes the helper's parent the actual caller, including Bash 3.2.
+    LC_TX_OWNER_PID=$(exec /bin/sh -c 'printf "%s\n" "$PPID"')
+    [[ "$LC_TX_OWNER_PID" =~ ^[1-9][0-9]*$ ]] || return 3
+    printf '%s\n' "$LC_TX_OWNER_PID" > "$LC_TX_LOCK/pid"
+    printf 'actual-shell-v1\n' > "$LC_TX_LOCK/pid-format"
+    if [[ -e "${LC_TX_LOCK}.recovery" || -L "${LC_TX_LOCK}.recovery" ]]; then lc_tx_unlock; echo '锁恢复与新操作冲突，未写入目标' >&2; return 3; fi
+    LC_TX_OPERATION=$(mktemp -d "${LC_TX_TARGET}.lazycat-operation.XXXXXX")
+    chmod 700 "$LC_TX_OPERATION"
+    printf '%s\n' "$LC_TX_TARGET" > "$LC_TX_OPERATION/target"
+    LC_TX_EXISTED=0
+    if [[ -e "$LC_TX_TARGET" ]]; then
+        [[ -f "$LC_TX_TARGET" ]] || { lc_tx_unlock; echo '目标不是普通文件' >&2; return 3; }
+        LC_TX_EXISTED=1
+        LC_TX_REVISION=$(lc_tx_revision "$LC_TX_TARGET") || { lc_tx_unlock; return 1; }
+        LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')
+        printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
+        lc_tx_copy "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { lc_tx_unlock; return 1; }
+    else
+        (umask 077; : > "$LC_TX_OPERATION/before")
+    fi
+    lc_tx_check_revision || { lc_tx_unlock; return 3; }
+    LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_OPERATION/before" | awk '{print $1, $3, $4}')
+    printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
+    printf '%s\n' "$LC_TX_EXISTED" > "$LC_TX_OPERATION/existed"
+    lc_tx_copy "$LC_TX_OPERATION/before" "$LC_TX_OPERATION/after" || { lc_tx_unlock; return 1; }
+    LC_TX_CANDIDATE="$LC_TX_OPERATION/after"
+    printf 'prepared\n' > "$LC_TX_OPERATION/status"
+}
+# Explicit stale-lock recovery. A live/reused PID, incomplete lock or competing
+# recovery is a conflict. Keep the original lock as evidence; never delete it.
+lc_tx_recover_lock() (
+    set -e
+    local target="$1" lock guard pid archived process result
+    [[ "$target" == /* && "$target" != *$'\n'* && "$target" != *$'\r'* ]] || return 2
+    lc_tx_check_path "$target" || return 3
+    lock="${target}.lazycat-lock"
+    guard="${lock}.recovery"
+    [[ -d "$lock" && ! -L "$lock" && -f "$lock/pid" && ! -L "$lock/pid" ]] || { echo '锁缺失、损坏或为链接，需人工检查' >&2; return 3; }
+    [[ -f "$lock/pid-format" && ! -L "$lock/pid-format" && "$(cat "$lock/pid-format")" == actual-shell-v1 ]] || { echo '旧锁没有实际持锁进程证据，需人工检查，未移动' >&2; return 3; }
+    (umask 077; mkdir "$guard") || return 3
+    trap 'rmdir "$guard"' EXIT
+    IFS= read -r pid < "$lock/pid"
+    [[ "$pid" =~ ^[1-9][0-9]*$ ]] || { echo '锁的 PID 无效，未移动' >&2; return 3; }
+    # ps also sees processes which kill -0 cannot probe due to permissions.
+    result=0
+    process=$(LC_ALL=C ps -p "$pid" -o pid=) || result=$?
+    [[ "$result" == 1 && -z "$process" ]] || { echo '锁的进程仍存在或无法确认，未移动' >&2; return 3; }
+    archived=$(mktemp -d "${lock}.recovered.XXXXXX")
+    chmod 700 "$archived"
+    mv "$lock" "$archived/lock"
+    printf '已保存失效锁：%s\n目标与事务备份未修改；请检查后回滚或重新执行。\n' "$archived"
+)
+lc_tx_unlock() {
+    [[ -n "${LC_TX_LOCK:-}" && "${LC_TX_LOCK_OWNED:-0}" == 1 ]] || return 0
+    [[ ! -L "$LC_TX_LOCK" && -f "$LC_TX_LOCK/pid" && ! -L "$LC_TX_LOCK/pid" &&
+       "$(cat "$LC_TX_LOCK/pid")" == "${LC_TX_OWNER_PID:-}" &&
+       "$(exec /bin/sh -c 'printf "%s\n" "$PPID"')" == "${LC_TX_OWNER_PID:-}" ]] || { echo '锁归属变化，未释放' >&2; return 3; }
+    rm -f "$LC_TX_LOCK/pid" "$LC_TX_LOCK/pid-format"
+    rmdir "$LC_TX_LOCK"
+    LC_TX_LOCK=''
+    LC_TX_LOCK_OWNED=0
+}
+lc_tx_commit() {
+    lc_tx_check_revision || return 3
+    if [[ "$LC_TX_EXISTED" == 1 ]]; then
+        [[ "$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] || { echo '文件权限或属主被并发修改' >&2; return 3; }
+        cmp -s "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { echo '检测到并发修改，已停止' >&2; return 3; }
+    else
+        [[ ! -e "$LC_TX_TARGET" ]] || { echo '目标被并发创建，已停止' >&2; return 3; }
+    fi
+    if [[ "$LC_TX_EXISTED" == 1 && "$(LC_ALL=C ls -ldn "$LC_TX_CANDIDATE" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] && cmp -s "$LC_TX_CANDIDATE" "$LC_TX_OPERATION/before"; then
+        rm -rf "$LC_TX_OPERATION"
+        lc_tx_unlock
+        return 0
+    fi
+    local staged
+    staged=$(mktemp "${LC_TX_TARGET}.lazycat-stage.XXXXXX")
+    lc_tx_copy "$LC_TX_CANDIDATE" "$staged" || { rm -f "$staged"; return 1; }
+    lc_tx_check_revision || { rm -f "$staged"; return 3; }
+    if ! mv "$staged" "$LC_TX_TARGET"; then rm -f "$staged"; return 1; fi
+    # A later metadata-only edit must also prevent destructive rollback. Record
+    # the published inode, not the candidate inode which rename may replace.
+    lc_tx_revision "$LC_TX_TARGET" > "$LC_TX_OPERATION/committed-revision" || return 1
+    printf 'committed\n' > "$LC_TX_OPERATION/status"
+    lc_tx_unlock
+    printf '操作记录与备份：%s\n' "$LC_TX_OPERATION"
+}
+lc_remove_block_candidate() {
+    local file="$1" begin="$2" end="$3" tmp
+    awk -v begin="$begin" -v end="$end" '
+        $0 == begin { if (inside || seen++) bad=1; inside=1 }
+        $0 == end { if (!inside) bad=1; inside=0 }
+        END { exit (bad || inside) ? 1 : 0 }
+    ' "$file" || { echo '托管标记损坏，未修改目标文件' >&2; return 3; }
+    tmp=$(mktemp "${file}.XXXXXX")
+    lc_tx_copy "$file" "$tmp" || { rm -f "$tmp"; return 1; }
+    awk -v begin="$begin" -v end="$end" '
+        $0 == begin { inside=1; next }
+        $0 == end { inside=0; next }
+        !inside { print }
+    ' "$file" > "$tmp"
+    mv "$tmp" "$file"
+}
+# lazycat-file-transaction:end
+
 MODE="install"
 ASSUME_YES=0
 CLEAN_REMOVE_INSTALLED_COMPONENTS=0
-CLEAN_REMOVE_LEGACY_LINES=1
+CLEAN_REMOVE_LEGACY_LINES=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -86,8 +251,10 @@ ensure_dependencies() {
             exit 1
         fi
 
+        if [[ "$ASSUME_YES" -eq 1 ]]; then confirm_install=Y; else
         read -p "脚本可以尝试使用 '${pkg_manager}' 为您安装。此操作可能需要 sudo 权限。是否继续？ (Y/n): " confirm_install
         confirm_install=${confirm_install:-Y}
+        fi
 
         if [[ "$confirm_install" =~ ^[Yy]$ ]]; then
             echo "⏳ 正在运行安装命令..."
@@ -114,12 +281,17 @@ remove_lazycat_managed_block() {
     local start_marker="# --- LAZYCAT-SCRIPTS ZSH MANAGED START ---"
     local end_marker="# --- LAZYCAT-SCRIPTS ZSH MANAGED END ---"
 
-    if ! grep -qF -- "$start_marker" "$zshrc_file"; then
-        return 0
-    fi
+    [[ ! -L "$zshrc_file" ]] || { echo '拒绝替换符号链接' >&2; return 1; }
+    awk -v start="$start_marker" -v end="$end_marker" '
+        $0 == start { if (inside || seen++) exit 1; inside=1 }
+        $0 == end { if (!inside) exit 1; inside=0 }
+        END { if (inside) exit 1 }
+    ' "$zshrc_file" || { echo '托管标记损坏，原文件未修改' >&2; return 1; }
+    if ! grep -qFx -- "$start_marker" "$zshrc_file"; then return 0; fi
 
     local tmp_file
-    tmp_file="$(mktemp)"
+    tmp_file="$(mktemp "${zshrc_file}.tmp.XXXXXX")"
+    lc_tx_copy "$zshrc_file" "$tmp_file"
     awk -v start="$start_marker" -v end="$end_marker" '
         $0 == start { in_block=1; next }
         $0 == end { in_block=0; next }
@@ -131,7 +303,8 @@ remove_lazycat_managed_block() {
 sanitize_zshrc_known_bad_lines() {
     local zshrc_file="$1"
     local tmp_file
-    tmp_file="$(mktemp)"
+    tmp_file="$(mktemp "${zshrc_file}.tmp.XXXXXX")"
+    lc_tx_copy "$zshrc_file" "$tmp_file"
 
     # 历史版本脚本错误地把 `p10k configure` 写进 .zshrc，导致 zsh 启动时直接报错并中断主题/插件加载。
     awk '
@@ -150,14 +323,15 @@ zshrc_has_omz_source() {
     # - source $ZSH/oh-my-zsh.sh
     # - . $ZSH/oh-my-zsh.sh
     # - source ~/.oh-my-zsh/oh-my-zsh.sh
-    grep -qE '^[[:space:]]*(source|\.)[[:space:]]+(\$ZSH|"\$ZSH"|~\/\.oh-my-zsh|\$HOME\/\.oh-my-zsh|"\$HOME\/\.oh-my-zsh")\/oh-my-zsh\.sh([[:space:]]|$)' "$zshrc_file"
+    grep -qE '^[[:space:]]*(source|\.)[[:space:]]+"?(\$ZSH|~\/\.oh-my-zsh|\$HOME\/\.oh-my-zsh)"?\/oh-my-zsh\.sh"?([[:space:]]|$)' "$zshrc_file"
 }
 
 inject_lazycat_block_before_omz_source() {
     local zshrc_file="$1"
     local block_file="$2"
     local tmp_file
-    tmp_file="$(mktemp)"
+    tmp_file="$(mktemp "${zshrc_file}.tmp.XXXXXX")"
+    lc_tx_copy "$zshrc_file" "$tmp_file"
 
     awk -v block_path="$block_file" '
         BEGIN {
@@ -166,7 +340,7 @@ inject_lazycat_block_before_omz_source() {
             }
             close(block_path)
         }
-        !inserted && $0 ~ /^[[:space:]]*(source|\.)[[:space:]]+(\$ZSH|"\$ZSH"|~\/\.oh-my-zsh|\$HOME\/\.oh-my-zsh|"\$HOME\/\.oh-my-zsh")\/oh-my-zsh\.sh([[:space:]]|$)/ {
+        !inserted && $0 ~ /^[[:space:]]*(source|\.)[[:space:]]+"?(\$ZSH|~\/\.oh-my-zsh|\$HOME\/\.oh-my-zsh)"?\/oh-my-zsh\.sh"?([[:space:]]|$)/ {
             printf "%s", block
             inserted=1
         }
@@ -179,7 +353,7 @@ append_lazycat_block() {
     local zshrc_file="$1"
     local block_file="$2"
     {
-        echo ""
+        if [[ -s "$zshrc_file" && -n "$(tail -n 1 "$zshrc_file")" ]]; then echo ""; fi
         cat "$block_file"
     } >> "$zshrc_file"
 }
@@ -187,7 +361,8 @@ append_lazycat_block() {
 remove_legacy_theme_and_plugin_lines() {
     local zshrc_file="$1"
     local tmp_file
-    tmp_file="$(mktemp)"
+    tmp_file="$(mktemp "${zshrc_file}.tmp.XXXXXX")"
+    lc_tx_copy "$zshrc_file" "$tmp_file"
 
     awk '
         # 仅清理历史版本脚本常见注入行（非托管块）。避免误删用户自定义内容。
@@ -199,6 +374,22 @@ remove_legacy_theme_and_plugin_lines() {
 }
 
 
+# Work only on a same-directory candidate. Unknown user edits win over commits.
+begin_zshrc_edit() {
+    ZSHRC_TARGET="$HOME/.zshrc"
+    [[ ! -e "$HOME/.lazycat-zsh.lock" && ! -L "$HOME/.lazycat-zsh.lock" ]] || {
+        echo '旧 Zsh 操作锁仍存在，请先审阅；未删除旧锁或备份。' >&2
+        return 3
+    }
+    trap lc_tx_unlock EXIT
+    lc_tx_begin "$ZSHRC_TARGET"
+    ZSHRC_FILE="$LC_TX_CANDIDATE"
+}
+commit_zshrc_edit() {
+    zsh -n "$ZSHRC_FILE"
+    lc_tx_commit
+}
+
 # --- 安全检查 ---
 if [ "$(id -u)" -eq 0 ]; then
     echo "❌ 错误: 请不要使用 'sudo' 来运行此脚本。" >&2
@@ -208,6 +399,12 @@ fi
 
 # --- 依赖处理 ---
 if [[ "$MODE" == "install" ]]; then
+    if [[ -e "$HOME/.oh-my-zsh" || -L "$HOME/.oh-my-zsh" ]]; then
+        [[ -d "$HOME/.oh-my-zsh" && -s "$HOME/.oh-my-zsh/oh-my-zsh.sh" && -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]] || {
+            echo 'Oh My Zsh 目录存在但加载文件缺失或为空；请先修复，不覆盖现有组件或修改 Shell 配置。' >&2
+            exit 1
+        }
+    fi
     ensure_dependencies
 fi
 
@@ -215,31 +412,12 @@ if [[ "$MODE" == "cleanup" ]]; then
     ZSHRC_FILE="$HOME/.zshrc"
     echo "🧹 正在清理 Zsh 配置 (由 LazyCat-Scripts 写入的内容)..."
 
-    touch "$ZSHRC_FILE"
-    cp "$ZSHRC_FILE" "${ZSHRC_FILE}.cleanup.bak.$(date +'%Y-%m-%d_%H-%M-%S')"
-    echo "  -> 已创建备份文件: ${ZSHRC_FILE}.cleanup.bak.*"
-
-    sanitize_zshrc_known_bad_lines "$ZSHRC_FILE"
+    [[ -e "$ZSHRC_FILE" ]] || exit 0
+    begin_zshrc_edit
     remove_lazycat_managed_block "$ZSHRC_FILE"
-    if [[ "$CLEAN_REMOVE_LEGACY_LINES" -eq 1 ]]; then
-        remove_legacy_theme_and_plugin_lines "$ZSHRC_FILE"
-    fi
-
+    commit_zshrc_edit
     if [[ "$CLEAN_REMOVE_INSTALLED_COMPONENTS" -eq 1 ]]; then
-        if [[ "$ASSUME_YES" -eq 1 ]]; then
-            confirm_remove="Y"
-        else
-            read -p "是否同时移除已安装的 Oh My Zsh / Powerlevel10k / 插件目录？(Y/n): " confirm_remove
-            confirm_remove=${confirm_remove:-Y}
-        fi
-
-        if [[ "$confirm_remove" =~ ^[Yy]$ ]]; then
-            echo "  -> 正在移除已安装组件目录..."
-            rm -rf "$HOME/.oh-my-zsh"
-            echo "✅ 已移除: ~/.oh-my-zsh"
-        else
-            echo "ℹ️  已跳过组件卸载，仅完成配置清理。"
-        fi
+        echo '组件目录没有可验证的安装归属记录，已保留；--cleanup-all 仅移除托管配置。'
     fi
 
     echo "✅ 清理完成。你现在可以重新运行本脚本进行安装。"
@@ -271,10 +449,19 @@ if [ ! -d "$HOME/.oh-my-zsh" ]; then
     # 使用 sh -c 来非交互式地运行安装脚本
     # RUNZSH=no: 安装后不立即启动 zsh
     # CHSH=no: 不自动修改默认 shell (因为我们已要求用户手动设置)
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended --keep-zshrc
+    omz_installer=$(mktemp)
+    if ! curl -fSL --connect-timeout 15 --max-time 120 https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -o "$omz_installer"; then
+        rm -f "$omz_installer"; exit 1
+    fi
+    RUNZSH=no CHSH=no sh "$omz_installer" --unattended --keep-zshrc
+    rm -f "$omz_installer"
 else
     echo "✅ Oh My Zsh 已经安装。"
 fi
+[[ -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" && -s "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]] || {
+    echo 'Oh My Zsh 安装器未生成有效加载文件；安装未完成，未写入 Shell 配置。' >&2
+    exit 1
+}
 
 # 定义 Zsh 插件和主题的自定义目录
 ZSH_CUSTOM="$HOME/.oh-my-zsh/custom"
@@ -309,15 +496,7 @@ fi
 ZSHRC_FILE="$HOME/.zshrc"
 echo "🔧 正在配置 .zshrc 文件..."
 
-# 确保文件存在，否则备份会失败
-touch "$ZSHRC_FILE"
-
-# 创建一个 .zshrc 的备份，更加安全
-cp "$ZSHRC_FILE" "${ZSHRC_FILE}.bak.$(date +'%Y-%m-%d_%H-%M-%S')"
-echo "  -> 已创建备份文件: ${ZSHRC_FILE}.bak.*"
-
-# 幂等清理：移除历史版本写入的错误行，以及旧的脚本托管块
-sanitize_zshrc_known_bad_lines "$ZSHRC_FILE"
+begin_zshrc_edit
 remove_lazycat_managed_block "$ZSHRC_FILE"
 
 echo "  -> 正在写入托管配置块 (幂等)..."
@@ -332,11 +511,13 @@ LAZYCAT_BLOCK_FILE="$(mktemp)"
     echo "# --- LAZYCAT-SCRIPTS ZSH MANAGED START ---"
     echo "# 由 LazyCat-Scripts 管理：确保 OMZ / P10k 加载顺序正确且可重复执行。"
     echo 'export ZSH="$HOME/.oh-my-zsh"'
-    echo "plugins=(${PLUGINS_LIST[*]})"
+    echo 'typeset -ga plugins'
+    echo 'typeset -gU plugins'
+    echo "plugins+=( ${PLUGINS_LIST[*]} )"
     if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
         echo 'ZSH_THEME="powerlevel10k/powerlevel10k"'
         echo '[[ ! -f "$HOME/.p10k.zsh" ]] || source "$HOME/.p10k.zsh"'
-        echo "# 如需生成/重跑向导：请在 Zsh 里手动执行 `p10k configure`"
+        echo '# 如需生成/重跑向导：请在 Zsh 里手动执行 p10k configure'
     fi
     echo "# --- LAZYCAT-SCRIPTS ZSH MANAGED END ---"
 } > "$LAZYCAT_BLOCK_FILE"
@@ -348,44 +529,26 @@ else
     # 不存在 source 行：追加一个包含 source 的托管块，保证 OMZ/主题/插件能实际加载
     LAZYCAT_BLOCK_WITH_SOURCE_FILE="$(mktemp)"
     {
-        cat "$LAZYCAT_BLOCK_FILE"
+        sed '$d' "$LAZYCAT_BLOCK_FILE"
         echo 'source "$ZSH/oh-my-zsh.sh"'
+        echo '# --- LAZYCAT-SCRIPTS ZSH MANAGED END ---'
     } > "$LAZYCAT_BLOCK_WITH_SOURCE_FILE"
     append_lazycat_block "$ZSHRC_FILE" "$LAZYCAT_BLOCK_WITH_SOURCE_FILE"
     rm -f "$LAZYCAT_BLOCK_WITH_SOURCE_FILE"
 fi
 rm -f "$LAZYCAT_BLOCK_FILE"
 
+commit_zshrc_edit
 echo "✅ .zshrc 配置完成。"
 
-# --- Set Zsh as default shell ---
-# Check if zsh was just installed or if the current shell is not zsh
-CURRENT_SHELL=$(basename "$SHELL")
-echo ""
-echo "🔍 检测到您当前的默认 Shell 是: $CURRENT_SHELL"
-
-if [[ "$SHELL" != */zsh ]]; then
-    read -p "是否要将 Zsh 设置为您的默认 Shell？ (Y/n): " confirm_chsh
-    confirm_chsh=${confirm_chsh:-Y}
-    if [[ "$confirm_chsh" =~ ^[Yy]$ ]]; then
-        echo "⏳ 正在尝试将默认 Shell 更改为 Zsh。此过程可能需要您的密码。"
-        if chsh -s "$(command -v zsh)"; then
-            echo "✅ 默认 Shell 已成功更改为 Zsh。"
-            echo "   注意: 需要注销并重新登录后才会完全生效。"
-        else
-            echo "⚠️  自动更改默认 Shell 失败。您可以手动运行此命令尝试: chsh -s $(command -v zsh)"
-        fi
-    fi
-else
-    echo "✅ 您的默认 Shell 已经是 Zsh，无需更改。"
-fi
+echo '默认 Shell 保持不变；需要切换时请单独运行 chsh。'
 
 # --- 完成后提示 ---
 echo ""
 echo "========================================================================"
 echo "      🎉 Zsh 环境配置完成! 🎉"
 echo "------------------------------------------------------------------------"
-echo "  所有您请求的组件均已安装和配置完毕。请执行最后一步:"
+echo "  配置已提交并通过语法检查。请在新 Zsh 中检查实际加载结果。"
 echo ""
 
 if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
@@ -397,15 +560,13 @@ if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
 fi
 
 echo "  - 启动 Zsh:"
-echo "     请注销并重新登录，以使所有更改（包括默认 Shell）完全生效。"
-echo "     或者，在当前窗口输入 'exec zsh' 来立即体验新配置。"
+echo "     在当前窗口输入 'exec zsh' 来加载新配置。默认 Shell 未改变。"
 echo ""
 
 if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
     echo "  - Powerlevel10k 配置:"
-    echo "     当您第一次启动 Zsh 时，Powerlevel10k 的配置向导会自动运行。"
-    echo "     请根据提示回答问题，打造您专属的酷炫终端！"
+    echo "     需要主题向导时，在新 Zsh 中手动执行 p10k configure。"
 fi
 echo "========================================================================"
 
-exit 0 
+exit 0

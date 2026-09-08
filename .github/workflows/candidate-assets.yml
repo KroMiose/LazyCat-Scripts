@@ -1,0 +1,124 @@
+name: candidate-assets
+on:
+  workflow_call:
+    inputs:
+      scripts_version:
+        required: false
+        type: string
+      ssh_version:
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      scripts_version:
+        description: Shell candidate tag (lazycat-scripts-vX.Y.Z-rc.N)
+        required: true
+        type: string
+      ssh_version:
+        description: SSH candidate tag (lazycat-ssh-vX.Y.Z-rc.N)
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: ssh/go.mod
+          cache: false
+      - name: Build immutable assets from selected commit
+        env:
+          SCRIPTS_VERSION: ${{ inputs.scripts_version || format('lazycat-scripts-v0.0.0-ci.{0}', github.run_number) }}
+          SSH_VERSION: ${{ inputs.ssh_version || format('lazycat-ssh-v0.0.0-ci.{0}', github.run_number) }}
+        run: python3 scripts/build_release.py --scripts-version "$SCRIPTS_VERSION" --ssh-version "$SSH_VERSION" --output artifacts/candidate
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: candidate-assets
+          path: artifacts/candidate/
+          retention-days: 90
+          if-no-files-found: error
+  native-package:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux/amd64
+          - os: ubuntu-24.04-arm
+            platform: linux/arm64
+          - os: macos-15-intel
+            platform: darwin/amd64
+          - os: macos-15
+            platform: darwin/arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: candidate-assets
+          path: artifacts/candidate
+      - name: Execute downloaded native package with isolated HOME
+        env:
+          EXPECTED_PLATFORM: ${{ matrix.platform }}
+        run: python3 tests/package.py --assets artifacts/candidate --expected-platform "$EXPECTED_PLATFORM"
+      - name: Real launchd lifecycle in a dedicated account
+        if: runner.os == 'macOS'
+        run: python3 tests/macos_launchd.py --assets artifacts/candidate
+      - name: Historical task adoption in the runner GUI session
+        if: runner.os == 'macOS'
+        run: python3 tests/macos_launchd.py --assets artifacts/candidate --session gui
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: native-package-${{ matrix.os }}
+          path: artifacts/package/
+          retention-days: 90
+          if-no-files-found: error
+      - name: Declare verified scope
+        run: echo 'Native staging, rendering and known-program migration/rollback with constructed configuration. Native launchd has separate reports. No historical formal release or public-download approval; stable is unchanged.' >> "$GITHUB_STEP_SUMMARY"
+  system-package:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ubuntu, debian]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: tests/tools/go.mod
+          cache: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: candidate-assets
+          path: artifacts/candidate
+      - name: Install VM observers on disposable runner
+        run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils
+      - name: Allow available KVM acceleration
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod a+rw /dev/kvm; fi
+      - name: Run actual archives in a fresh full system
+        env:
+          TEST_IMAGE: ${{ matrix.image }}
+        run: python3 tests/system/vm.py --image "$TEST_IMAGE" --suite docker --package-lock "tests/system/apt/$TEST_IMAGE.lock.json" --assets artifacts/candidate
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: system-package-${{ matrix.image }}
+          path: artifacts/system/
+          retention-days: 90
+          if-no-files-found: error

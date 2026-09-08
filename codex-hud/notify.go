@@ -82,6 +82,8 @@ type barkMessage struct {
 	Level     string `json:"level"`
 }
 
+var deliveryUnknown = errors.New("通知送达状态不明")
+
 func sendBark(ctx context.Context, c config, title, body, kind string) error {
 	if err := c.validate(); err != nil {
 		return err
@@ -105,7 +107,7 @@ func sendBark(ctx context.Context, c config, title, body, kind string) error {
 	client := http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := client.Do(req)
 	if err != nil {
-		return errors.New("Bark 请求失败或超时；未确认送达，不自动重试")
+		return fmt.Errorf("%w：Bark 请求失败或超时，不自动重试", deliveryUnknown)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -115,7 +117,7 @@ func sendBark(ctx context.Context, c config, title, body, kind string) error {
 		Code int `json:"code"`
 	}
 	if err = json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&result); err != nil {
-		return errors.New("Bark 响应不是有效 JSON")
+		return fmt.Errorf("%w：Bark 响应不是有效 JSON", deliveryUnknown)
 	}
 	if result.Code != 200 {
 		return fmt.Errorf("Bark 拒绝通知：业务状态 %d", result.Code)
@@ -124,6 +126,11 @@ func sendBark(ctx context.Context, c config, title, body, kind string) error {
 }
 
 func (a *app) notify(o notifyOptions) error {
+	copy := *a
+	ctx, cancel := context.WithTimeout(a.ctx, 4500*time.Millisecond)
+	defer cancel()
+	copy.ctx = ctx
+	a = &copy
 	c, err := loadConfig(a.paths.Config, true)
 	if err != nil {
 		return err
@@ -142,7 +149,7 @@ func (a *app) notify(o notifyOptions) error {
 		}
 		o.Message = string(b)
 	}
-	body := truncateBody(singleLine(redact(o.Message)), c.BodyMaxBytes)
+	body := truncateBody(sanitizeText(redact(o.Message)), c.BodyMaxBytes)
 	if body == "" {
 		return errors.New("通知正文不能为空")
 	}
@@ -158,18 +165,31 @@ func (a *app) notify(o notifyOptions) error {
 		return nil
 	}
 	err = a.turnTransaction(o.Session, o.Turn, func(marker string) error {
-		if err := sendBark(a.ctx, c, title, body, o.Kind); err != nil {
-			return err
-		}
-		if marker != "" && !o.KeepStop {
-			return atomicWrite(marker, []byte("sent\n"), 0600)
-		}
-		return nil
+		tracked := marker != "" && !o.KeepStop
+		return a.sendTracked(marker, tracked, c, title, body, o.Kind)
 	})
 	if err != nil {
 		return err
 	}
 	fmt.Fprintln(a.out, "Bark 已接受通知。")
+	return nil
+}
+
+func (a *app) sendTracked(marker string, tracked bool, c config, title, body, kind string) error {
+	if tracked {
+		if err := atomicWrite(marker, []byte("delivery-unknown\n"), 0600); err != nil {
+			return err
+		}
+	}
+	if err := sendBark(a.ctx, c, title, body, kind); err != nil {
+		if tracked && !errors.Is(err, deliveryUnknown) {
+			err = errors.Join(err, os.Remove(marker))
+		}
+		return err
+	}
+	if tracked {
+		return atomicWrite(marker, []byte("sent\n"), 0600)
+	}
 	return nil
 }
 
@@ -184,6 +204,11 @@ type hookPayload struct {
 }
 
 func (a *app) hook(event string) (map[string]any, error) {
+	copy := *a
+	ctx, cancel := context.WithTimeout(a.ctx, 4500*time.Millisecond)
+	defer cancel()
+	copy.ctx = ctx
+	a = &copy
 	result := map[string]any{}
 	c, err := loadConfig(a.paths.Config, true)
 	if err != nil {
@@ -256,10 +281,7 @@ func (a *app) hook(event string) (map[string]any, error) {
 		if markerExists(marker) {
 			return nil
 		}
-		if err := sendBark(a.ctx, c, title, body, kind); err != nil {
-			return err
-		}
-		return atomicWrite(marker, []byte("sent\n"), 0600)
+		return a.sendTracked(marker, true, c, title, body, kind)
 	})
 	return result, err
 }

@@ -1,0 +1,241 @@
+#!/usr/bin/env python3
+"""Real launchd lifecycle in a dedicated account on a disposable hosted runner."""
+import argparse
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import plistlib
+import pwd
+import re
+import secrets
+import subprocess
+import sys
+import tempfile
+import time
+import xml.etree.ElementTree as ET
+
+ROOT=Path(__file__).resolve().parents[1]
+LABEL='com.lazycat.ssh.renew'
+
+def main():
+    parser=argparse.ArgumentParser();parser.add_argument('--assets',type=Path,required=True);parser.add_argument('--session',choices=['background','gui'],default='background');args=parser.parse_args()
+    if platform.system()!='Darwin' or os.environ.get('GITHUB_ACTIONS')!='true' or os.environ.get('RUNNER_OS')!='macOS':
+        parser.error('this account-creation fixture runs only on disposable GitHub macOS runners')
+    manifest=json.loads((args.assets/'manifest.json').read_text())
+    out=ROOT/'artifacts/package'/('launchd-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ'));out.mkdir(parents=True)
+    report=dict(format_version=1,commit=manifest['commit'],source_tree_sha256=manifest['source_tree_sha256'],scope='dedicated-account-background-launchd' if args.session=='background' else 'runner-account-gui-legacy-launchd',level='native-platform',platform=platform.platform(),status='failed',phase='prepare',scenarios=[],skipped=0,flaky=0,environment_errors=0)
+    planned=(['first-install-and-real-interval-trigger','repeat-unloaded-disabled-update-and-removal'] if args.session=='background' else ['legacy-task-adoption-preserves-domain-interval-environment-and-logs','adopted-task-interval-update-and-repeat-preserve-preferences','user-task-edit-conflict-and-key-preservation'])
+    active=planned[0];started=time.monotonic()
+    name='lazycatci'+secrets.token_hex(4);home='/Users/'+name;domain=None;created=False;gui_ready=False;absent_dirs=[];owned=[]
+    log=(out/'commands.jsonl').open('w')
+    def run(argv,expected=0,timeout=45):
+        r=subprocess.run([str(v) for v in argv],capture_output=True,text=True,timeout=timeout)
+        safe=list(map(str,argv))
+        if '-password' in safe:safe[safe.index('-password')+1]='<fictional fixture password>'
+        log.write(json.dumps(dict(argv=safe,exit_code=r.returncode,stdout=r.stdout,stderr=r.stderr))+'\n');log.flush()
+        if expected is not None and r.returncode!=expected:raise RuntimeError('unexpected command result; see commands.jsonl')
+        return r
+    try:
+        if args.session=='background':
+            try:pwd.getpwnam(name)
+            except KeyError:pass
+            else:raise RuntimeError('fixture account already exists')
+            if Path(home).exists():raise RuntimeError('fixture home already exists')
+            run(['sudo','/usr/sbin/sysadminctl','-addUser',name,'-fullName','LazyCat disposable fixture','-home',home,'-shell','/bin/bash','-password',secrets.token_urlsafe(24)],timeout=90)
+            created=True
+            account=pwd.getpwnam(name)
+            if account.pw_dir!=home or account.pw_uid==os.getuid():raise RuntimeError('account database does not match the dedicated home')
+        else:
+            account=pwd.getpwuid(os.getuid());name=account.pw_name;home=account.pw_dir
+            if os.environ.get('HOME')!=home:raise RuntimeError('runner HOME differs from account database')
+        uid=account.pw_uid;domain=f'user/{uid}' if args.session=='background' else f'gui/{uid}'
+        groups=run(['id','-Gn',name]).stdout.split()
+        if uid==0 or (args.session=='background' and ('admin' in groups or 'wheel' in groups)):raise RuntimeError('fixture account has unexpected privilege')
+        report['account']=dict(uid=uid,gid=account.pw_gid,home=home,groups=groups)
+        report['runner']={k:os.environ.get(k) for k in ('ImageOS','ImageVersion','RUNNER_OS','RUNNER_ARCH')}
+        if args.session=='background':run(['sudo','install','-d','-o',name,'-g',str(account.pw_gid),'-m','700',home])
+        probe=run(['sudo','/bin/launchctl','print',domain],expected=None)
+        if probe.returncode==112 and args.session=='background':run(['sudo','/bin/launchctl','bootstrap',domain])
+        elif probe.returncode:raise RuntimeError('cannot inspect fixture launchd domain')
+        def user(argv,expected=0,timeout=45):
+            return run(['sudo','/bin/launchctl','asuser',str(uid),'sudo','-H','-u',name,'/usr/bin/env','-i','HOME='+home,'USER='+name,'PATH=/usr/bin:/bin:/usr/sbin:/sbin']+list(argv),expected,timeout)
+        def read(path):return run(['sudo','cat',path]).stdout
+        def write(path,data):
+            with tempfile.NamedTemporaryFile(mode='w') as stream:
+                stream.write(data);stream.flush()
+                run(['sudo','install','-o',name,'-g',str(account.pw_gid),'-m','600',stream.name,path])
+        def passed(identifier):report['scenarios'].append(dict(id=identifier,status='passed'))
+        if args.session=='gui':
+            # Never replace the runner's existing SSH/config/tool resources.
+            owned=[home+'/'+p for p in ['incoming','inventory.yaml','fixture-ca','fixture-ca.pub','.lazycat/ssh','.local/bin/lazycat-ssh','.local/bin/lazycat-ssh-candidate','.ssh/config','.ssh/config.d/lazycat.conf','.ssh/lazycat_ca_ed25519','.ssh/lazycat_ca_ed25519.pub','.ssh/lazycat_ca_ed25519-cert.pub','Library/LaunchAgents/'+LABEL+'.plist']]
+            for path in owned:
+                if os.path.lexists(path):raise RuntimeError('GUI fixture resource already exists: '+path)
+            for prefix in ('gui/','user/'):
+                existing=user(['/bin/launchctl','print',prefix+str(uid)+'/'+LABEL],expected=None)
+                if existing.returncode not in (112,113):raise RuntimeError('GUI fixture task registration not absent')
+            for relative in ('.local','.local/bin','.ssh','.ssh/config.d','.lazycat','Library/LaunchAgents'):
+                directory=home+'/'+relative
+                if not os.path.lexists(directory):absent_dirs.append(directory)
+            gui_ready=True
+        user(['/bin/mkdir','-p',home+'/.local/bin',home+'/.ssh',home+'/incoming',home+'/Library/LaunchAgents'])
+        arch={'arm64':'arm64','x86_64':'amd64'}[platform.machine()]
+        native=manifest['versions']['ssh']+'-darwin-'+arch+'.tar.gz'
+        hashes={a['path']:a['sha256'] for a in manifest['assets']}
+        report['native_asset']=dict(path=native,sha256=hashes[native])
+        for item in [native,'install-ssh.sh','SHA256SUMS']:
+            source=args.assets/item
+            if item in hashes and hashlib.sha256(source.read_bytes()).hexdigest()!=hashes[item]:raise RuntimeError('candidate artifact mismatch')
+            run(['sudo','install','-o',name,'-g',str(account.pw_gid),'-m','600',source,home+'/incoming/'+item])
+        report['phase']='product'
+        user(['/bin/bash',home+'/incoming/install-ssh.sh','--source-dir',home+'/incoming','--version',manifest['versions']['ssh'],'--bin-dir',home+'/.local/bin'])
+        candidate=home+'/.local/bin/lazycat-ssh-candidate';binary=home+'/.local/bin/lazycat-ssh'
+        def client(*argv,expected=0):return user([candidate]+list(argv),expected)
+        write(home+'/inventory.yaml',f'version: 1\nca:\n  ssh_host: local-ca\n  principals: {name}\n  validity: 12h\nhosts:\n  native-node:\n    host: 127.0.0.1\n    user: {name}\n')
+        write(home+'/.ssh/config',f'Host local-ca\n  HostName 127.0.0.1\n  Port 9\n  User {name}\n')
+        client('source','--file',home+'/inventory.yaml');client('init-key')
+        user(['/usr/bin/ssh-keygen','-q','-t','ed25519','-N','','-f',home+'/fixture-ca'])
+        fingerprint=user(['/usr/bin/ssh-keygen','-lf',home+'/fixture-ca.pub']).stdout.split()[1]
+        user(['/usr/bin/ssh-keygen','-q','-s',home+'/fixture-ca','-I','native-fixture','-n',name,'-V','-1m:+12h',home+'/.ssh/lazycat_ca_ed25519.pub'])
+        client('trust-ca',fingerprint);client('sync','--config-only');client('migrate','--apply')
+        key_before=user(['/usr/bin/shasum','-a','256',home+'/.ssh/lazycat_ca_ed25519']).stdout.split()[0]
+        cert_before=read(home+'/.ssh/lazycat_ca_ed25519-cert.pub')
+        if args.session=='background':
+            user(['/bin/launchctl','print-disabled',domain])
+            client('install-renew','1')
+            receipt=json.loads(read(home+'/.lazycat/ssh/timer.json'))
+            if receipt['Domain']!=domain:raise AssertionError('task installed in another login domain')
+            user(['/bin/launchctl','print',domain+'/'+LABEL])
+            deadline=time.monotonic()+180
+            while True:
+                found=run(['sudo','test','-f',home+'/.lazycat/ssh/renew-status.json'],expected=None)
+                if found.returncode==0 and json.loads(read(home+'/.lazycat/ssh/renew-status.json')).get('scheduled') is True:break
+                if time.monotonic()>deadline:raise RuntimeError('real launchd interval did not trigger')
+                time.sleep(.5)
+            if read(home+'/.ssh/lazycat_ca_ed25519-cert.pub')!=cert_before:raise AssertionError('scheduled task changed valid certificate')
+            passed('first-install-and-real-interval-trigger')
+            active=planned[1]
+            plist=home+'/Library/LaunchAgents/'+LABEL+'.plist';first=read(plist)
+            client('install-renew','1')
+            if read(plist)!=first:raise AssertionError('repeat changed task')
+            user(['/bin/launchctl','bootout',domain+'/'+LABEL]);client('install-renew','2')
+            user(['/bin/launchctl','print',domain+'/'+LABEL],expected=113)
+            user(['/bin/launchctl','disable',domain+'/'+LABEL])
+            user(['/bin/launchctl','print-disabled',domain]);client('install-renew','3')
+            disabled=user(['/bin/launchctl','print-disabled',domain]).stdout
+            if not re.search(r'"'+re.escape(LABEL)+r'"\s*=>\s*(true|disabled)\s*$',disabled,re.M):raise AssertionError('update enabled disabled task')
+            removal=client('uninstall-renew')
+            operation=re.search(r'^Native operation: (\S+)$',removal.stdout,re.M)
+            if not operation:raise AssertionError('native removal operation missing')
+            run(['sudo','test','-e',plist],expected=1)
+            client('rollback',operation.group(1))
+            if plistlib.loads(read(plist).encode())['StartInterval']!=180:raise AssertionError('rollback lost previous interval')
+            user(['/bin/launchctl','print',domain+'/'+LABEL],expected=113)
+            disabled=user(['/bin/launchctl','print-disabled',domain]).stdout
+            if not re.search(r'"'+re.escape(LABEL)+r'"\s*=>\s*(true|disabled)\s*$',disabled,re.M):raise AssertionError('rollback enabled disabled task')
+            client('uninstall-renew')
+            run(['sudo','test','-e',plist],expected=1)
+            passed('repeat-unloaded-disabled-update-and-removal')
+        if args.session=='gui':
+            plist=home+'/Library/LaunchAgents/'+LABEL+'.plist'
+            # Use the actual historical Shell task fixture. The program remains the
+            # owned Go candidate: this is task adoption, not full old-client upgrade.
+            legacy=(ROOT/'tests/fixtures/legacy-launchd.plist').read_text().replace('/Users/fixture',home)
+            write(plist,legacy);user(['/bin/launchctl','bootstrap',domain,plist])
+            client('migrate','--check');migration=client('migrate','--apply')
+            operation=re.search(r'^Native operation: (\S+)$',migration.stdout,re.M)
+            if not operation:raise AssertionError('native migration operation missing')
+            client('rollback',operation.group(1))
+            if read(plist)!=legacy:raise AssertionError('migration rollback lost original legacy plist')
+            user(['/bin/launchctl','print',domain+'/'+LABEL])
+            client('migrate','--apply')
+            adopted=plistlib.loads(read(plist).encode());original=plistlib.loads(legacy.encode())
+            expected=dict(original);expected['ProgramArguments']=[binary,'renew-certs','--scheduled']
+            if adopted!=expected:raise AssertionError('adoption changed legacy task preferences')
+            if json.loads(read(home+'/.lazycat/ssh/timer.json'))['Domain']!=domain:raise AssertionError('adoption moved domain')
+            user(['/bin/launchctl','print',domain+'/'+LABEL])
+            passed('legacy-task-adoption-preserves-domain-interval-environment-and-logs')
+            active=planned[1]
+            client('install-renew','2')
+            expected['StartInterval']=120
+            if plistlib.loads(read(plist).encode())!=expected:raise AssertionError('interval update lost legacy preferences')
+            client('install-renew','2')
+            if plistlib.loads(read(plist).encode())!=expected:raise AssertionError('repeat lost legacy preferences')
+            passed('adopted-task-interval-update-and-repeat-preserve-preferences')
+            active=planned[2]
+            changed=read(plist).replace('renew.err.log','user-edited.err.log');write(plist,changed)
+            client('migrate','--check',expected=3)
+            if read(plist)!=changed:raise AssertionError('migration overwrote customized task')
+            if user(['/usr/bin/shasum','-a','256',home+'/.ssh/lazycat_ca_ed25519']).stdout.split()[0]!=key_before:raise AssertionError('task lifecycle changed key')
+            passed('user-task-edit-conflict-and-key-preservation')
+        report['status']='passed'
+    except Exception as error:
+        report['error']=str(error)
+        if report['phase']=='prepare':report['environment_errors']+=1
+        if report['phase']=='product' and created and domain:
+            try:
+                for session in ('default','background'):
+                    control=home+'/Library/LaunchAgents/com.lazycat.control.'+session+'.plist'
+                    marker=home+'/control-'+session
+                    data={'Label':'com.lazycat.control.'+session,'ProgramArguments':['/usr/bin/touch',marker],'RunAtLoad':True}
+                    if session=='background':data['LimitLoadToSessionType']='Background'
+                    write(control,plistlib.dumps(data).decode())
+                    result=user(['/bin/launchctl','bootstrap',domain,control],expected=None)
+                    report.setdefault('control_launches',{})[session]=result.returncode
+                run(['sudo','log','show','--last','3m','--style','compact','--predicate','process == "launchd" AND eventMessage CONTAINS "com.lazycat"'],expected=None,timeout=30)
+            except Exception as diagnostic:report['diagnostic_error']=str(diagnostic)
+    finally:
+        if gui_ready:
+            try:
+                state=user(['/bin/launchctl','print',domain+'/'+LABEL],expected=None)
+                if state.returncode==0:user(['/bin/launchctl','bootout',domain+'/'+LABEL])
+                elif state.returncode!=113:raise RuntimeError('cannot inspect GUI task during cleanup')
+                for path in owned:run(['sudo','rm','-rf','--',path])
+                for directory in reversed(absent_dirs):run(['sudo','rmdir',directory])
+                if any(os.path.lexists(path) for path in owned):raise RuntimeError('GUI fixture resources remain')
+            except Exception as error:report['status']='failed';report['cleanup_error']=str(error);report['environment_errors']+=1
+        if created:
+            try:
+                if domain:
+                    state=run(['sudo','/bin/launchctl','print',domain],expected=None)
+                    if state.returncode==0:run(['sudo','/bin/launchctl','bootout',domain])
+                    elif state.returncode!=112:raise RuntimeError('cannot inspect domain during cleanup')
+                run(['sudo','/usr/sbin/sysadminctl','-deleteUser',name],timeout=90)
+                deadline=time.monotonic()+20
+                while True:
+                    records=run(['dscl','.','-list','/Users','UniqueID']).stdout
+                    exists=any(line.split() and line.split()[0]==name for line in records.splitlines())
+                    if not exists and not Path(home).exists():break
+                    if time.monotonic()>deadline:raise RuntimeError('fixture account or home remains after cleanup')
+                    time.sleep(.5)
+            except Exception as error:report['status']='failed';report['cleanup_error']=str(error);report['environment_errors']+=1
+        log.close()
+        done={scene['id'] for scene in report['scenarios']}
+        for identifier in planned:
+            if identifier not in done:
+                report['scenarios'].append(dict(id=identifier,status='failed' if identifier==active else 'not_run'))
+        report['skipped']=sum(scene['status']=='not_run' for scene in report['scenarios'])
+        report['duration_seconds']=round(time.monotonic()-started,3)
+        report['observations']=[dict(path='commands.jsonl',sha256=hashlib.sha256((out/'commands.jsonl').read_bytes()).hexdigest())]
+        suite=ET.Element('testsuite',name=report['scope'],tests=str(len(planned)),time=str(report['duration_seconds']))
+        for scene in report['scenarios']:
+            case=ET.SubElement(suite,'testcase',name=scene['id'],classname=report['scope'])
+            if scene['status']=='failed':ET.SubElement(case,'failure',message=report.get('error','scenario failed'))
+            elif scene['status']=='not_run':ET.SubElement(case,'skipped',message='blocked by earlier failure; no coverage claimed')
+        if report.get('cleanup_error'):
+            case=ET.SubElement(suite,'testcase',name='fixture-cleanup',classname=report['scope'])
+            ET.SubElement(case,'error',message=report['cleanup_error']);suite.set('tests',str(len(planned)+1))
+        suite.set('failures',str(len(suite.findall('./testcase/failure'))));suite.set('errors',str(len(suite.findall('./testcase/error'))));suite.set('skipped',str(report['skipped']))
+        ET.ElementTree(suite).write(out/'junit.xml',encoding='utf-8',xml_declaration=True)
+        (out/'result.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
+        if os.environ.get('GITHUB_STEP_SUMMARY'):
+            with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as summary:
+                summary.write('\nNative launchd: '+report['scope']+' — '+report['status']+'\n\n')
+                summary.write('| Scenario | Result |\n|---|---|\n')
+                for scene in report['scenarios']:summary.write('| '+scene['id']+' | '+scene['status']+' |\n')
+                summary.write('\nAccount, runner image, command observations and cleanup results are recorded in the attached JSON/JUnit artifacts.\n')
+    return 0 if report['status']=='passed' else 1
+
+if __name__=='__main__':sys.exit(main())

@@ -1,82 +1,217 @@
-#!/bin/bash
-
-# ==============================================================================
-# 脚本名称: setup_ssh_access.sh
-# 功    能: 为当前用户配置免密登录。它会创建一个专用的 SSH 密钥对，
-#           将公钥添加到 authorized_keys 中，然后显示私钥，
-#           以便您可以从其他计算机使用此私钥登录。
-# 适用系统: 所有 Linux & macOS 系统
-# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_ssh_access.sh)"
-# ==============================================================================
-
-set -e # 如果任何命令失败，则立即退出
-
-# --- 定义变量 ---
-# 使用主机名创建专用密钥的文件名，避免硬编码
-KEY_FILENAME="access_key_$(hostname -s)"
-KEY_PATH="$HOME/.ssh/${KEY_FILENAME}"
-PUBLIC_KEY_PATH="${KEY_PATH}.pub"
-AUTHORIZED_KEYS_PATH="$HOME/.ssh/authorized_keys"
-KEY_COMMENT="access-key-for-${USER}@$(hostname)"
-
-# --- 准备 .ssh 目录 ---
-# 确保 .ssh 目录存在且权限正确
-if [ ! -d "$HOME/.ssh" ]; then
-    echo "🔑 .ssh 目录不存在，正在创建..."
-    mkdir -p "$HOME/.ssh"
-    chmod 700 "$HOME/.ssh"
+#!/usr/bin/env bash
+# 接收客户端公钥。旧授权和本机已有密钥不会被默认替换或导出。
+set -euo pipefail
+# lazycat-file-transaction:begin
+# Single-file candidate/backup protocol. Embedded into standalone release scripts.
+# Call lc_tx_begin, edit "$LC_TX_CANDIDATE", validate, then lc_tx_commit.
+lc_tx_copy() {
+    # GNU cp -p preserves modes/ACLs but silently drops user xattrs. Request
+    # xattr explicitly (rather than --preserve=all, which tolerates failures).
+    case "$(uname -s)" in
+        Linux) cp --preserve=mode,ownership,timestamps,xattr -- "$1" "$2" ;;
+        Darwin) cp -p "$1" "$2" ;;
+        *) echo '未验证的文件属性复制平台，未提交修改' >&2; return 1 ;;
+    esac
+}
+# inode plus nanosecond ctime detects metadata-only edits (including ACL/xattr)
+# without adding Python/getfattr as an installation dependency.
+lc_tx_revision() {
+    case "$(uname -s)" in
+        Linux) LC_ALL=C stat -c '%d:%i:%z' -- "$1" ;;
+        Darwin) LC_ALL=C stat -f '%d:%i:%Fc' "$1" ;;
+        *) return 1 ;;
+    esac
+}
+# Automatic failure recovery may only replace the exact revision we published.
+# Missing revision evidence is a conflict, not permission to discard user attrs.
+lc_tx_matches_committed() {
+    local target="$1" operation="$2"
+    [[ -f "$target" && ! -L "$target" && -f "$operation/after" && ! -L "$operation/after" &&
+       -f "$operation/committed-revision" && ! -L "$operation/committed-revision" ]] || return 3
+    [[ "$(lc_tx_revision "$target")" == "$(cat "$operation/committed-revision")" ]] &&
+        cmp -s "$target" "$operation/after" || return 3
+}
+lc_tx_check_revision() {
+    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    if [[ "$LC_TX_EXISTED" == 1 ]]; then
+        [[ -f "$LC_TX_TARGET" && "$(lc_tx_revision "$LC_TX_TARGET")" == "$LC_TX_REVISION" ]] || { echo '文件或属性被并发修改，已停止' >&2; return 3; }
+    else
+        [[ ! -e "$LC_TX_TARGET" && ! -L "$LC_TX_TARGET" ]] || { echo '目标被并发创建，已停止' >&2; return 3; }
+    fi
+}
+lc_tx_check_path() {
+    local parent="$1"
+    while [[ -n "$parent" && "$parent" != / ]]; do
+        if [[ -L "$parent" ]]; then
+            case "$parent" in
+                /var|/tmp|/etc) [[ "$(uname -s)" == Darwin && "$parent" != "$1" ]] || { echo '路径包含符号链接，需要先明确采纳' >&2; return 3; } ;;
+                *) echo '路径包含符号链接，需要先明确采纳' >&2; return 3 ;;
+            esac
+        fi
+        parent="${parent%/*}"
+    done
+}
+lc_tx_begin() {
+    LC_TX_TARGET="$1"
+    [[ "$LC_TX_TARGET" == /* && "$LC_TX_TARGET" != *$'\n'* && "$LC_TX_TARGET" != *$'\r'* ]] || { echo '事务目标必须是绝对单行路径' >&2; return 2; }
+    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    LC_TX_LOCK="${LC_TX_TARGET}.lazycat-lock"
+    LC_TX_LOCK_OWNED=0
+    [[ ! -e "${LC_TX_LOCK}.recovery" && ! -L "${LC_TX_LOCK}.recovery" ]] || { echo '锁恢复正在进行或中断，请检查恢复记录' >&2; return 3; }
+    (umask 077; mkdir "$LC_TX_LOCK") || { echo "操作锁已存在，请检查并发或中断状态：$LC_TX_LOCK" >&2; return 3; }
+    LC_TX_LOCK_OWNED=1
+    # Bash $$ identifies the original shell even inside a live subshell.
+    # exec makes the helper's parent the actual caller, including Bash 3.2.
+    LC_TX_OWNER_PID=$(exec /bin/sh -c 'printf "%s\n" "$PPID"')
+    [[ "$LC_TX_OWNER_PID" =~ ^[1-9][0-9]*$ ]] || return 3
+    printf '%s\n' "$LC_TX_OWNER_PID" > "$LC_TX_LOCK/pid"
+    printf 'actual-shell-v1\n' > "$LC_TX_LOCK/pid-format"
+    if [[ -e "${LC_TX_LOCK}.recovery" || -L "${LC_TX_LOCK}.recovery" ]]; then lc_tx_unlock; echo '锁恢复与新操作冲突，未写入目标' >&2; return 3; fi
+    LC_TX_OPERATION=$(mktemp -d "${LC_TX_TARGET}.lazycat-operation.XXXXXX")
+    chmod 700 "$LC_TX_OPERATION"
+    printf '%s\n' "$LC_TX_TARGET" > "$LC_TX_OPERATION/target"
+    LC_TX_EXISTED=0
+    if [[ -e "$LC_TX_TARGET" ]]; then
+        [[ -f "$LC_TX_TARGET" ]] || { lc_tx_unlock; echo '目标不是普通文件' >&2; return 3; }
+        LC_TX_EXISTED=1
+        LC_TX_REVISION=$(lc_tx_revision "$LC_TX_TARGET") || { lc_tx_unlock; return 1; }
+        LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')
+        printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
+        lc_tx_copy "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { lc_tx_unlock; return 1; }
+    else
+        (umask 077; : > "$LC_TX_OPERATION/before")
+    fi
+    lc_tx_check_revision || { lc_tx_unlock; return 3; }
+    LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_OPERATION/before" | awk '{print $1, $3, $4}')
+    printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
+    printf '%s\n' "$LC_TX_EXISTED" > "$LC_TX_OPERATION/existed"
+    lc_tx_copy "$LC_TX_OPERATION/before" "$LC_TX_OPERATION/after" || { lc_tx_unlock; return 1; }
+    LC_TX_CANDIDATE="$LC_TX_OPERATION/after"
+    printf 'prepared\n' > "$LC_TX_OPERATION/status"
+}
+# Explicit stale-lock recovery. A live/reused PID, incomplete lock or competing
+# recovery is a conflict. Keep the original lock as evidence; never delete it.
+lc_tx_recover_lock() (
+    set -e
+    local target="$1" lock guard pid archived process result
+    [[ "$target" == /* && "$target" != *$'\n'* && "$target" != *$'\r'* ]] || return 2
+    lc_tx_check_path "$target" || return 3
+    lock="${target}.lazycat-lock"
+    guard="${lock}.recovery"
+    [[ -d "$lock" && ! -L "$lock" && -f "$lock/pid" && ! -L "$lock/pid" ]] || { echo '锁缺失、损坏或为链接，需人工检查' >&2; return 3; }
+    [[ -f "$lock/pid-format" && ! -L "$lock/pid-format" && "$(cat "$lock/pid-format")" == actual-shell-v1 ]] || { echo '旧锁没有实际持锁进程证据，需人工检查，未移动' >&2; return 3; }
+    (umask 077; mkdir "$guard") || return 3
+    trap 'rmdir "$guard"' EXIT
+    IFS= read -r pid < "$lock/pid"
+    [[ "$pid" =~ ^[1-9][0-9]*$ ]] || { echo '锁的 PID 无效，未移动' >&2; return 3; }
+    # ps also sees processes which kill -0 cannot probe due to permissions.
+    result=0
+    process=$(LC_ALL=C ps -p "$pid" -o pid=) || result=$?
+    [[ "$result" == 1 && -z "$process" ]] || { echo '锁的进程仍存在或无法确认，未移动' >&2; return 3; }
+    archived=$(mktemp -d "${lock}.recovered.XXXXXX")
+    chmod 700 "$archived"
+    mv "$lock" "$archived/lock"
+    printf '已保存失效锁：%s\n目标与事务备份未修改；请检查后回滚或重新执行。\n' "$archived"
+)
+lc_tx_unlock() {
+    [[ -n "${LC_TX_LOCK:-}" && "${LC_TX_LOCK_OWNED:-0}" == 1 ]] || return 0
+    [[ ! -L "$LC_TX_LOCK" && -f "$LC_TX_LOCK/pid" && ! -L "$LC_TX_LOCK/pid" &&
+       "$(cat "$LC_TX_LOCK/pid")" == "${LC_TX_OWNER_PID:-}" &&
+       "$(exec /bin/sh -c 'printf "%s\n" "$PPID"')" == "${LC_TX_OWNER_PID:-}" ]] || { echo '锁归属变化，未释放' >&2; return 3; }
+    rm -f "$LC_TX_LOCK/pid" "$LC_TX_LOCK/pid-format"
+    rmdir "$LC_TX_LOCK"
+    LC_TX_LOCK=''
+    LC_TX_LOCK_OWNED=0
+}
+lc_tx_commit() {
+    lc_tx_check_revision || return 3
+    if [[ "$LC_TX_EXISTED" == 1 ]]; then
+        [[ "$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] || { echo '文件权限或属主被并发修改' >&2; return 3; }
+        cmp -s "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { echo '检测到并发修改，已停止' >&2; return 3; }
+    else
+        [[ ! -e "$LC_TX_TARGET" ]] || { echo '目标被并发创建，已停止' >&2; return 3; }
+    fi
+    if [[ "$LC_TX_EXISTED" == 1 && "$(LC_ALL=C ls -ldn "$LC_TX_CANDIDATE" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] && cmp -s "$LC_TX_CANDIDATE" "$LC_TX_OPERATION/before"; then
+        rm -rf "$LC_TX_OPERATION"
+        lc_tx_unlock
+        return 0
+    fi
+    local staged
+    staged=$(mktemp "${LC_TX_TARGET}.lazycat-stage.XXXXXX")
+    lc_tx_copy "$LC_TX_CANDIDATE" "$staged" || { rm -f "$staged"; return 1; }
+    lc_tx_check_revision || { rm -f "$staged"; return 3; }
+    if ! mv "$staged" "$LC_TX_TARGET"; then rm -f "$staged"; return 1; fi
+    # A later metadata-only edit must also prevent destructive rollback. Record
+    # the published inode, not the candidate inode which rename may replace.
+    lc_tx_revision "$LC_TX_TARGET" > "$LC_TX_OPERATION/committed-revision" || return 1
+    printf 'committed\n' > "$LC_TX_OPERATION/status"
+    lc_tx_unlock
+    printf '操作记录与备份：%s\n' "$LC_TX_OPERATION"
+}
+lc_remove_block_candidate() {
+    local file="$1" begin="$2" end="$3" tmp
+    awk -v begin="$begin" -v end="$end" '
+        $0 == begin { if (inside || seen++) bad=1; inside=1 }
+        $0 == end { if (!inside) bad=1; inside=0 }
+        END { exit (bad || inside) ? 1 : 0 }
+    ' "$file" || { echo '托管标记损坏，未修改目标文件' >&2; return 3; }
+    tmp=$(mktemp "${file}.XXXXXX")
+    lc_tx_copy "$file" "$tmp" || { rm -f "$tmp"; return 1; }
+    awk -v begin="$begin" -v end="$end" '
+        $0 == begin { inside=1; next }
+        $0 == end { inside=0; next }
+        !inside { print }
+    ' "$file" > "$tmp"
+    mv "$tmp" "$file"
+}
+# lazycat-file-transaction:end
+case "${1:-}" in
+    --export-private)
+        [[ $# == 2 && -f "$2" && ! -L "$2" ]] || { echo '用法：--export-private <已有私钥文件>' >&2; exit 2; }
+        ssh-keygen -y -P '' -f "$2" >/dev/null
+        cat "$2"
+        exit 0
+        ;;
+    --public-key)
+        [[ $# == 2 && -f "$2" ]] || { echo '用法：--public-key <客户端公钥文件>' >&2; exit 2; }
+        public=$(cat "$2")
+        ;;
+    '') read -r -p '请粘贴客户端公钥（不会生成或输出私钥）: ' public ;;
+    *) echo '用法：setup_ssh_access.sh [--public-key <文件> | --export-private <已有私钥>]' >&2; exit 2 ;;
+esac
+[[ "$public" != *$'\n'* && "$public" != *$'\r'* ]] || { echo '公钥必须为单行' >&2; exit 2; }
+read -r key_type key_data key_comment <<< "$public"
+case "$key_type" in ssh-ed25519|ssh-rsa|ecdsa-sha2-*|sk-ssh-ed25519@openssh.com|sk-ecdsa-sha2-nistp256@openssh.com) ;; *) echo '不接受授权选项或未知公钥类型' >&2; exit 2 ;; esac
+work=$(mktemp -d)
+trap 'rm -rf "$work"; lc_tx_unlock' EXIT
+printf '%s\n' "$public" > "$work/key.pub"
+key_details=$(ssh-keygen -lf "$work/key.pub")
+fingerprint=$(printf '%s\n' "$key_details" | awk '{print $2}')
+[[ ! -L "$HOME/.ssh" ]] || { echo '.ssh 为符号链接，需要人工采纳' >&2; exit 3; }
+if [[ ! -d "$HOME/.ssh" ]]; then (umask 077; mkdir -p "$HOME/.ssh"); fi
+lc_tx_begin "$HOME/.ssh/authorized_keys"
+# Matching a restricted existing key counts as present; do not append an
+# unrestricted duplicate which would broaden its authorization.
+# Let OpenSSH parse real enabled keys. A base64 value in a comment (including
+# another key's trailing comment) is not proof that this key is authorized.
+parse_status=0
+existing_keys=$(LC_ALL=C ssh-keygen -lf /dev/stdin < "$LC_TX_CANDIDATE" 2> "$work/existing-key-parser.err") || parse_status=$?
+# Empty/comment-only files produce this specific parser result on supported
+# OpenSSH. Do not reinterpret a missing tool, read failure or other diagnostic
+# as an empty authorization list.
+if [[ "$parse_status" != 0 ]]; then
+    parser_message=$(cat "$work/existing-key-parser.err")
+    parser_message=${parser_message%$'\r'}
+    [[ "$parse_status" == 255 && -z "$existing_keys" && "$parser_message" == "/dev/stdin is not a public key file." ]] || {
+        echo '无法读取已有授权公钥，未修改文件' >&2; exit 1;
+    }
 fi
-
-# --- 核心理念：幂等性 ---
-# 检查专用密钥是否已经生成
-if [ -f "$KEY_PATH" ]; then
-    echo "✅ 专用的 SSH 登录密钥已经存在。"
-else
-    echo "⏳ 正在生成专用的 4096 位 RSA SSH 密钥..."
-    # 生成一个新的密钥对，用于远程访问
-    ssh-keygen -t rsa -b 4096 -f "$KEY_PATH" -N "" -C "$KEY_COMMENT" >/dev/null
-    chmod 600 "$KEY_PATH"
-    chmod 644 "$PUBLIC_KEY_PATH"
-    echo "✅ 新的专用密钥已生成: ${KEY_PATH}"
+if printf '%s\n' "$existing_keys" | awk -v key="$fingerprint" '$2==key {found=1} END {exit !found}'; then
+    lc_tx_commit
+    echo '公钥已存在，保留现有选项与权限。'
+    exit 0
 fi
-
-# 确保公钥已被添加到 authorized_keys
-# 使用 grep -q -F 来检查公钥字符串是否已存在于文件中
-if [ -f "$AUTHORIZED_KEYS_PATH" ] && grep -q -F "$(cat "$PUBLIC_KEY_PATH")" "$AUTHORIZED_KEYS_PATH"; then
-    echo "✅ 公钥已经配置在 authorized_keys 文件中。"
-else
-    echo "🔧 正在将公钥添加到 authorized_keys..."
-    # 追加公钥到 authorized_keys 文件，并确保文件权限正确
-    touch "$AUTHORIZED_KEYS_PATH"
-    chmod 600 "$AUTHORIZED_KEYS_PATH"
-    echo "" >>"$AUTHORIZED_KEYS_PATH" # 添加换行符以防万一
-    cat "$PUBLIC_KEY_PATH" >>"$AUTHORIZED_KEYS_PATH"
-    # 清理可能产生的重复空行
-    awk '!seen[$0]++' "$AUTHORIZED_KEYS_PATH" >"${AUTHORIZED_KEYS_PATH}.tmp" && mv "${AUTHORIZED_KEYS_PATH}.tmp" "$AUTHORIZED_KEYS_PATH"
-    echo "✅ 公钥配置完成。"
-fi
-
-# --- 输出私钥和使用说明 ---
-IP_ADDRESS=$(hostname -I | awk '{print $1}')
-
-echo ""
-echo "========================================================================"
-echo "      🎉 SSH 访问配置完成! 🎉"
-echo "------------------------------------------------------------------------"
-echo "  您现在可以使用以下私钥从任何计算机远程登录到此服务器。"
-echo "  服务器用户: $USER"
-echo "  服务器 IP 地址: $IP_ADDRESS"
-echo ""
-echo "  👇 这是您需要使用的私钥内容:"
-echo "========================================================================"
-cat "$KEY_PATH"
-echo "" # 在密钥输出后再加一个换行符，让结尾的提示更清晰
-echo "========================================================================"
-echo "  使用方法:"
-echo "  1. 将上面的私钥内容完整复制，并保存到一个文件中 (例如: my_server_key)。"
-echo "  2. 在您的本地计算机上，使用以下命令登录:"
-echo "     chmod 600 my_server_key"
-echo "     ssh -i my_server_key ${USER}@${IP_ADDRESS}"
-echo "========================================================================"
-
-exit 0
+if [[ -s "$LC_TX_CANDIDATE" && -n "$(tail -c 1 "$LC_TX_CANDIDATE")" ]]; then printf '\n' >> "$LC_TX_CANDIDATE"; fi
+printf '%s\n' "$public" >> "$LC_TX_CANDIDATE"
+lc_tx_commit
+echo '客户端公钥已登记；请在保留原会话的同时验证新连接。'

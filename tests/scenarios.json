@@ -1,0 +1,215 @@
+{
+  "format_version": 1,
+  "scenarios": [
+    {
+      "id": "shell-regressions",
+      "level": "isolated-process",
+      "initial": "fresh temporary directory, allowlisted environment, immutable legacy fixtures",
+      "entrypoint": "python3 tests/run.py",
+      "preserve": [
+        "non-managed lines",
+        "file permissions",
+        "outside test directory"
+      ],
+      "mutations": [
+        "test directory only"
+      ]
+    },
+    {
+      "id": "ssh-node-adapters",
+      "level": "mocked-service-adapter",
+      "initial": "fresh sshd configuration and generated fixture key",
+      "entrypoint": "python3 -m unittest discover -s ssh/tests",
+      "preserve": [
+        "original config on failure",
+        "existing CA on failure"
+      ],
+      "mutations": [
+        "test directory only"
+      ]
+    },
+    {
+      "id": "hud-lifecycle",
+      "level": "native-process-local-http",
+      "initial": "allowlisted environment, empty isolated configuration",
+      "entrypoint": "python3 codex-hud/tests/lifecycle.py <candidate>",
+      "preserve": [
+        "other hooks",
+        "user rules",
+        "key on upgrade"
+      ],
+      "mutations": [
+        "test directory only"
+      ]
+    },
+    {
+      "id": "linux-system",
+      "level": "full-system-qemu",
+      "initial": "verified base image and fresh overlay",
+      "entrypoint": "python3 tests/system/vm.py --image ubuntu --suite core",
+      "preserve": [
+        "existing credentials",
+        "non-managed configuration",
+        "host runner"
+      ],
+      "mutations": [
+        "guest managed files and declared package state"
+      ]
+    },
+    {
+      "id": "native-package",
+      "level": "native-process",
+      "initial": "immutable candidate archives and isolated temporary HOME on each declared architecture",
+      "entrypoint": "python3 tests/package.py --assets <candidate>",
+      "preserve": [
+        "existing command",
+        "personal HOME",
+        "read-only render state"
+      ],
+      "mutations": [
+        "isolated staging directory"
+      ]
+    },
+    {
+      "id": "ssh-launchd",
+      "level": "native-platform",
+      "initial": "new standard account with account-database HOME and independent user launchd domain on macOS 15 runner",
+      "entrypoint": "python3 tests/macos_launchd.py --assets <candidate>",
+      "preserve": [
+        "unrelated accounts and homes",
+        "fixture client key",
+        "valid certificate",
+        "disabled and unloaded choices"
+      ],
+      "mutations": [
+        "dedicated fixture account and its user domain",
+        "owned task files and SSH fixtures"
+      ]
+    },
+    {
+      "id": "ssh-launchd-gui",
+      "level": "native-platform",
+      "initial": "disposable macOS 15 runner GUI account; all fixture paths and task registration confirmed absent",
+      "entrypoint": "python3 tests/macos_launchd.py --assets <candidate> --session gui",
+      "preserve": [
+        "existing runner resources",
+        "legacy task domain, interval, environment and logs",
+        "fixture key",
+        "hand-edited task"
+      ],
+      "mutations": [
+        "explicit absent fixture paths in actual runner HOME",
+        "fixture launchd registration only"
+      ]
+    },
+    {
+      "id": "legacy-client-renewal",
+      "level": "full-system-qemu",
+      "initial": "fresh Linux VM and dedicated legacy user; real Bash/OpenSSH/curl and host-built locked yq; existing CA key; original c8ffb57 and pre-temp-fix 4f5080d snapshots; declared certificate and user-file state",
+      "entrypoint": "python3 tests/system/vm.py --image ubuntu --suite core --package-lock tests/system/apt/ubuntu.lock.json",
+      "preserve": [
+        "client key and public key",
+        "known_hosts",
+        "existing private key and certificate modes",
+        "unmanaged certificate .tmp file",
+        "certificate on CA failure",
+        "symlink target and partial key pair"
+      ],
+      "mutations": [
+        "dedicated fixture account",
+        "owned certificate and temporary resources",
+        "fixture CA availability during explicit failure injection"
+      ]
+    },
+    {
+      "id": "hud-published-history",
+      "level": "native-process",
+      "initial": "isolated HOME and virtual credentials; actual codex-hud-v0.1.1 native published executable pinned by SHA-256; existing unrelated hook, disabled HUD and hand-edited owned rules/timeouts",
+      "entrypoint": "python3 codex-hud/tests/history.py <candidate-binary> --output <new-evidence-directory>",
+      "preserve": [
+        "fictional key and disabled preference",
+        "custom owned timeout and rules after explicit adoption",
+        "unrelated hooks and rules",
+        "configuration after binary fallback and uninstall"
+      ],
+      "mutations": [
+        "isolated fixture HOME",
+        "candidate integration receipt and backups"
+      ],
+      "limits": [
+        "binary replacement compatibility; not full installer interruption recovery",
+        "candidate built from source; not publicly released candidate"
+      ]
+    },
+    {
+      "id": "hud-notification-budget",
+      "level": "native-process",
+      "initial": "isolated HOME, fictional Key, real local HTTP observer with controlled delay and six child processes",
+      "entrypoint": "python3 codex-hud/tests/notification_budget.py <candidate-binary>",
+      "preserve": [
+        "key and unrelated configuration",
+        "configuration on invalid CLI inputs",
+        "no retry after unknown delivery"
+      ],
+      "mutations": [
+        "temporary config and per-turn state",
+        "local HTTP fixture requests only"
+      ]
+    },
+    {
+      "id": "legacy-input-validation",
+      "level": "real-process-local-http",
+      "initial": "independent temporary HOME for each input/implementation; SSH directory 0750 and user config 0640; frozen c8ffb57, prevalidation-fix and current client/library; supplied yq v4.53.2; local HTTP only",
+      "entrypoint": "python3 tests/legacy_input.py --yq <real-yq-binary> --output <new-evidence-directory>",
+      "preserve": [
+        "user SSH config content and mode on invalid input",
+        "user SSH directory mode",
+        "absence of generated configuration on invalid input",
+        "no persistent temporary downloads on rejected current input"
+      ],
+      "mutations": [
+        "isolated HOME and evidence directory",
+        "historical defect observations inside their own independent HOME"
+      ],
+      "faults": [
+        "newline directive injection",
+        "unsupported version: 2"
+      ],
+      "observer": "real OpenSSH parser; ProxyCommand is inspected without a connection or execution"
+    },
+    {
+      "id": "ssh-public-key-lifecycle",
+      "level": "full-system",
+      "initial": "fresh QEMU Ubuntu 24.04 / Debian 12; real fixture account HOME verified through getent, password disabled; own authorized_keys comment and mode0640; fictional key not registered",
+      "entrypoint": "bash tests/system/access-key.sh (disposable guest only)",
+      "preserve": [
+        "private key and public key bytes",
+        "authorized_keys owner and mode",
+        "existing forced-command and restrict options",
+        "no private key export on registration"
+      ],
+      "mutations": [
+        "fixture authorized_keys and owned operation backups",
+        "fixture password disabled as declared initialization"
+      ],
+      "observer": "real SSH new connection as fixture; unregistered and rolled-back key rejected, forced command actually executed",
+      "recovery": "public lazycat-check rollback restores original comment; fixture teardown verified by rejected connection"
+    },
+    {
+      "id": "linux-packaged-system",
+      "level": "full-system",
+      "initial": "fresh Ubuntu24.04/Debian12 AMD64 overlay, locked local apt source, exact clean-commit Shell and Go release archives; independent checkout test drivers",
+      "entrypoint": "python3 tests/system/vm.py --image <ubuntu|debian> --suite docker --package-lock <lock> --assets <candidate-directory>",
+      "preserve": [
+        "fixture credentials, user configuration and service preferences according to component lifecycle assertions",
+        "test driver bytes are never supplied by the product archive"
+      ],
+      "mutations": [
+        "disposable guest product files and services only",
+        "host temporary verified source snapshot and evidence directory"
+      ],
+      "observer": "same real SSH, systemd, sudo, Squid and Docker observers as source lifecycle; actual product bytes originate in archives",
+      "limits": "Linux AMD64 only; not public download or complete release approval"
+    }
+  ]
+}

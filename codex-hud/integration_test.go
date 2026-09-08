@@ -200,3 +200,54 @@ func TestResumeUninstallAfterCleanupFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRepairAdoptsCustomizationAndPreservesItOnUpgrade(t *testing.T) {
+	a := testApp(t)
+	fixtureConfig(t, a, "https://example.com")
+	if e := a.setup(); e != nil {
+		t.Fatal(e)
+	}
+	hookPath := filepath.Join(a.paths.Codex, "hooks.json")
+	agentsPath := filepath.Join(a.paths.Codex, "AGENTS.md")
+	hooks, e := readHooks(hookPath)
+	if e != nil {
+		t.Fatal(e)
+	}
+	group := hooks["hooks"].(map[string]any)["Stop"].([]any)[0].(map[string]any)
+	group["hooks"].([]any)[0].(map[string]any)["timeout"] = json.Number("7")
+	data, _ := json.MarshalIndent(hooks, "", "  ")
+	os.WriteFile(hookPath, data, 0600)
+	agents, _ := os.ReadFile(agentsPath)
+	agents = bytes.Replace(agents, []byte("HUD 通知"), []byte("我的 HUD 通知"), 1)
+	os.WriteFile(agentsPath, agents, 0600)
+	configBefore, _ := os.ReadFile(a.paths.Config)
+	receiptBefore, _ := os.ReadFile(a.receiptPath())
+	if e = a.setup(); e == nil {
+		t.Fatal("ordinary setup overwrote customization")
+	}
+	if e = a.run([]string{"repair", "--check"}); e != nil {
+		t.Fatal(e)
+	}
+	receiptAfter, _ := os.ReadFile(a.receiptPath())
+	if !bytes.Equal(receiptBefore, receiptAfter) {
+		t.Fatal("check wrote receipt")
+	}
+	if e = a.run([]string{"repair", "--adopt", "--apply"}); e != nil {
+		t.Fatal(e)
+	}
+	if e = a.setup(); e != nil {
+		t.Fatal(e)
+	}
+	got, _ := os.ReadFile(agentsPath)
+	if !bytes.Equal(got, agents) {
+		t.Fatal("adopted rule changed on upgrade")
+	}
+	upgraded, _ := readHooks(hookPath)
+	if !jsonEqual(upgraded, hooks) {
+		t.Fatal("adopted hooks changed on upgrade")
+	}
+	configAfter, _ := os.ReadFile(a.paths.Config)
+	if !bytes.Equal(configBefore, configAfter) {
+		t.Fatal("key or preferences changed")
+	}
+}

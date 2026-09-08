@@ -1,0 +1,6 @@
+{
+  "commit": "83939a8",
+  "path": "common/setup_zsh_p10k.sh",
+  "sha256": "d641c0174baa861c7dab2e566301cd96c53840685244c571809eaff102cabcdc",
+  "scope": "Zsh custom transaction loses Linux xattrs and cannot use common interrupted rollback"
+}

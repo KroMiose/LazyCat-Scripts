@@ -53,7 +53,7 @@ def main():
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Handler, directory=str(root)))
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        env = {k:v for k,v in os.environ.items() if not k.startswith(("BARK_", "CODEX_", "XDG_"))}
+        env = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "C"}
         env.update(HOME=str(root / "home with space"), CODEX_HOME=str(root / "codex"),
                    XDG_CONFIG_HOME=str(root / "config"), XDG_CACHE_HOME=str(root / "cache"),
                    CODEX_HUD_RELEASE_BASE="http://127.0.0.1:" + str(server.server_port) + "/releases",

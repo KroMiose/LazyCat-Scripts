@@ -1,0 +1,224 @@
+{
+  "format_version": 1,
+  "image_digest": "d0fe84bb5f80853425fa6be28e2c106f30104c3cfe8611933f2e65c9b63f0e30",
+  "scope": "base-image-specific apt closure; review before CI adoption",
+  "packages": [
+    {
+      "filename": "apache2-utils_2.4.58-1ubuntu8.15_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/a/apache2/apache2-utils_2.4.58-1ubuntu8.15_amd64.deb",
+      "sha256": "1cba9f636e2b6b3325a49c7ae3caf0e3dd59024cd89be2a8a09e3bb52b3d1c3e",
+      "size": 99696,
+      "control": "Package: apache2-utils\nSource: apache2\nVersion: 2.4.58-1ubuntu8.15\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 327\nDepends: libapr1t64 (>= 1.4.8-2~), libaprutil1t64 (>= 1.5.0), libc6 (>= 2.38), libcrypt1 (>= 1:4.1.0), libssl3t64 (>= 3.0.0)\nSection: httpd\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://httpd.apache.org/\nDescription: Apache HTTP Server (utility programs for web servers)\n Provides some add-on programs useful for any web server.  These include:\n  - ab (Apache benchmark tool)\n  - fcgistarter (Start a FastCGI program)\n  - logresolve (Resolve IP addresses to hostnames in logfiles)\n  - htpasswd (Manipulate basic authentication files)\n  - htdigest (Manipulate digest authentication files)\n  - htdbm (Manipulate basic authentication files in DBM format, using APR)\n  - htcacheclean (Clean up the disk cache)\n  - rotatelogs (Periodically stop writing to a logfile and open a new one)\n  - split-logfile (Split a single log including multiple vhosts)\n  - checkgid (Checks whether the caller can setgid to the specified group)\n  - check_forensic (Extract mod_log_forensic output from Apache log files)\n  - httxt2dbm (Generate dbm files for use with RewriteMap)\nOriginal-Maintainer: Debian Apache Maintainers <debian-apache@lists.debian.org>\n"
+    },
+    {
+      "filename": "bridge-utils_1.7.1-1ubuntu2_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/b/bridge-utils/bridge-utils_1.7.1-1ubuntu2_amd64.deb",
+      "sha256": "de7c05690b77d96f9453e5a824f0b523da7bda15a4538349a1591a21498281d2",
+      "size": 33884,
+      "control": "Package: bridge-utils\nVersion: 1.7.1-1ubuntu2\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 115\nDepends: libc6 (>= 2.34)\nSuggests: ifupdown\nConflicts: ifupdown (<< 0.8.17)\nSection: net\nPriority: optional\nMulti-Arch: foreign\nDescription: Utilities for configuring the Linux Ethernet bridge\n This package contains utilities for configuring the Linux Ethernet\n bridge in Linux. The Linux Ethernet bridge can be used for connecting\n multiple Ethernet devices together. The connecting is fully\n transparent: hosts connected to one Ethernet device see hosts\n connected to the other Ethernet devices directly.\nOriginal-Maintainer: Santiago Garc\u00eda Manti\u00f1\u00e1n <manty@debian.org>\n"
+    },
+    {
+      "filename": "ca-certificates_20260601~24.04.1_all.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/c/ca-certificates/ca-certificates_20260601%7e24.04.1_all.deb",
+      "sha256": "6bac2a01979e210d9eac1d4d56747ec709ea60654744d66705dc3c36e7629e50",
+      "size": 139430,
+      "control": "Package: ca-certificates\nVersion: 20260601~24.04.1\nArchitecture: all\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nOriginal-Maintainer: Julien Cristau <jcristau@debian.org>\nInstalled-Size: 333\nDepends: openssl (>= 1.1.1), debconf (>= 0.5) | debconf-2.0\nEnhances: openssl\nBreaks: ca-certificates-java (<< 20121112+nmu1)\nSection: misc\nPriority: standard\nMulti-Arch: foreign\nDescription: Common CA certificates\n Contains the certificate authorities shipped with Mozilla's browser to allow\n SSL-based applications to check for the authenticity of SSL connections.\n .\n Please note that Debian can neither confirm nor deny whether the\n certificate authorities whose certificates are included in this package\n have in any way been audited for trustworthiness or RFC 3647 compliance.\n Full responsibility to assess them belongs to the local system\n administrator.\n"
+    },
+    {
+      "filename": "containerd_2.2.1-0ubuntu1~24.04.3_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/c/containerd-app/containerd_2.2.1-0ubuntu1%7e24.04.3_amd64.deb",
+      "sha256": "459a0184cc631c17eb4a625392f749fa753627b4ddba196919e0666a6206d92a",
+      "size": 28145484,
+      "control": "Package: containerd\nSource: containerd-app\nVersion: 2.2.1-0ubuntu1~24.04.3\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 100805\nDepends: runc, libc6 (>= 2.34)\nBreaks: docker.io (<< 19.03.13-0ubuntu4)\nBuilt-Using: golang-1.24 (= 1.24.4-1ubuntu1~24.04.2)\nSection: admin\nPriority: optional\nHomepage: https://containerd.io\nDescription: daemon to control runC\n Containerd is a daemon to control runC, built for performance and density.\n Containerd leverages runC's advanced features such as seccomp and user\n namespace support as well as checkpoint and restore for cloning and live\n migration of containers.\n .\n This package contains the binaries.\n"
+    },
+    {
+      "filename": "curl_8.5.0-2ubuntu10.13_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/c/curl/curl_8.5.0-2ubuntu10.13_amd64.deb",
+      "sha256": "f34f04c60d8852e5e9c3684051b1247172ce8b10f520f59797c0d2bf8a08da61",
+      "size": 226396,
+      "control": "Package: curl\nVersion: 8.5.0-2ubuntu10.13\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 523\nDepends: libc6 (>= 2.34), libcurl4t64 (= 8.5.0-2ubuntu10.13), zlib1g (>= 1:1.1.4)\nSection: web\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://curl.se/\nDescription: command line tool for transferring data with URL syntax\n curl is a command line tool for transferring data with URL syntax, supporting\n DICT, FILE, FTP, FTPS, GOPHER, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3,\n POP3S, RTMP, RTSP, SCP, SFTP, SMTP, SMTPS, TELNET and TFTP.\n .\n curl supports SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form\n based upload, proxies, cookies, user+password authentication (Basic, Digest,\n NTLM, Negotiate, kerberos...), file transfer resume, proxy tunneling and a\n busload of other useful tricks.\nOriginal-Maintainer: Debian Curl Maintainers <team+curl@tracker.debian.org>\n"
+    },
+    {
+      "filename": "dbus-user-session_1.14.10-4ubuntu4.1_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/d/dbus/dbus-user-session_1.14.10-4ubuntu4.1_amd64.deb",
+      "sha256": "e585b1694b854c3b75bfb39cc4022cafe7b14e44fd435433b613b8fb9919cb41",
+      "size": 9968,
+      "control": "Package: dbus-user-session\nSource: dbus\nVersion: 1.14.10-4ubuntu4.1\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 113\nDepends: dbus-daemon (= 1.14.10-4ubuntu4.1) | dbus-broker, dbus-session-bus-common (>= 1.14.10-4ubuntu4.1), libpam-systemd, systemd\nRecommends: systemd-sysv\nProvides: dbus-session-bus, default-dbus-session-bus\nSection: admin\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://dbus.freedesktop.org/\nDescription: simple interprocess messaging system (systemd --user integration)\n D-Bus is a message bus, used for sending messages between applications.\n Conceptually, it fits somewhere in between raw sockets and CORBA in\n terms of complexity.\n .\n On systemd systems, this package opts in to the session model in which\n a user's session starts the first time they log in, and does not end\n until all their login sessions have ended. This model merges all\n parallel non-graphical login sessions (text mode, ssh, cron, etc.), and up\n to one graphical session, into a single \"user-session\" or \"super-session\"\n within which all background D-Bus services are shared.\n .\n Multiple graphical sessions per user are not currently supported in this\n mode; as a result, it is particularly suitable for gdm, which responds to\n requests to open a parallel graphical session by switching to the existing\n graphical session and unlocking it.\n .\n To retain dbus' traditional session semantics, in which login sessions\n are artificially isolated from each other, remove this package and install\n dbus-x11 instead.\n .\n See the dbus package description for more information about D-Bus in general.\nOriginal-Maintainer: Utopia Maintenance Team <pkg-utopia-maintainers@lists.alioth.debian.org>\n"
+    },
+    {
+      "filename": "dns-root-data_2024071801~ubuntu0.24.04.1_all.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/d/dns-root-data/dns-root-data_2024071801%7eubuntu0.24.04.1_all.deb",
+      "sha256": "ee4617a269ec00257bb56ea28eb0eca3b1d4248d02ff65f79d4d40244f732df4",
+      "size": 5918,
+      "control": "Package: dns-root-data\nVersion: 2024071801~ubuntu0.24.04.1\nArchitecture: all\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 19\nSection: misc\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://data.iana.org/root-anchors/\nDescription: DNS root hints and DNSSEC trust anchor\n This package contains various root zone related data as published\n by IANA to be used by various DNS software as a common source\n of DNS root zone data, namely:\n .\n  * Root Hints (root.hints)\n  * Root Trust Anchors (root.key, root.ds)\nOriginal-Maintainer: dns-root-data packagers <dns-root-data@packages.debian.org>\n"
+    },
+    {
+      "filename": "dnsmasq-base_2.91-0ubuntu0.24.04.1_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/d/dnsmasq/dnsmasq-base_2.91-0ubuntu0.24.04.1_amd64.deb",
+      "sha256": "424acabe2ae09697e0e84cc0da0fb344e829bd33dc064ec720dbbfabfae93d66",
+      "size": 380706,
+      "control": "Package: dnsmasq-base\nSource: dnsmasq\nVersion: 2.91-0ubuntu0.24.04.1\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 836\nDepends: libc6 (>= 2.38), libdbus-1-3 (>= 1.9.14), libgmp10 (>= 2:6.3.0+dfsg), libhogweed6t64 (>= 2.4-3), libidn2-0 (>= 2.0.0), libnetfilter-conntrack3 (>= 1.0.1), libnettle8t64 (>= 2.4-3), libnftables1 (>= 1.0.2)\nRecommends: dns-root-data\nConflicts: dnsmasq-base-lua\nBreaks: dnsmasq (<< 2.63-1~)\nReplaces: dnsmasq (<< 2.63-1~), dnsmasq-base\nProvides: dnsmasq-base\nSection: net\nPriority: optional\nHomepage: https://www.thekelleys.org.uk/dnsmasq/doc.html\nDescription: Small caching DNS proxy and DHCP/TFTP server - executable\n This package contains the dnsmasq executable and documentation, but\n not the infrastructure required to run it as a system daemon. For\n that, install the dnsmasq package.\nOriginal-Maintainer: Simon Kelley <simon@thekelleys.org.uk>\n"
+    },
+    {
+      "filename": "docker.io_29.1.3-0ubuntu3~24.04.2_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/universe/d/docker.io-app/docker.io_29.1.3-0ubuntu3%7e24.04.2_amd64.deb",
+      "sha256": "bd5c22d42d4ce3021958b7a8d627701597f61a1a9867ba83fe3c841f04991e3a",
+      "size": 35558504,
+      "control": "Package: docker.io\nSource: docker.io-app\nVersion: 29.1.3-0ubuntu3~24.04.2\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 134107\nDepends: adduser, containerd (>= 1.2.6-0ubuntu1~), iptables, debconf (>= 0.5) | debconf-2.0, libc6 (>= 2.34), libnftables1 (>= 1.0.2), libsystemd0 (>= 209~)\nRecommends: ca-certificates, git, pigz, ubuntu-fan, xz-utils, apparmor\nSuggests: aufs-tools, btrfs-progs, cgroupfs-mount | cgroup-lite, debootstrap, docker-buildx, docker-compose-v2, docker-doc, rinse, zfs-fuse | zfsutils\nConflicts: podman-docker\nReplaces: podman-docker\nProvides: docker-cli (= 29.1.3-0ubuntu3~24.04.2)\nBuilt-Using: glibc (= 2.39-0ubuntu8.7), golang-1.24 (= 1.24.4-1ubuntu1~24.04.2)\nSection: admin\nPriority: optional\nHomepage: https://mobyproject.org/\nDescription: Linux container runtime\n Docker complements kernel namespacing with a high-level API which operates at\n the process level. It runs unix processes with strong guarantees of isolation\n and repeatability across servers.\n .\n Docker is a great building block for automating distributed systems:\n large-scale web deployments, database clusters, continuous deployment systems,\n private PaaS, service-oriented architectures, etc.\n"
+    },
+    {
+      "filename": "git_1%3a2.43.0-1ubuntu7.3_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/g/git/git_2.43.0-1ubuntu7.3_amd64.deb",
+      "sha256": "099bb129f543adc4c14203334b0fa0a909f8bf038c4d56bc9cc7c774ebf78f87",
+      "size": 3679758,
+      "control": "Package: git\nVersion: 1:2.43.0-1ubuntu7.3\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 21692\nDepends: libc6 (>= 2.38), libcurl3t64-gnutls (>= 7.56.1), libexpat1 (>= 2.0.1), libpcre2-8-0 (>= 10.34), zlib1g (>= 1:1.2.2), perl, liberror-perl, git-man (>> 1:2.43.0), git-man (<< 1:2.43.0-.)\nRecommends: ca-certificates, patch, less, ssh-client\nSuggests: gettext-base, git-daemon-run | git-daemon-sysvinit, git-doc, git-email, git-gui, gitk, gitweb, git-cvs, git-mediawiki, git-svn\nBreaks: bash-completion (<< 1:1.90-1), cogito (<= 0.18.2+), dgit (<< 5.1~), git-buildpackage (<< 0.6.5), git-el (<< 1:2.32.0~rc2-1~), gitosis (<< 0.2+20090917-7), gitpkg (<< 0.15), guilt (<< 0.33), openssh-client (<< 1:6.8), stgit (<< 0.15), stgit-contrib (<< 0.15)\nProvides: git-completion, git-core\nSection: vcs\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://git-scm.com/\nDescription: fast, scalable, distributed revision control system\n Git is popular version control system designed to handle very large\n projects with speed and efficiency; it is used for many high profile\n open source projects, most notably the Linux kernel.\n .\n Git falls in the category of distributed source code management tools.\n Every Git working directory is a full-fledged repository with full\n revision tracking capabilities, not dependent on network access or a\n central server.\n .\n This package provides the git main components with minimal dependencies.\n Additional functionality, e.g. a graphical user interface and revision\n tree visualizer, tools for interoperating with other VCS's, or a web\n interface, is provided as separate git* packages.\nOriginal-Maintainer: Jonathan Nieder <jrnieder@gmail.com>\n"
+    },
+    {
+      "filename": "libapr1t64_1.7.2-3.1ubuntu0.1_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/a/apr/libapr1t64_1.7.2-3.1ubuntu0.1_amd64.deb",
+      "sha256": "3c719ecc010f5ad3aadb19dc192fc24eb4e0f2293ace527e9a8532810df14a92",
+      "size": 107650,
+      "control": "Package: libapr1t64\nSource: apr\nVersion: 1.7.2-3.1ubuntu0.1\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 283\nDepends: libc6 (>= 2.38), libuuid1 (>= 2.16)\nConflicts: libapr1.0\nBreaks: libapr1 (<< 1.7.2-3.1ubuntu0.1)\nReplaces: libapr1\nProvides: libapr1 (= 1.7.2-3.1ubuntu0.1)\nSection: libs\nPriority: optional\nMulti-Arch: same\nHomepage: https://apr.apache.org/\nDescription: Apache Portable Runtime Library\n APR is Apache's Portable Runtime Library, designed to be a support library\n that provides a predictable and consistent interface to underlying\n platform-specific implementations.\nOriginal-Maintainer: Debian Apache Maintainers <debian-apache@lists.debian.org>\n"
+    },
+    {
+      "filename": "libaprutil1t64_1.6.3-1.1ubuntu7.1_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/a/apr-util/libaprutil1t64_1.6.3-1.1ubuntu7.1_amd64.deb",
+      "sha256": "f39c3cd8a87076d3bd586c192a25ed98c9c5b5ce80d37f92ce66021722995aba",
+      "size": 92674,
+      "control": "Package: libaprutil1t64\nSource: apr-util\nVersion: 1.6.3-1.1ubuntu7.1\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 278\nDepends: libapr1t64 (>= 1.6.2), libc6 (>= 2.38), libcrypt1 (>= 1:4.1.0), libdb5.3t64, libexpat1 (>= 2.0.1), libgdbm6t64 (>= 1.16), libssl3t64 (>= 3.0.0)\nBreaks: libaprutil1 (<< 1.6.3-1.1ubuntu7.1)\nReplaces: libaprutil1\nProvides: libaprutil1 (= 1.6.3-1.1ubuntu7.1)\nSection: libs\nPriority: optional\nMulti-Arch: same\nHomepage: https://apr.apache.org/\nDescription: Apache Portable Runtime Utility Library\n APR is Apache's Portable Runtime Library, designed to be a support library\n that provides a predictable and consistent interface to underlying\n platform-specific implementations.\n .\n APR Util is a utilities library implemented on top of apr, providing database\n access, xml parsing, and other useful functionality.\nOriginal-Maintainer: Debian Apache Maintainers <debian-apache@lists.debian.org>\n"
+    },
+    {
+      "filename": "libdbi-perl_1.643-4ubuntu0.1_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/libd/libdbi-perl/libdbi-perl_1.643-4ubuntu0.1_amd64.deb",
+      "sha256": "ca999e2a01cf53f3948f9831e654644aa6be5675fabaf0e2e943a660faeef531",
+      "size": 720392,
+      "control": "Package: libdbi-perl\nVersion: 1.643-4ubuntu0.1\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 2097\nDepends: perl (>= 5.38.2-3.2ubuntu0.2), perlapi-5.38.2, libc6 (>= 2.38)\nSuggests: libclone-perl, libmldbm-perl, libnet-daemon-perl, libsql-statement-perl\nBreaks: libdbd-anydata-perl (<< 0.11+)\nProvides: dh-sequence-perl-dbi, perl-dbdabi-94\nSection: perl\nPriority: optional\nMulti-Arch: same\nHomepage: https://dbi.perl.org/\nDescription: Perl Database Interface (DBI)\n DBI (DataBase Interface) is a Perl framework that provides a common interface\n to access various backend databases in a uniform manner. DBD (DataBase Driver)\n modules provide implementations for various backend data storage mechanisms\n including networked relational databases (particularly SQL databases) and even\n web services such as the Google search engine.\n .\n It is extremely portable and available for a wide range of operating systems,\n architectures and data stores, including:\n .\n  * Oracle\n  * Microsoft SQL Server\n  * IBM DB2\n  * SQLite\n  * PostgreSQL\n  * Firebird\n  * MySQL\nOriginal-Maintainer: Debian Perl Group <pkg-perl-maintainers@lists.alioth.debian.org>\n"
+    },
+    {
+      "filename": "libecap3_1.0.1-3.4ubuntu2_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/libe/libecap/libecap3_1.0.1-3.4ubuntu2_amd64.deb",
+      "sha256": "12ce2189533fa5ba569dd14b030e8868d9d29f1f75e212b952c5d3127ba9723b",
+      "size": 17004,
+      "control": "Package: libecap3\nSource: libecap\nVersion: 1.0.1-3.4ubuntu2\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 61\nDepends: libc6 (>= 2.32), libgcc-s1 (>= 3.3.1), libstdc++6 (>= 13.1)\nSection: libs\nPriority: optional\nMulti-Arch: same\nHomepage: https://www.e-cap.org\nDescription: eCAP library\n eCAP is a software interface that allows a network application,\n such as an HTTP proxy or an ICAP server, to outsource content\n analysis and adaptation to a loadable module. For each applicable\n protocol message being processed, an eCAP-enabled host application\n supplies the message details to the adaptation module and gets\n back an adapted message, a \"not interested\" response, or a \"block\n this message now!\" instruction. These exchanges often include\n message bodies.\nOriginal-Maintainer: Luigi Gangitano <luigi@debian.org>\n"
+    },
+    {
+      "filename": "libltdl7_2.4.7-7build1_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/libt/libtool/libltdl7_2.4.7-7build1_amd64.deb",
+      "sha256": "02d0d2d7e1bf73f838a92f8df7a9b07b698c837e82bd89aee6a581cf793cd966",
+      "size": 40258,
+      "control": "Package: libltdl7\nSource: libtool\nVersion: 2.4.7-7build1\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 421\nDepends: libc6 (>= 2.38)\nSection: libs\nPriority: optional\nMulti-Arch: same\nHomepage: https://www.gnu.org/software/libtool/\nDescription: System independent dlopen wrapper for GNU libtool\n This package contains the run-time libltdl library.\n .\n A small library that aims at hiding the various difficulties of\n dlopening libraries from programmers.  It is a system independent\n dlopen wrapper for GNU libtool.\n .\n It supports the following dlopen interfaces:\n   * dlopen (Solaris, Linux and various BSD flavors)\n   * shl_load (HP-UX)\n   * LoadLibrary (Win16 and Win32)\n   * load_add_on (BeOS)\n   * GNU DLD (emulates dynamic linking for static libraries)\n   * libtool's dlpreopen\nOriginal-Maintainer: Alastair McKinstry <mckinstry@debian.org>\n"
+    },
+    {
+      "filename": "libtdb1_1.4.10-1build1_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/t/tdb/libtdb1_1.4.10-1build1_amd64.deb",
+      "sha256": "5b647b74d61b8bfe32f7bc03ffd22bac146a557df0724bd8e361b09f55237860",
+      "size": 46772,
+      "control": "Package: libtdb1\nSource: tdb\nVersion: 1.4.10-1build1\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 131\nDepends: libc6 (>= 2.34)\nSection: libs\nPriority: optional\nMulti-Arch: same\nHomepage: https://tdb.samba.org/\nDescription: Trivial Database - shared library\n This is a simple database API. It is modelled after the structure\n of GDBM. TDB features, unlike GDBM, multiple writers support with\n appropriate locking and transactions.\n .\n This package contains the shared library file.\nOriginal-Maintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>\n"
+    },
+    {
+      "filename": "openssh-client_1%3a9.6p1-3ubuntu13.19_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/o/openssh/openssh-client_9.6p1-3ubuntu13.19_amd64.deb",
+      "sha256": "c77365e50089a9be1ccc4cb28a586d7485b9d83798e67b8ad6636e53cc921649",
+      "size": 907922,
+      "control": "Package: openssh-client\nSource: openssh\nVersion: 1:9.6p1-3ubuntu13.19\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 3538\nDepends: adduser, passwd, libc6 (>= 2.38), libedit2 (>= 2.11-20080614-0), libfido2-1 (>= 1.8.0), libgssapi-krb5-2 (>= 1.17), libselinux1 (>= 3.1~), libssl3t64 (>= 3.0.13), zlib1g (>= 1:1.1.4)\nRecommends: xauth\nSuggests: keychain, libpam-ssh, monkeysphere, ssh-askpass\nConflicts: sftp\nBreaks: openssh-sk-helper\nReplaces: openssh-sk-helper, ssh, ssh-krb5\nProvides: ssh-client\nSection: net\nPriority: standard\nMulti-Arch: foreign\nHomepage: https://www.openssh.com/\nDescription: secure shell (SSH) client, for secure access to remote machines\n This is the portable version of OpenSSH, a free implementation of\n the Secure Shell protocol as specified by the IETF secsh working\n group.\n .\n Ssh (Secure Shell) is a program for logging into a remote machine\n and for executing commands on a remote machine.\n It provides secure encrypted communications between two untrusted\n hosts over an insecure network. X11 connections and arbitrary TCP/IP\n ports can also be forwarded over the secure channel.\n It can be used to provide applications with a secure communication\n channel.\n .\n This package provides the ssh, scp and sftp clients, the ssh-agent\n and ssh-add programs to make public key authentication more convenient,\n and the ssh-keygen, ssh-keyscan, ssh-copy-id and ssh-argv0 utilities.\n .\n In some countries it may be illegal to use any encryption at all\n without a special permit.\n .\n ssh replaces the insecure rsh, rcp and rlogin programs, which are\n obsolete for most purposes.\nOriginal-Maintainer: Debian OpenSSH Maintainers <debian-ssh@lists.debian.org>\n"
+    },
+    {
+      "filename": "openssh-server_1%3a9.6p1-3ubuntu13.19_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/o/openssh/openssh-server_9.6p1-3ubuntu13.19_amd64.deb",
+      "sha256": "dae4c1ee35cc57555f4e594805845c280350e2d40f0fecf84c6e8bb245848581",
+      "size": 511342,
+      "control": "Package: openssh-server\nSource: openssh\nVersion: 1:9.6p1-3ubuntu13.19\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 2097\nPre-Depends: init-system-helpers (>= 1.54~)\nDepends: adduser, libpam-modules, libpam-runtime, lsb-base, openssh-client (= 1:9.6p1-3ubuntu13.19), openssh-sftp-server, procps, ucf, debconf (>= 0.5) | debconf-2.0, libaudit1 (>= 1:2.2.1), libc6 (>= 2.38), libcom-err2 (>= 1.43.9), libcrypt1 (>= 1:4.1.0), libgssapi-krb5-2 (>= 1.17), libkrb5-3 (>= 1.13~alpha1+dfsg), libpam0g (>= 0.99.7.1), libselinux1 (>= 3.1~), libssl3t64 (>= 3.0.13), libwrap0 (>= 7.6-4~), zlib1g (>= 1:1.1.4)\nRecommends: default-logind | logind | libpam-systemd, ncurses-term, xauth, ssh-import-id\nSuggests: molly-guard, monkeysphere, ssh-askpass, ufw\nConflicts: sftp, ssh-socks, ssh2\nReplaces: openssh-client (<< 1:7.9p1-8), ssh, ssh-krb5\nProvides: ssh-server\nSection: net\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://www.openssh.com/\nDescription: secure shell (SSH) server, for secure access from remote machines\n This is the portable version of OpenSSH, a free implementation of\n the Secure Shell protocol as specified by the IETF secsh working\n group.\n .\n Ssh (Secure Shell) is a program for logging into a remote machine\n and for executing commands on a remote machine.\n It provides secure encrypted communications between two untrusted\n hosts over an insecure network. X11 connections and arbitrary TCP/IP\n ports can also be forwarded over the secure channel.\n It can be used to provide applications with a secure communication\n channel.\n .\n This package provides the sshd server.\n .\n In some countries it may be illegal to use any encryption at all\n without a special permit.\n .\n sshd replaces the insecure rshd program, which is obsolete for most\n purposes.\nOriginal-Maintainer: Debian OpenSSH Maintainers <debian-ssh@lists.debian.org>\n"
+    },
+    {
+      "filename": "openssh-sftp-server_1%3a9.6p1-3ubuntu13.19_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/o/openssh/openssh-sftp-server_9.6p1-3ubuntu13.19_amd64.deb",
+      "sha256": "29fcc2c9b1a0c9229bc524f76ff7bd0f525809fc406ad333ae21f3a7398b6d8a",
+      "size": 37122,
+      "control": "Package: openssh-sftp-server\nSource: openssh\nVersion: 1:9.6p1-3ubuntu13.19\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 101\nDepends: openssh-client (= 1:9.6p1-3ubuntu13.19), libc6 (>= 2.38)\nRecommends: openssh-server | ssh-server\nEnhances: openssh-server, ssh-server\nBreaks: openssh-server (<< 1:6.5p1-5)\nReplaces: openssh-server (<< 1:6.5p1-5)\nSection: net\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://www.openssh.com/\nDescription: secure shell (SSH) sftp server module, for SFTP access from remote machines\n This is the portable version of OpenSSH, a free implementation of\n the Secure Shell protocol as specified by the IETF secsh working\n group.\n .\n Ssh (Secure Shell) is a program for logging into a remote machine\n and for executing commands on a remote machine.\n It provides secure encrypted communications between two untrusted\n hosts over an insecure network. X11 connections and arbitrary TCP/IP\n ports can also be forwarded over the secure channel.\n It can be used to provide applications with a secure communication\n channel.\n .\n This package provides the SFTP server module for the SSH server. It\n is needed if you want to access your SSH server with SFTP. The SFTP\n server module also works with other SSH daemons like dropbear.\n .\n OpenSSH's sftp and sftp-server implement revision 3 of the SSH filexfer\n protocol described in:\n .\n  http://www.openssh.com/txt/draft-ietf-secsh-filexfer-02.txt\n .\n Newer versions of the draft will not be supported, though some features\n are individually implemented as extensions.\nOriginal-Maintainer: Debian OpenSSH Maintainers <debian-ssh@lists.debian.org>\n"
+    },
+    {
+      "filename": "openssl_3.0.13-0ubuntu3.15_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/openssl_3.0.13-0ubuntu3.15_amd64.deb",
+      "sha256": "1f2401db59a0beffde6cc47bea3664965ab8fa206b7a5ac8f1cc649cfeeb056b",
+      "size": 1002938,
+      "control": "Package: openssl\nVersion: 3.0.13-0ubuntu3.15\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 1885\nDepends: libc6 (>= 2.34), libssl3t64 (>= 3.0.9)\nSuggests: ca-certificates\nSection: utils\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://www.openssl.org/\nDescription: Secure Sockets Layer toolkit - cryptographic utility\n This package is part of the OpenSSL project's implementation of the SSL\n and TLS cryptographic protocols for secure communication over the\n Internet.\n .\n It contains the general-purpose command line binary /usr/bin/openssl,\n useful for cryptographic operations such as:\n  * creating RSA, DH, and DSA key parameters;\n  * creating X.509 certificates, CSRs, and CRLs;\n  * calculating message digests;\n  * encrypting and decrypting with ciphers;\n  * testing SSL/TLS clients and servers;\n  * handling S/MIME signed or encrypted mail.\nOriginal-Maintainer: Debian OpenSSL Team <pkg-openssl-devel@alioth-lists.debian.net>\n"
+    },
+    {
+      "filename": "pigz_2.8-1_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/universe/p/pigz/pigz_2.8-1_amd64.deb",
+      "sha256": "9c90b8ada9e9c346b787aa7e827c1f70c4a8933ee322171689f2a0311e3f7b5e",
+      "size": 65554,
+      "control": "Package: pigz\nVersion: 2.8-1\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nOriginal-Maintainer: Eduard Bloch <blade@debian.org>\nInstalled-Size: 153\nPre-Depends: dpkg (>= 1.15.6)\nDepends: libc6 (>= 2.34), zlib1g (>= 1:1.2.6)\nSection: utils\nPriority: optional\nHomepage: http://zlib.net/pigz/\nDescription: Parallel Implementation of GZip\n pigz, which stands for Parallel Implementation of GZip, is a fully functional\n replacement for gzip that takes advantage of multiple processors and multiple\n cores when compressing data.\n"
+    },
+    {
+      "filename": "python3_3.12.3-0ubuntu2.1_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/p/python3-defaults/python3_3.12.3-0ubuntu2.1_amd64.deb",
+      "sha256": "e691b9cc40841c41bbdc50bd794c876cb1b1801306ea27b06e9a1458180df1e9",
+      "size": 23004,
+      "control": "Package: python3\nSource: python3-defaults\nVersion: 3.12.3-0ubuntu2.1\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 81\nPre-Depends: python3-minimal (= 3.12.3-0ubuntu2.1)\nDepends: python3.12 (>= 3.12.3-0~), libpython3-stdlib (= 3.12.3-0ubuntu2.1)\nSuggests: python3-doc (>= 3.12.3-0ubuntu2.1), python3-tk (>= 3.12.3-0~), python3-venv (>= 3.12.3-0ubuntu2.1)\nConflicts: python3-distutils\nReplaces: python3-minimal (<< 3.1.2-2)\nProvides: python3-profiler, python3-supported-max (= 3.12), python3-supported-min (= 3.12)\nSection: python\nPriority: optional\nMulti-Arch: allowed\nHomepage: https://www.python.org/\nDescription: interactive high-level object-oriented language (default python3 version)\n Python, the high-level, interactive object oriented language,\n includes an extensive class library with lots of goodies for\n network programming, system administration, sounds and graphics.\n .\n This package is a dependency package, which depends on Debian's default\n Python 3 version (currently v3.12).\nOriginal-Maintainer: Matthias Klose <doko@debian.org>\n"
+    },
+    {
+      "filename": "runc_1.3.4-0ubuntu1~24.04.1_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/r/runc-app/runc_1.3.4-0ubuntu1%7e24.04.1_amd64.deb",
+      "sha256": "6ddd64ed7ef1693dd95620a2b1148a4187ef4fe0819c3c3049fad9385ecfd5dc",
+      "size": 9573850,
+      "control": "Package: runc\nSource: runc-app\nVersion: 1.3.4-0ubuntu1~24.04.1\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 36080\nDepends: libc6 (>= 2.38), libseccomp2 (>= 2.5.0)\nBuilt-Using: golang-1.24 (= 1.24.4-1ubuntu1~24.04.1)\nSection: devel\nPriority: optional\nHomepage: https://github.com/opencontainers/runc\nDescription: Open Container Project - runtime\n \"runc\" is a command line client for running applications packaged according\n to the Open Container Format (OCF) and is a compliant implementation of\n the Open Container Project specification.\n"
+    },
+    {
+      "filename": "squid-common_6.14-0ubuntu0.24.04.4_all.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/s/squid/squid-common_6.14-0ubuntu0.24.04.4_all.deb",
+      "sha256": "e2f5d967ef71db67db1080a4f4aba0e2a6560e584318b3bf867e7fa84494bc12",
+      "size": 214152,
+      "control": "Package: squid-common\nSource: squid\nVersion: 6.14-0ubuntu0.24.04.4\nArchitecture: all\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 381\nDepends: squid-langpack (>= 20110214-1)\nSection: web\nPriority: optional\nMulti-Arch: foreign\nHomepage: http://www.squid-cache.org\nDescription: Full featured Web Proxy cache (HTTP proxy) - common files\n Squid is a high-performance proxy caching server for web clients, supporting\n FTP, ICY and HTTP data objects.\n .\n This package contains common files (MIB and icons)\nOriginal-Maintainer: Luigi Gangitano <luigi@debian.org>\n"
+    },
+    {
+      "filename": "squid-langpack_20220130-1_all.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/s/squid-langpack/squid-langpack_20220130-1_all.deb",
+      "sha256": "4c64f6e36577ca98ab6591e3d9209750f28a93daa1cc2b9b818579dc56fa50fa",
+      "size": 174656,
+      "control": "Package: squid-langpack\nVersion: 20220130-1\nArchitecture: all\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nOriginal-Maintainer: Luigi Gangitano <luigi@debian.org>\nInstalled-Size: 4361\nSection: localization\nPriority: optional\nMulti-Arch: foreign\nHomepage: http://www.squid-cache.org\nDescription: Localized error pages for Squid\n Squid is a high-performance proxy caching server for web clients, supporting\n FTP, gopher, and HTTP data objects.\n .\n This package contains localized error pages.\n"
+    },
+    {
+      "filename": "squid_6.14-0ubuntu0.24.04.4_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/s/squid/squid_6.14-0ubuntu0.24.04.4_amd64.deb",
+      "sha256": "da7e7ee3bf12b23e21ef99b21e7a90daf86d8a0d4bd119e97255d124760592ba",
+      "size": 2745788,
+      "control": "Package: squid\nVersion: 6.14-0ubuntu0.24.04.4\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 8131\nPre-Depends: init-system-helpers (>= 1.54~), adduser\nDepends: libc6 (>= 2.38), libcap2 (>= 1:2.10), libcom-err2 (>= 1.43.9), libcrypt1 (>= 1:4.1.0), libecap3 (>= 1.0.1), libexpat1 (>= 2.0.1), libgcc-s1 (>= 3.4), libgnutls30t64 (>= 3.8.1), libgssapi-krb5-2 (>= 1.17), libkrb5-3 (>= 1.10+dfsg~), libldap2 (>= 2.6.2), libltdl7 (>= 2.4.7), libnetfilter-conntrack3 (>= 1.0.1), libnettle8t64, libpam0g (>= 0.99.7.1), libsasl2-2 (>= 2.1.28+dfsg1), libstdc++6 (>= 13.1), libsystemd0, libtdb1 (>= 1.2.7+git20101214), libxml2 (>= 2.7.4), netbase, logrotate (>= 3.5.4-1), squid-common (>= 6.14-0ubuntu0.24.04.4), lsb-base, libdbi-perl, ssl-cert\nRecommends: libcap2-bin, ca-certificates\nSuggests: squidclient, squid-cgi, squid-purge, resolvconf (>= 0.40), smbclient, ufw, winbind, apparmor\nConflicts: squid-openssl\nSection: web\nPriority: optional\nHomepage: http://www.squid-cache.org\nDescription: Full featured Web Proxy cache (HTTP proxy GnuTLS flavour)\n Squid is a high-performance proxy caching server for web clients, supporting\n FTP, ICY and HTTP data objects.\nOriginal-Maintainer: Luigi Gangitano <luigi@debian.org>\n"
+    },
+    {
+      "filename": "ssl-cert_1.1.2ubuntu1_all.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/s/ssl-cert/ssl-cert_1.1.2ubuntu1_all.deb",
+      "sha256": "99654cc8dd7e2cd4cc907504f7564c0055d8cb06e1bf5aa93f822f007981d271",
+      "size": 17826,
+      "control": "Package: ssl-cert\nVersion: 1.1.2ubuntu1\nArchitecture: all\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 66\nDepends: debconf (>= 0.5) | debconf-2.0, openssl (>= 0.9.8g-9), adduser\nSection: utils\nPriority: optional\nMulti-Arch: foreign\nDescription: simple debconf wrapper for OpenSSL\n This package enables unattended installs of packages that\n need to create SSL certificates.\n .\n It is a simple wrapper for OpenSSL's certificate request utility that\n feeds it with the correct user variables.\nOriginal-Maintainer: Debian Apache Maintainers <debian-apache@lists.debian.org>\n"
+    },
+    {
+      "filename": "sudo_1.9.15p5-3ubuntu5.24.04.2_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/s/sudo/sudo_1.9.15p5-3ubuntu5.24.04.2_amd64.deb",
+      "sha256": "d5361d4021dc7cb60d49b94b186ba908c10e9e38f33a55cba049175411eb1251",
+      "size": 948024,
+      "control": "Package: sudo\nVersion: 1.9.15p5-3ubuntu5.24.04.2\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 3468\nDepends: libapparmor1 (>= 2.7.0~beta1+bzr1772), libaudit1 (>= 1:2.2.1), libc6 (>= 2.38), libpam0g (>= 0.99.7.1), libselinux1 (>= 3.1~), libssl3t64 (>= 3.0.0), zlib1g (>= 1:1.2.0.2), libpam-modules\nConflicts: sudo-ldap\nReplaces: sudo-ldap\nSection: admin\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://www.sudo.ws/\nDescription: Provide limited super user privileges to specific users\n Sudo is a program designed to allow a sysadmin to give limited root\n privileges to users and log root activity.  The basic philosophy is to give\n as few privileges as possible but still allow people to get their work done.\n .\n This version is built with minimal shared library dependencies, use the\n sudo-ldap package instead if you need LDAP support for sudoers.\nOriginal-Maintainer: Sudo Maintainers <sudo@packages.debian.org>\n"
+    },
+    {
+      "filename": "ubuntu-fan_0.12.16+24.04.1_all.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/universe/u/ubuntu-fan/ubuntu-fan_0.12.16%2b24.04.1_all.deb",
+      "sha256": "eeb7e4d6d139aa4fdaa7c17cefc0c235839b0a5100b5538f545eb2da00eda78b",
+      "size": 34228,
+      "control": "Package: ubuntu-fan\nVersion: 0.12.16+24.04.1\nArchitecture: all\nMaintainer: Andy Whitcroft <apw@ubuntu.com>\nInstalled-Size: 143\nDepends: bridge-utils, iproute2 (>> 3.16.0-2ubuntu2~), dnsmasq-base\nRecommends: netcat\nSection: admin\nPriority: optional\nDescription: Ubuntu FAN network support enablement\n Install this package to enable the Ubuntu FAN network support.\n .\n FAN is an IP over IP tunnel protocol which does network range remapping.\n .\n This package contains the init scripts and example configuration\n for Ubuntu FAN.\n"
+    },
+    {
+      "filename": "zsh-common_5.9-6ubuntu2_all.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/z/zsh/zsh-common_5.9-6ubuntu2_all.deb",
+      "sha256": "56d160585b417af0cc04d7372f74a3b734609d7cc43ef8ea6e92bfdfc27f77c3",
+      "size": 4172674,
+      "control": "Package: zsh-common\nSource: zsh\nVersion: 5.9-6ubuntu2\nArchitecture: all\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 16248\nRecommends: zsh\nSuggests: zsh-doc\nBreaks: zsh-doc (<= 5.8-7~)\nReplaces: zsh (<= 5.0.2-1), zsh-doc (<= 5.8-7~)\nSection: shells\nPriority: optional\nMulti-Arch: foreign\nHomepage: https://www.zsh.org/\nDescription: architecture independent files for Zsh\n Zsh is a UNIX command interpreter (shell) usable as an\n interactive login shell and as a shell script command\n processor. Of the standard shells, zsh most closely resembles\n ksh but includes many enhancements. Zsh has command-line editing,\n built-in spelling correction, programmable command completion,\n shell functions (with autoloading), a history mechanism, and a\n host of other features.\n .\n This package contains the common zsh files shared by all\n architectures.\nOriginal-Maintainer: Debian Zsh Maintainers <pkg-zsh-devel@lists.alioth.debian.org>\n"
+    },
+    {
+      "filename": "zsh_5.9-6ubuntu2_amd64.deb",
+      "url": "http://archive.ubuntu.com/ubuntu/pool/main/z/zsh/zsh_5.9-6ubuntu2_amd64.deb",
+      "sha256": "bd5cc8dd3a01a6db38c0a815d75202c356a9c7f378674ba7bed9bc86dcba8af0",
+      "size": 812452,
+      "control": "Package: zsh\nVersion: 5.9-6ubuntu2\nArchitecture: amd64\nMaintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>\nInstalled-Size: 2431\nDepends: zsh-common (= 5.9-6ubuntu2), libc6 (>= 2.38), libcap2 (>= 1:2.10), libtinfo6 (>= 6), debianutils (>= 5.3-1~)\nRecommends: libgdbm6t64 (>= 1.16), libncursesw6 (>= 6), libpcre2-8-0 (>= 10.22)\nSuggests: zsh-doc\nSection: shells\nPriority: optional\nHomepage: https://www.zsh.org/\nDescription: shell with lots of features\n Zsh is a UNIX command interpreter (shell) usable as an\n interactive login shell and as a shell script command\n processor. Of the standard shells, zsh most closely resembles\n ksh but includes many enhancements. Zsh has command-line editing,\n built-in spelling correction, programmable command completion,\n shell functions (with autoloading), a history mechanism, and a\n host of other features.\nOriginal-Maintainer: Debian Zsh Maintainers <pkg-zsh-devel@lists.alioth.debian.org>\n"
+    }
+  ]
+}

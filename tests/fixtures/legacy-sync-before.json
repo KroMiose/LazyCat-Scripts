@@ -1,0 +1,6 @@
+{
+  "commit": "1bc0cc7",
+  "path": "ssh/client/lazycat-ssh.sh",
+  "sha256": "5b939d0a2a2940c086799f9769ce5ce6fd9e27ce6edd378f062646051d2b75a1",
+  "scope": "legacy sync blocked by unavailable CA; disposable user only"
+}

@@ -1,0 +1,214 @@
+#!/usr/bin/env bash
+# Actual legacy entrypoint + real yq, ssh, CA signing and new-session observer.
+set -euo pipefail
+home=/home/legacy-fixture
+useradd -m -s /bin/bash legacy-fixture
+mkdir -p "$home/.ssh" "$home/.lazycat/ssh" "$home/.local/bin" "$home/.local/share/lazycat-ssh/lib" /tmp/legacy-inventory
+cp tests/fixtures/legacy-common-before.sh "$home/.local/share/lazycat-ssh/lib/common.sh"
+cp /tmp/client "$home/.ssh/lazycat_ca_ed25519"
+cp /tmp/client.pub "$home/.ssh/lazycat_ca_ed25519.pub"
+cp /tmp/client-cert.saved "$home/.ssh/lazycat_ca_ed25519-cert.pub"
+cp /home/fixture/.ssh/known_hosts "$home/.ssh/known_hosts"
+cat > "$home/.ssh/config" <<'CONFIG'
+Host fixture-ca
+    HostName 127.0.0.1
+    User root
+    IdentityFile ~/.ssh/lazycat_ca_ed25519
+    IdentitiesOnly yes
+CONFIG
+cat > /tmp/legacy-inventory/inventory.yaml <<'YAML'
+version: 1
+ca:
+  ssh_host: fixture-ca
+  principals: root
+  validity: 12h
+hosts: {}
+YAML
+printf "RAW_URL=http://127.0.0.1:18082/inventory.yaml\nGIST_URL=''\nFILE_NAME=''\n" > "$home/.lazycat/ssh/meta.env"
+chown -R legacy-fixture:legacy-fixture "$home"
+chmod 700 "$home/.ssh"
+chmod 600 "$home/.ssh/config" "$home/.ssh/lazycat_ca_ed25519"
+python3 -m http.server 18082 --bind 127.0.0.1 --directory /tmp/legacy-inventory >/tmp/legacy-http.log 2>&1 &
+http_pid=$!
+ca=/root/.lazycat/ssh-ca/lazycat-ssh-ca
+trap 'kill "$http_pid" 2>/dev/null || true; if [[ -f "${ca}.fixture-unavailable" ]]; then mv "${ca}.fixture-unavailable" "$ca"; fi' EXIT
+deadline=$((SECONDS+15))
+until curl --fail --silent http://127.0.0.1:18082/inventory.yaml >/dev/null; do
+    ((SECONDS<deadline)) || { echo 'legacy HTTP observer failed to start';exit 1; }
+    sleep 0.1
+done
+legacy() { runuser -u legacy-fixture -- env -i HOME="$home" USER=legacy-fixture PATH=/work:/usr/bin:/bin bash "$home/.local/bin/lazycat-ssh" renew-certs; }
+key="$home/.ssh/lazycat_ca_ed25519"
+cert="${key}-cert.pub"
+sha256sum "$key" "${key}.pub" "$home/.ssh/known_hosts" > /tmp/legacy-preserved.sha256
+cp -p "$home/.ssh/known_hosts" /tmp/legacy-known-hosts-before
+# Original client AND lib: ssh-keygen itself expands the quoted tilde. The
+# real-system observation disproves the review's proposed default-path defect.
+# Keep the independent signing/login assertions separate from the RETURN bug.
+test -f "$ca"
+install -o legacy-fixture -g legacy-fixture -m 644 tests/fixtures/legacy-default-ca-common.sh "$home/.local/share/lazycat-ssh/lib/common.sh"
+install -o legacy-fixture -g legacy-fixture -m 755 tests/fixtures/legacy-default-ca-client.sh "$home/.local/bin/lazycat-ssh"
+default_status=0
+legacy > /tmp/legacy-default-path-before.log 2>&1 || default_status=$?
+cat /tmp/legacy-default-path-before.log
+test "$default_status" -ne 0
+grep -F 'tmp_yaml: unbound variable' /tmp/legacy-default-path-before.log
+ssh-keygen -L -f "$cert" | grep -F 'lazycat-ssh-legacy-fixture@lazycat-fixture'
+runuser -u legacy-fixture -- ssh -F "$home/.ssh/config" -o BatchMode=yes -o UpdateHostKeys=no fixture-ca true
+echo 'DISPROVED REVIEW FINDING: original quoted default CA path signs a usable certificate; RETURN cleanup still fails'
+install -o legacy-fixture -g legacy-fixture -m 644 tests/fixtures/legacy-common-before.sh "$home/.local/share/lazycat-ssh/lib/common.sh"
+# Same actual entrypoint test on the frozen pre-fix implementation must expose
+# the predictable temporary filename overwriting an unrelated existing file.
+install -o legacy-fixture -g legacy-fixture -m 755 tests/fixtures/legacy-client-before.sh "$home/.local/bin/lazycat-ssh"
+printf 'unrelated user file\n' > "${cert}.tmp"
+chown legacy-fixture:legacy-fixture "${cert}.tmp"
+old_status=0
+legacy > /tmp/legacy-before.log 2>&1 || old_status=$?
+cat /tmp/legacy-before.log
+if [[ -e "${cert}.tmp" ]]; then echo 'known pre-fix temp clobber was not reproduced';exit 1;fi
+if [[ "$old_status" != 0 ]]; then
+    grep -q 'tmp_yaml: unbound variable' /tmp/legacy-before.log || { echo 'unexpected old failure';exit 1; }
+fi
+printf 'EXPECTED OLD DEFECT: temp clobber; command exit=%s (RETURN trap can fail after printing success)\n' "$old_status"
+# Reconstruct the declared user-owned trust input for the corrected path; this
+# controlled old/new comparison is not a full historical release upgrade test.
+if ! cmp -s /tmp/legacy-known-hosts-before "$home/.ssh/known_hosts"; then
+    echo 'OLD SIDE EFFECT: known_hosts changed during renewal'
+fi
+cp -p /tmp/legacy-known-hosts-before "$home/.ssh/known_hosts"
+install -o legacy-fixture -g legacy-fixture -m 644 ssh/lib/common.sh "$home/.local/share/lazycat-ssh/lib/common.sh"
+install -o legacy-fixture -g legacy-fixture -m 755 ssh/client/lazycat-ssh.sh "$home/.local/bin/lazycat-ssh"
+chmod 750 "$home/.ssh"
+chmod 400 "$key" "${key}.pub"
+chmod 400 "$cert"
+stat -c '%a %u %g' "$home/.ssh" "$key" "${key}.pub" "$cert" > /tmp/legacy-permissions-before
+printf 'unrelated user file\n' > "${cert}.tmp"
+chown legacy-fixture:legacy-fixture "${cert}.tmp"
+legacy
+stat -c '%a %u %g' "$home/.ssh" "$key" "${key}.pub" "$cert" > /tmp/legacy-permissions-after
+cmp /tmp/legacy-permissions-before /tmp/legacy-permissions-after
+cmp "${cert}.tmp" <(printf 'unrelated user file\n')
+sha256sum -c /tmp/legacy-preserved.sha256
+# New authentication session is the independent proof of a usable certificate.
+runuser -u legacy-fixture -- ssh -F "$home/.ssh/config" -o BatchMode=yes -o UpdateHostKeys=no fixture-ca true
+sha256sum "$cert" > /tmp/legacy-cert-before-failure.sha256
+mv "$ca" "${ca}.fixture-unavailable"
+if legacy; then echo 'legacy CA failure reported success';exit 1;fi
+sha256sum -c /tmp/legacy-cert-before-failure.sha256
+cmp "${cert}.tmp" <(printf 'unrelated user file\n')
+mv "${ca}.fixture-unavailable" "$ca"
+legacy
+sha256sum -c /tmp/legacy-preserved.sha256
+cmp "${cert}.tmp" <(printf 'unrelated user file\n')
+runuser -u legacy-fixture -- ssh -F "$home/.ssh/config" -o BatchMode=yes -o UpdateHostKeys=no fixture-ca true
+mv "${key}.pub" "${key}.pub.saved"
+if legacy; then echo 'partial key pair accepted';exit 1;fi
+mv "${key}.pub.saved" "${key}.pub"
+sha256sum -c /tmp/legacy-preserved.sha256
+mv "$cert" "${cert}.saved"
+ln -s "${cert}.saved" "$cert"
+sha256sum "${cert}.saved" > /tmp/legacy-cert-link-target.sha256
+if legacy; then echo 'certificate symlink accepted';exit 1;fi
+sha256sum -c /tmp/legacy-cert-link-target.sha256
+[[ -L "$cert" ]]
+rm "$cert"
+mv "${cert}.saved" "$cert"
+sha256sum -c /tmp/legacy-preserved.sha256
+echo 'PASS actual old/new legacy entrypoint, default CA path, valid new session, failure preservation and rerun'
+
+# One fetched inventory, valid configuration first, unavailable signer second.
+# Declare the new alias's host trust in the fixture; product sync must not enroll it.
+ssh-keyscan -t ed25519 127.0.0.1 2>/dev/null | awk '{$1="fixture-target";print}' >> "$home/.ssh/known_hosts"
+sha256sum "$key" "${key}.pub" "$home/.ssh/known_hosts" "$cert" > /tmp/legacy-sync-preserved.sha256
+cp -p "$home/.ssh/config" /tmp/legacy-sync-config.before
+cat > /tmp/legacy-inventory/inventory.yaml <<'YAML'
+version: 1
+ca:
+  ssh_host: fixture-ca
+  principals: root
+  validity: 12h
+hosts:
+  fixture-target:
+    host: 127.0.0.1
+    user: root
+    port: 22
+YAML
+mv "$ca" "${ca}.fixture-unavailable"
+for implementation in old new; do
+    entry=ssh/client/lazycat-ssh.sh
+    [[ "$implementation" != old ]] || entry=tests/fixtures/legacy-sync-before.sh
+    install -o legacy-fixture -g legacy-fixture -m 755 "$entry" "$home/.local/bin/lazycat-ssh"
+    requests_before=$(grep -c 'GET /inventory.yaml' /tmp/legacy-http.log)
+    status=0
+    runuser -u legacy-fixture -- env -i HOME="$home" USER=legacy-fixture PATH=/work:/usr/bin:/bin bash "$home/.local/bin/lazycat-ssh" sync > "/tmp/legacy-sync-$implementation.log" 2>&1 || status=$?
+    cat "/tmp/legacy-sync-$implementation.log"
+    [[ "$status" != 0 ]]
+    sha256sum -c /tmp/legacy-sync-preserved.sha256
+    if [[ "$implementation" == old ]]; then
+        cmp /tmp/legacy-sync-config.before "$home/.ssh/config"
+        [[ ! -e "$home/.ssh/config.d/lazycat.conf" ]]
+        echo 'EXPECTED OLD DEFECT: unavailable CA prevents valid legacy SSH configuration update'
+    else
+        [[ "$status" == 1 ]]
+        [[ $(( $(grep -c 'GET /inventory.yaml' /tmp/legacy-http.log) - requests_before )) == 1 ]]
+        grep -F '配置已同步，但证书续签失败' /tmp/legacy-sync-new.log
+        runuser -u legacy-fixture -- ssh -F "$home/.ssh/config" -G fixture-target > /tmp/legacy-sync-effective
+        grep -qx 'hostname 127.0.0.1' /tmp/legacy-sync-effective
+        runuser -u legacy-fixture -- ssh -F "$home/.ssh/config" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no fixture-target true
+    fi
+done
+mv "${ca}.fixture-unavailable" "$ca"
+legacy
+runuser -u legacy-fixture -- ssh -F "$home/.ssh/config" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no fixture-target true
+echo 'PASS legacy config commits independently, one inventory fetch, preserved old certificate login and recovered renewal'
+
+# Generated route aliases must not shadow another inventory host. This uses
+# the same real yq and complete client entrypoint, with no CA/network action.
+cat > /tmp/legacy-inventory/inventory.yaml <<'YAML'
+version: 1
+hosts:
+  box:
+    lan_host: 192.0.2.1
+  box-lan:
+    host: 192.0.2.2
+YAML
+cp -a "$home/.ssh" /tmp/legacy-alias-original
+for implementation in old new; do
+    entry=ssh/client/lazycat-ssh.sh
+    [[ "$implementation" != old ]] || entry=tests/fixtures/legacy-sync-before.sh
+    install -o legacy-fixture -g legacy-fixture -m 755 "$entry" "$home/.local/bin/lazycat-ssh"
+    status=0
+    runuser -u legacy-fixture -- env -i HOME="$home" USER=legacy-fixture PATH=/work:/usr/bin:/bin bash "$home/.local/bin/lazycat-ssh" sync > "/tmp/legacy-alias-$implementation.log" 2>&1 || status=$?
+    cat "/tmp/legacy-alias-$implementation.log"
+    if [[ "$implementation" == old ]]; then
+        [[ "$status" == 0 ]]
+        [[ $(grep -c '^Host box-lan$' "$home/.ssh/config.d/lazycat.conf") == 2 ]]
+        echo 'EXPECTED OLD DEFECT: colliding generated aliases published successfully'
+        # Explicit fixture reset, not a claim that the old client recovers.
+        rm -rf "$home/.ssh"
+        cp -a /tmp/legacy-alias-original "$home/.ssh"
+    else
+        [[ "$status" != 0 ]]
+        grep -F '别名冲突' /tmp/legacy-alias-new.log
+        diff -r /tmp/legacy-alias-original "$home/.ssh"
+    fi
+done
+echo 'PASS real yq and old/new CLI reject generated alias collision without publishing config'
+
+cat > /tmp/legacy-inventory/inventory.yaml <<'YAML'
+version: 1
+hosts:
+  valid-target:
+    host: 192.0.2.5
+YAML
+printf '# >>> LazyCat SSH BEGIN >>>\nHost retained\n HostName original.invalid\n' > "$home/.ssh/config"
+chmod 640 "$home/.ssh/config"
+cp -a "$home/.ssh" /tmp/legacy-damaged-marker-before
+status=0
+runuser -u legacy-fixture -- env -i HOME="$home" USER=legacy-fixture PATH=/work:/usr/bin:/bin bash "$home/.local/bin/lazycat-ssh" sync > /tmp/legacy-damaged-marker.log 2>&1 || status=$?
+cat /tmp/legacy-damaged-marker.log
+[[ "$status" != 0 ]]
+grep -F '托管标记损坏' /tmp/legacy-damaged-marker.log
+diff -r /tmp/legacy-damaged-marker-before "$home/.ssh"
+[[ $(stat -c %a "$home/.ssh/config") == 640 ]]
+echo 'PASS valid inventory with damaged Include markers leaves both SSH files and permissions unchanged'

@@ -1,0 +1,6 @@
+{
+  "commit": "be0965d",
+  "path": "linux/setup_squid_proxy.sh",
+  "sha256": "350ba32fdc3fe34d5a2a2b975231a39dbe5728f6b2dd0dff29bd4cf9759624ea",
+  "scope": "actual historical port preference defect; only execute inside disposable Linux guest"
+}

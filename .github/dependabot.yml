@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /ssh
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /codex-hud
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /tests/tools
+    schedule:
+      interval: weekly

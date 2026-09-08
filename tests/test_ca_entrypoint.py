@@ -1,0 +1,159 @@
+from pathlib import Path
+import subprocess
+import signal
+import tempfile
+import unittest
+from lib.support import ROOT, environment, snapshot
+
+class CAEntrypoint(unittest.TestCase):
+    def test_custom_location_is_persisted_without_rekey(self):
+        with tempfile.TemporaryDirectory(prefix='ca custom ') as directory:
+            home=Path(directory);ca=home/'custom 中文 CA';script=ROOT/'ssh/ca/lazycat-ssh-ca.sh'
+            env=environment(home)
+            result=subprocess.run(['bash',str(script),'init','--dir',str(ca),'--name','personal-ca'],env=env,capture_output=True,text=True,timeout=15)
+            self.assertEqual(result.returncode,0,result.stderr)
+            private=(ca/'personal-ca').read_bytes();public=(ca/'personal-ca.pub').read_bytes()
+            result=subprocess.run(['bash',str(script),'show'],env=env,capture_output=True,timeout=10)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertEqual(result.stdout,public)
+            result=subprocess.run(['bash',str(script),'init','--dir',str(ca),'--name','personal-ca'],env=env,capture_output=True,timeout=10)
+            self.assertNotEqual(result.returncode,0)
+            self.assertEqual((ca/'personal-ca').read_bytes(),private)
+            self.assertEqual((ca/'personal-ca').stat().st_mode&0o777,0o600)
+
+    def test_old_new_custom_location_survives_new_process(self):
+        for legacy in (True, False):
+            with self.subTest(legacy=legacy), tempfile.TemporaryDirectory(prefix='ca historical ') as directory:
+                home=Path(directory);ca=home/'custom 中文 CA'
+                script=ROOT/('tests/fixtures/legacy/ssh/ca/lazycat-ssh-ca.sh' if legacy else 'ssh/ca/lazycat-ssh-ca.sh')
+                initial=subprocess.run(['bash',str(script)],input='1\n'+str(ca)+'\npersonal-ca\n4\n',env=environment(home),capture_output=True,text=True,cwd=home,timeout=15)
+                self.assertEqual(initial.returncode,0,initial.stdout+initial.stderr)
+                before=snapshot(home)
+                # EOF only observes the freshly started menu; it must not mutate
+                # or silently generate a second CA at the default location.
+                next_run=subprocess.run(['bash',str(script)],input='',env=environment(home),capture_output=True,text=True,cwd=home,timeout=10)
+                self.assertNotEqual(next_run.returncode,0)
+                self.assertEqual(snapshot(home),before)
+                self.assertIn('状态：未初始化' if legacy else '状态：已初始化',next_run.stdout)
+                self.assertTrue((ca/'personal-ca').is_file())
+                self.assertFalse((home/'.lazycat/ssh-ca/lazycat-ssh-ca').exists())
+
+    def test_location_rollback_and_concurrent_edit_preserve_ca_keys(self):
+        for concurrent in (False, True):
+            with self.subTest(concurrent=concurrent), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory);script=ROOT/'ssh/ca/lazycat-ssh-ca.sh'
+                first=home/'first CA';second=home/'second CA';location=home/'.lazycat/ssh-ca-location'
+                init=['bash',str(script),'init','--dir']
+                r=subprocess.run(init+[str(first),'--name','personal'],env=environment(home),capture_output=True,text=True,timeout=15)
+                self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+                private=(first/'personal').read_bytes();public=(first/'personal.pub').read_bytes()
+                original=location.read_bytes()
+                extra={}
+                if concurrent:
+                    injection=home/'race.sh'
+                    injection.write_text('''cp() {
+  command cp "$@" || return
+  for last in "$@"; do :; done
+  case "$last" in
+    "$HOME/.lazycat/ssh-ca-location".lazycat-operation.*/after)
+      printf '/user/new-choice\nuser-ca\n' > "$HOME/.lazycat/ssh-ca-location" ;;
+  esac
+}
+''')
+                    extra['BASH_ENV']=str(injection)
+                r=subprocess.run(init+[str(second),'--name','personal'],env=environment(home,extra),capture_output=True,text=True,timeout=15)
+                if concurrent:
+                    self.assertEqual(r.returncode,3,r.stdout+r.stderr)
+                    self.assertEqual(location.read_text(),'/user/new-choice\nuser-ca\n')
+                else:
+                    self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+                    operation=next(p for p in location.parent.glob('ssh-ca-location.lazycat-operation.*') if (p/'before').read_bytes()==original)
+                    r=subprocess.run(['bash',str(ROOT/'common/lazycat-check.sh'),'rollback',str(operation)],env=environment(home),capture_output=True,text=True,timeout=10)
+                    self.assertEqual(r.returncode,0,r.stdout+r.stderr)
+                    self.assertEqual(location.read_bytes(),original)
+                    shown=subprocess.run(['bash',str(script),'show'],env=environment(home),capture_output=True,timeout=10)
+                    self.assertEqual(shown.returncode,0,shown.stderr);self.assertEqual(shown.stdout,public)
+                # The location transaction never removes either CA. A failed
+                # record update is not authority to discard a generated key.
+                self.assertEqual((first/'personal').read_bytes(),private)
+                self.assertEqual((first/'personal.pub').read_bytes(),public)
+                self.assertTrue((second/'personal').is_file())
+                self.assertTrue((second/'personal.pub').is_file())
+
+    def test_key_creation_refuses_ancestor_link_and_concurrent_key(self):
+        for scenario in ('ancestor-link','concurrent-private','concurrent-public'):
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory);target=home/'ca';env=environment(home)
+                if scenario=='ancestor-link':
+                    outside=home/'outside';outside.mkdir()
+                    (home/'linked').symlink_to(outside,target_is_directory=True)
+                    target=home/'linked/ca'
+                else:
+                    target.mkdir()
+                    injection=home/'race.sh'
+                    injection.write_text('''ssh-keygen() {
+ printf 'concurrent user key\\n' > "$CA_TEST_TARGET"
+ command ssh-keygen "$@"
+}
+''')
+                    selected=target/('personal' if scenario=='concurrent-private' else 'personal.pub')
+                    env=environment(home,{'BASH_ENV':str(injection),'CA_TEST_TARGET':str(selected)})
+                result=subprocess.run(['bash',str(ROOT/'ssh/ca/lazycat-ssh-ca.sh'),'init','--dir',str(target),'--name','personal'],
+                    input='y\n',env=env,capture_output=True,text=True,timeout=15)
+                self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
+                self.assertFalse((home/'.lazycat/ssh-ca-location').exists())
+                if scenario=='ancestor-link':self.assertEqual(list(outside.iterdir()),[])
+                else:
+                    self.assertEqual(selected.read_text(),'concurrent user key\n')
+                    candidates=list(target.glob('.lazycat-ca-init.*'))
+                    self.assertEqual(len(candidates),1)
+                    self.assertEqual(candidates[0].stat().st_mode&0o777,0o700)
+                    self.assertEqual((candidates[0]/'key').stat().st_mode&0o777,0o600)
+
+    def test_interrupted_pair_recovery_never_rekeys_or_overwrites(self):
+        for stage in ('private','public','recover-kill','existing-location','foreign-public','location-edit','permission-edit'):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory);ca=home/'CA 中文';script=ROOT/'ssh/ca/lazycat-ssh-ca.sh'
+                if stage=='existing-location':
+                    initial=subprocess.run(['bash',str(script),'init','--dir',str(home/'first CA'),'--name','first'],
+                        env=environment(home),capture_output=True,text=True,timeout=15)
+                    self.assertEqual(initial.returncode,0,initial.stdout+initial.stderr)
+                    first_before=snapshot(home/'first CA')
+                injection=home/'kill.sh'
+                injection.write_text('link() { command link "$@" || return; if [[ "$2" == "$KILL_TARGET" ]]; then kill -KILL -- "-$$"; fi; }\n')
+                target=ca/('personal.pub' if stage=='public' else 'personal')
+                result=subprocess.run(['bash',str(script),'init','--dir',str(ca),'--name','personal'],
+                    env=environment(home,{'BASH_ENV':str(injection),'KILL_TARGET':str(target)}),capture_output=True,text=True,timeout=15,start_new_session=True)
+                self.assertEqual(result.returncode,-signal.SIGKILL,result.stdout+result.stderr)
+                operation=next(ca.glob('.lazycat-ca-init.*'))
+                private=(operation/'key').read_bytes();public=(operation/'key.pub').read_bytes()
+                if stage=='permission-edit':(ca/'personal').chmod(0o640)
+                if stage=='foreign-public':(ca/'personal.pub').write_text('operator key\n')
+                if stage=='location-edit':
+                    location=home/'.lazycat/ssh-ca-location';location.parent.mkdir(parents=True)
+                    location.write_text('/operator/CA\nother\n')
+                before=snapshot(home)
+                recover=['bash',str(script),'recover-init',str(operation)]
+                if stage=='recover-kill':
+                    interrupted=subprocess.run(recover,env=environment(home,{'BASH_ENV':str(injection),'KILL_TARGET':str(ca/'personal.pub')}),
+                        capture_output=True,text=True,timeout=15,start_new_session=True)
+                    self.assertEqual(interrupted.returncode,-signal.SIGKILL,interrupted.stdout+interrupted.stderr)
+                    self.assertEqual((ca/'personal').read_bytes(),private)
+                    self.assertEqual((ca/'personal.pub').read_bytes(),public)
+                result=subprocess.run(recover,env=environment(home),capture_output=True,text=True,timeout=15)
+                if stage in ('foreign-public','location-edit','permission-edit'):
+                    self.assertEqual(result.returncode,3,result.stdout+result.stderr)
+                    self.assertEqual(snapshot(home),before)
+                else:
+                    self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                    self.assertEqual((ca/'personal').read_bytes(),private)
+                    self.assertEqual((ca/'personal.pub').read_bytes(),public)
+                    shown=subprocess.run(['bash',str(script),'show'],env=environment(home),capture_output=True,timeout=10)
+                    self.assertEqual(shown.returncode,0,shown.stderr);self.assertEqual(shown.stdout,public)
+                    after=snapshot(home)
+                    result=subprocess.run(recover,env=environment(home),capture_output=True,text=True,timeout=15)
+                    self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                    self.assertEqual(snapshot(home),after)
+                if stage=='existing-location':self.assertEqual(snapshot(home/'first CA'),first_before)
+                self.assertEqual((operation/'key').read_bytes(),private)
+                self.assertEqual((operation/'key.pub').read_bytes(),public)

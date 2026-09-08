@@ -16,13 +16,14 @@ const ruleBegin = "<!-- codex-hud:begin -->"
 const ruleEnd = "<!-- codex-hud:end -->"
 
 type installation struct {
-	FormatVersion int            `json:"format_version"`
-	ToolVersion   string         `json:"tool_version,omitempty"`
-	Detached      bool           `json:"detached,omitempty"`
-	Codex         string         `json:"codex_home"`
-	Binary        string         `json:"binary"`
-	Groups        map[string]any `json:"groups"`
-	Rule          string         `json:"rule"`
+	FormatVersion         int            `json:"format_version"`
+	PreserveCustomization bool           `json:"preserve_customization,omitempty"`
+	ToolVersion           string         `json:"tool_version,omitempty"`
+	Detached              bool           `json:"detached,omitempty"`
+	Codex                 string         `json:"codex_home"`
+	Binary                string         `json:"binary"`
+	Groups                map[string]any `json:"groups"`
+	Rule                  string         `json:"rule"`
 }
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
@@ -258,7 +259,18 @@ func (a *app) setupChanges() ([]fileChange, error) {
 		list, _ := hooks[event].([]any)
 		hooks[event] = append(list, g)
 	}
-	newReceipt.Rule = ruleText(a.paths.Binary)
+	if r.PreserveCustomization {
+		newReceipt.PreserveCustomization = true
+		for event, group := range r.Groups {
+			hooks := m["hooks"].(map[string]any)
+			list := hooks[event].([]any)
+			list[len(list)-1] = group
+			newReceipt.Groups[event] = group
+		}
+		newReceipt.Rule = r.Rule
+	} else {
+		newReceipt.Rule = ruleText(a.paths.Binary)
+	}
 	if text != "" && !strings.HasSuffix(text, "\n") {
 		newReceipt.Rule = "\n" + newReceipt.Rule
 	}
