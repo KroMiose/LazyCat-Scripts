@@ -37,6 +37,11 @@ cp -p "$work/config.before" /etc/squid/squid.conf
 cp -p "$work/passwd.before" /etc/squid/passwd
 systemctl restart squid
 observer() {
+    local deadline=$((SECONDS+15))
+    until ss -H -ltn 'sport = :51938' | grep -q .; do
+        ((SECONDS<deadline)) || { journalctl --no-pager -u squid -n 40; return 1; }
+        sleep .1
+    done
     /usr/bin/curl --fail --max-time 15 --noproxy '' --proxy http://127.0.0.1:51938 --proxy-user fixture:fixture-test-only http://127.0.0.1:18080 >/dev/null
 }
 observer
@@ -72,6 +77,22 @@ systemctl is-enabled --quiet squid
 observer
 code=$(/usr/bin/curl --max-time 15 --noproxy '' --proxy http://127.0.0.1:51938 --proxy-user rotated:new-fixture-only -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080)
 [[ "$code" == 407 ]]
+# A readiness timeout after a successful restart must restore the old port and
+# credentials too. The observer below uses the real ss and makes one HTTP request.
+cat > "$work/bin/ss" <<'SH'
+#!/bin/sh
+exit 0
+SH
+chmod 755 "$work/bin/ss"
+status=0
+printf '51939\nn\nrotated\nnew-fixture-only\n' | SQUID_FAULT="$work" PATH="$work/bin:/usr/sbin:/usr/bin:/sbin:/bin" bash linux/setup_squid_proxy.sh --rotate-credentials > "$work/new-readiness.log" 2>&1 || status=$?
+cat "$work/new-readiness.log"
+[[ "$status" != 0 ]]
+grep -q 'Squid 未在限定时间内监听端口' "$work/new-readiness.log"
+sha256sum -c "$work/before.sha256"
+observer
+[[ -z "$(ss -H -ltn 'sport = :51939')" ]]
+rm "$work/bin/ss"
 pid=$(systemctl show squid --property=MainPID --value)
 printf '51938\n' | bash linux/setup_squid_proxy.sh
 [[ "$(systemctl show squid --property=MainPID --value)" == "$pid" ]]

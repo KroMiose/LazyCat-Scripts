@@ -53,6 +53,7 @@ install_dependencies() {
     local need_install=()
     command -v squid &>/dev/null    || need_install+=("squid")
     command -v htpasswd &>/dev/null || need_install+=("apache2-utils")
+    command -v ss &>/dev/null       || need_install+=("iproute2")
 
     if [ ${#need_install[@]} -eq 0 ]; then
         log_success "所有依赖已就绪（squid, apache2-utils）。"
@@ -203,21 +204,15 @@ start_service() {
 verify_deployment() {
     log_step "验证部署结果"
 
-    sleep 2
-
-    local service_status
-    service_status=$(systemctl is-active squid)
-    if [ "$service_status" != "active" ]; then
-        log_error "Squid 服务未能正常启动！请运行 'journalctl -u squid -n 50' 查看日志。"
-        exit 1
-    fi
-    log_success "服务状态: active"
-
-    if ss -tlnp | grep -q ":${PROXY_PORT}"; then
-        log_success "端口监听正常: *:${PROXY_PORT}"
-    else
-        log_warn "未检测到端口 ${PROXY_PORT} 的监听，请稍后手动验证: ss -tlnp | grep ${PROXY_PORT}"
-    fi
+    local deadline=$((SECONDS+20))
+    until systemctl is-active --quiet squid && ss -H -ltn "sport = :${PROXY_PORT}" | grep -q .; do
+        if (( SECONDS >= deadline )); then
+            log_error "Squid 未在限定时间内监听端口 ${PROXY_PORT}。"
+            return 1
+        fi
+        sleep 0.1
+    done
+    log_success "Squid 服务已运行，端口 ${PROXY_PORT} 已就绪。"
 }
 
 # --- 获取服务器公网 IP ---
@@ -299,7 +294,7 @@ main() {
         mv "$SQUID_CANDIDATE" /etc/squid/squid.conf
         systemctl restart squid
         systemctl enable squid
-        systemctl is-active --quiet squid
+        verify_deployment
     )
     result=$?
     set -e
