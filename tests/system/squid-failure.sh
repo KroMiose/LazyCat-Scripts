@@ -238,19 +238,21 @@ assert any(row['status']=='recovery-conflict' and row['path'].startswith('/etc/s
 PY
     fi
 done
-# This conflicting user edit requires explicit resolution. Reconstruct the
-# fixture baseline for subsequent independent observations, not product recovery.
-cp --preserve=mode,ownership,timestamps,xattr "$work/config.before" /etc/squid/squid.conf
-cp --preserve=mode,ownership,timestamps,xattr "$work/passwd.before" /etc/squid/passwd
-/usr/bin/systemctl restart squid
-observer
-echo 'PASS failure recovery preserves later administrator edit and reports unresolved pair/service state'
-
-# The administrator explicitly restored both fixture files above. Complete the
-# pending record only after the public recovery command verifies that state.
+# Explicit fixture reconciliation, not product recovery: construct new files
+# from this operation's exact baseline. Copying onto an existing file can keep
+# destination-only xattrs, which would leave the injected edit unresolved.
 for operation in /etc/squid/.lazycat-operation.*; do
     if [[ -f "$operation/journal-version" && "$(cat "$operation/status")" == recovery-conflict ]]; then
+        for resource in config passwd; do
+            target=/etc/squid/passwd
+            [[ "$resource" != config ]] || target=/etc/squid/squid.conf
+            restored=$(mktemp /etc/squid/.fixture-restore.XXXXXX)
+            cp --preserve=mode,ownership,timestamps,xattr "$operation/$resource.before" "$restored"
+            mv "$restored" "$target"
+        done
         bash linux/setup_squid_proxy.sh --recover "$operation"
     fi
 done
+observer
+echo 'PASS failure recovery preserves later administrator edit and reports unresolved pair/service state'
 python3 tests/system/squid-interruption.py
