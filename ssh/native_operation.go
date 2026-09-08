@@ -149,10 +149,13 @@ func readOperation(dir, id string) (operation, error) {
 	if e != nil {
 		return op, e
 	}
-	if !s.Exists || json.Unmarshal(s.Data, &op) != nil || op.Version != 1 || op.ID != id {
+	if !s.Exists || json.Unmarshal(s.Data, &op) != nil || !validOperationVersion(op) || op.ID != id {
 		return op, errors.New("invalid operation record")
 	}
 	return op, nil
+}
+func validOperationVersion(op operation) bool {
+	return (op.Version == 1 && op.Native == nil) || (op.Version == 2 && op.Native != nil)
 }
 func validNativePhase(op operation) bool {
 	if op.Native == nil {
@@ -167,7 +170,7 @@ func validNativePhase(op operation) bool {
 	return false
 }
 func validateNativeOperation(p paths, op operation) error {
-	if !validNativePhase(op) {
+	if op.Version != 2 || !validNativePhase(op) {
 		return &migrationConflict{"invalid native operation phase"}
 	}
 	n := op.Native
@@ -246,7 +249,7 @@ func beginNative(p paths, changes []change, before, after nativeState) (operatio
 	if e != nil {
 		return operation{}, e
 	}
-	op := operation{Version: 1, Status: "prepared", Changes: changes, Native: &nativeOperation{Guards: guards, Home: p.Home, UID: os.Geteuid(), Phase: "prepared", Before: before, After: after}}
+	op := operation{Version: 2, Status: "prepared", Changes: changes, Native: &nativeOperation{Guards: guards, Home: p.Home, UID: os.Geteuid(), Phase: "prepared", Before: before, After: after}}
 	nonce := make([]byte, 8)
 	if _, e := rand.Read(nonce); e != nil {
 		return op, e

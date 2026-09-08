@@ -78,33 +78,6 @@ func timerFiles(p paths, minutes int) map[string]string {
 	dir := filepath.Join(p.Home, ".config/systemd/user")
 	return map[string]string{filepath.Join(dir, "lazycat-ssh-renew.service"): "[Unit]\nDescription=LazyCat SSH renew certificates\n[Service]\nType=oneshot\nExecStart=" + `"` + strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(p.Binary, "%", "%%"), `\`, `\\`), `"`, `\"`) + `"` + " renew-certs --scheduled\nEnvironment=PATH=/usr/bin:/bin:/usr/sbin:/sbin\n", filepath.Join(dir, "lazycat-ssh-renew.timer"): fmt.Sprintf("[Unit]\nDescription=LazyCat SSH certificate renewal\n[Timer]\nOnBootSec=1min\nOnUnitActiveSec=%dmin\nUnit=lazycat-ssh-renew.service\n[Install]\nWantedBy=timers.target\n", minutes)}
 }
-func serviceTimer(p paths, enable bool) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	var cmds [][]string
-	if runtime.GOOS == "darwin" {
-		domain := receiptLaunchDomain(readTimerReceiptForStatus(p))
-		path := filepath.Join(p.Home, "Library/LaunchAgents/com.lazycat.ssh.renew.plist")
-		if enable {
-			cmds = [][]string{{"/bin/launchctl", "bootstrap", domain, path}}
-		} else {
-			cmds = [][]string{{"/bin/launchctl", "bootout", domain + "/com.lazycat.ssh.renew"}}
-		}
-	} else {
-		cmds = [][]string{{"systemctl", "--user", "daemon-reload"}}
-		if enable {
-			cmds = append(cmds, []string{"systemctl", "--user", "enable", "--now", "lazycat-ssh-renew.timer"})
-		} else {
-			cmds = append(cmds, []string{"systemctl", "--user", "disable", "--now", "lazycat-ssh-renew.timer"})
-		}
-	}
-	for _, args := range cmds {
-		if b, e := exec.CommandContext(ctx, args[0], args[1:]...).CombinedOutput(); e != nil {
-			return fmt.Errorf("timer action failed: %s: %s", args[0], strings.TrimSpace(string(b)))
-		}
-	}
-	return nil
-}
 func installTimer(p paths, args []string) error {
 	minutes := timerInterval(p)
 	if len(args) > 1 {

@@ -86,7 +86,11 @@ func TestNativeCrashHelper(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if e = run(context.Background(), p, []string{"install-renew", "31"}); e != nil {
+	args := []string{"install-renew", "31"}
+	if id := os.Getenv("LAZYCAT_NATIVE_ROLLBACK"); id != "" {
+		args = []string{"rollback", id}
+	}
+	if e = run(context.Background(), p, args); e != nil {
 		t.Fatal(e)
 	}
 	t.Fatal("expected fixture to kill this child")
@@ -164,5 +168,92 @@ func TestNativeInterruptedRecovery(t *testing.T) {
 				t.Fatal("rerun failed", e)
 			}
 		})
+	}
+}
+
+func TestNativePublicRollbackPreservesLaterChanges(t *testing.T) {
+	p := nativeFixture(t)
+	if e := run(context.Background(), p, []string{"install-renew", "31"}); e != nil {
+		t.Fatal(e)
+	}
+	entries, e := os.ReadDir(p.Ops)
+	if e != nil {
+		t.Fatal(e)
+	}
+	var op operation
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".json") {
+			op, e = readOperation(p.Ops, strings.TrimSuffix(entry.Name(), ".json"))
+			if e != nil {
+				t.Fatal(e)
+			}
+		}
+	}
+	for _, c := range op.Changes {
+		if c.Path == p.Binary {
+			t.Fatal("interval change backed up unchanged binary")
+		}
+	}
+	guardFound := false
+	for _, g := range op.Native.Guards {
+		if g.Path == p.Binary {
+			guardFound = true
+		}
+	}
+	if !guardFound {
+		t.Fatal("missing binary dependency guard")
+	}
+	fixture := os.Getenv("NATIVE_FIXTURE")
+	if e = os.WriteFile(filepath.Join(fixture, "enabled"), []byte("disabled\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if e = run(context.Background(), p, []string{"rollback", op.ID}); e == nil {
+		t.Fatal("overwrote later task disablement")
+	}
+	enabled, _ := os.ReadFile(filepath.Join(fixture, "enabled"))
+	if string(enabled) != "disabled\n" {
+		t.Fatal("changed enablement")
+	}
+	if e = os.WriteFile(filepath.Join(fixture, "enabled"), []byte("enabled\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	original, _ := os.ReadFile(p.Binary)
+	if e = os.WriteFile(p.Binary, []byte("user replacement\n"), 0700); e != nil {
+		t.Fatal(e)
+	}
+	calls, _ := os.ReadFile(filepath.Join(fixture, "calls"))
+	if e = run(context.Background(), p, []string{"rollback", op.ID}); e == nil {
+		t.Fatal("ignored replaced program")
+	}
+	after, _ := os.ReadFile(filepath.Join(fixture, "calls"))
+	if string(after) != string(calls) {
+		t.Fatal("stopped task before dependency conflict")
+	}
+	if e = os.WriteFile(p.Binary, original, 0700); e != nil {
+		t.Fatal(e)
+	}
+	if e = os.WriteFile(filepath.Join(fixture, "crash"), []byte("daemon-reload"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	child := exec.Command(os.Args[0], "-test.run=^TestNativeCrashHelper$")
+	child.Env = append(os.Environ(), "LAZYCAT_NATIVE_CRASH_HELPER=1", "LAZYCAT_NATIVE_ROLLBACK="+op.ID)
+	output, e := child.CombinedOutput()
+	if e == nil || !strings.Contains(e.Error(), "killed") {
+		t.Fatalf("expected rollback SIGKILL: %v %s", e, output)
+	}
+	interrupted, e := readOperation(p.Ops, op.ID)
+	if e != nil || interrupted.Native.Phase != "rollback-activating" {
+		t.Fatal("missing interrupted rollback phase", e)
+	}
+	if e = run(context.Background(), p, []string{"rollback", op.ID}); e != nil {
+		t.Fatal("interrupted rollback could not resume", e)
+	}
+	timer, _ := os.ReadFile(os.Getenv("NATIVE_TIMER"))
+	if !strings.Contains(string(timer), "OnUnitActiveSec=30min") {
+		t.Fatal("old interval not restored")
+	}
+	active, _ := os.ReadFile(filepath.Join(fixture, "active"))
+	if string(active) != "active\n" {
+		t.Fatal("task not restarted after recovery")
 	}
 }
