@@ -340,3 +340,7 @@ Go补充当前源码和当前Shell归档的精确归属识别，保留历史摘�
 Zsh移除独立的临时配置/锁/备份实现，复用已有文件事务与GNU原生属性复制；同目录候选通过zsh -n后提交，当前用户编辑及旧锁保守阻止修改。新记录可由检查器发现并显式恢复锁/回滚，保留历史备份，不承诺撤销包安装和插件下载。真实旧/新CLI及SIGKILL证明旧流程没有公共恢复记录，新流程恢复原正文、权限、扩展属性后可再次执行。另将脚本头的重复远程bash命令改为仓库入口及就近说明，避免复制curl失败被空bash掩盖的命令；根README不再保留已经过时的旧SSH日常自安装描述。
 
 公共事务增加发布版本复查供自动恢复使用。Host及Docker恢复替换GNU会丢xattr的cp -p，暂存后再次检查并发修改；没有版本证据或属性被编辑时保留现场。Host旧/新完整入口与原生属性编辑测试通过；Docker断网Linux真实文件/CLI、模拟systemd/daemon的旧/新失败恢复通过（artifacts/docker-recovery-adaptation/result.json），首次适配缺少systemd标记被产品正确拒绝的环境错误日志保留。VM新增真实Docker停止/恢复、管理员属性冲突和已保存相同配置的显式应用观察，尚待新提交CI。
+
+事务锁新增实际Shell身份记录，修复父进程退出而持锁子Shell仍运行时，recover-lock错误放行的问题。macOS系统Bash3.2真实父/子进程及SIGKILL先复现旧恢复器错误返回0，新实现拒绝恢复仍存活的子进程。旧开发版缺少身份格式的遗留锁保守拒绝自动恢复，需审阅；正常完成的操作不受影响。此修复不解决恢复器自身强杀留下的.recovery记录。旧失败证据：artifacts/regression-proof/subshell-lock-cc792ed/before.log。
+
+83939a8的PR34199445002全部必需作业通过，包括新增真实旧SSH同步/续签解耦和当前Shell实际归档迁移回退。完整34199467862的重复Ubuntu/Debian生命周期仍在运行；不将它标为完整通过。cc792ed新增Zsh共享事务和Docker/Host属性恢复，等待自身CI。

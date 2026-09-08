@@ -63,7 +63,7 @@ bash common/lazycat-check.sh recover-lock /absolute/.bashrc
 
 `bash common/add_ssh_config.sh --help` 列出参数。新条目写入 `~/.ssh/lazycat-hosts/` 的独立片段，以收据识别自己的内容。重复运行不追加；未知旧 Host 或用户改过的片段报告冲突，不覆盖复杂旧块。默认遇到无法确认的 Include 停止，`--allow-existing-includes` 是显式接受其影响的选项，并不保证不存在冲突。旧配置自动等价迁移仍待完成。
 
-`recover-lock` 不恢复文件，也不删除事务备份：确认原 PID 已不存在后，将锁移到同目录的 `.lazycat-lock.recovered.*` 中保留，再允许检查与恢复。PID 仍存在（包括被系统复用）、锁不完整或另一恢复正在进行时均拒绝。恢复进程本身被强杀留下 `.recovery` 时仍需人工审阅；不把所有中断状态都当成可自动清理。
+`recover-lock` 不恢复文件，也不删除事务备份：新锁记录实际持锁 Shell 的 PID（包含 Bash 子 Shell）；确认该 PID 已不存在后，将锁移到同目录的 `.lazycat-lock.recovered.*` 中保留，再允许检查与恢复。旧开发版没有 `pid-format=actual-shell-v1` 的锁不能证明实际持锁进程，保留并要求人工审阅，不自动移走。PID 仍存在（包括被系统复用）、锁不完整或另一恢复正在进行时均拒绝。恢复进程本身被强杀留下 `.recovery` 时仍需人工审阅；不把所有中断状态都当成可自动清理。
 
 检查器会发现 CA 默认目录、合法位置记录指向的目录及显式 `--scan-dir` 下的初始化候选；只读取阶段记录，不读取私钥或自动补齐密钥对。Squid 的 `recovery-conflict` 表示文件或服务仍待处理，不能用通用单文件 `rollback` 直接恢复整项服务。
 

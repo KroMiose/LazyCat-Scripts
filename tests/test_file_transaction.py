@@ -5,6 +5,32 @@ import unittest
 from lib.support import ROOT,environment
 
 class FileTransactions(unittest.TestCase):
+    def test_recovery_refuses_orphaned_live_subshell(self):
+        import os
+        import signal
+        import time
+        with tempfile.TemporaryDirectory() as directory:
+            home=Path(directory);target=home/'config';target.write_text('original')
+            # $$ remains the parent PID in Bash 3.2 and newer subshells.
+            script='source "$1"; (lc_tx_begin "$2"; printf ready > "$3"; while :; do sleep 0.1; done) & printf "%s\\n" "$!" > "$4"; wait'
+            parent=subprocess.Popen(['/bin/bash','-c',script,'fixture',str(ROOT/'lib/file-transaction.sh'),str(target),str(home/'ready'),str(home/'child')],env=environment(home),stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+            try:
+                deadline=time.monotonic()+5
+                while not (home/'ready').exists() and time.monotonic()<deadline:
+                    time.sleep(0.02)
+                self.assertTrue((home/'ready').exists())
+                child=int((home/'child').read_text())
+                parent.kill();parent.wait(timeout=5)
+                os.kill(child,0)
+                result=subprocess.run(['/bin/bash',str(ROOT/'common/lazycat-check.sh'),'recover-lock',str(target)],env=environment(home),capture_output=True,text=True,timeout=10)
+                self.assertEqual(result.returncode,3,result.stdout+result.stderr)
+                self.assertEqual((home/'config.lazycat-lock/pid').read_text().strip(),str(child))
+                self.assertEqual(target.read_text(),'original')
+            finally:
+                try: os.killpg(parent.pid,signal.SIGKILL)
+                except ProcessLookupError: pass
+                parent.wait(timeout=5)
+
     def test_sigkill_lock_recovery_and_rollback_keep_original(self):
         import signal
         with tempfile.TemporaryDirectory() as directory:
@@ -31,13 +57,24 @@ class FileTransactions(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             home=Path(directory);target=home/'config';target.write_text('original')
             lock=Path(str(target)+'.lazycat-lock');lock.mkdir();(lock/'pid').write_text(str(os.getpid())+'\n')
+            (lock/'pid-format').write_text('actual-shell-v1\n')
             result=subprocess.run(['/bin/bash',str(ROOT/'common/lazycat-check.sh'),'recover-lock',str(target)],env=environment(home),capture_output=True,text=True,timeout=10)
             self.assertEqual(result.returncode,3,result.stderr);self.assertTrue(lock.exists())
-            (lock/'pid').unlink();lock.rmdir()
+            (lock/'pid').unlink();(lock/'pid-format').unlink();lock.rmdir()
             Path(str(lock)+'.recovery').mkdir()
             script='set -e; source "$1"; trap lc_tx_unlock EXIT; lc_tx_begin "$2"'
             result=subprocess.run(['/bin/bash','-c',script,'fixture',str(ROOT/'lib/file-transaction.sh'),str(target)],env=environment(home),capture_output=True,text=True,timeout=10)
             self.assertEqual(result.returncode,3,result.stderr);self.assertFalse(lock.exists());self.assertEqual(target.read_text(),'original')
+
+    def test_legacy_lock_without_owner_format_is_not_recovered(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home=Path(directory);target=home/'config';target.write_text('original')
+            exited=subprocess.run(['/bin/bash','-c','echo $$'],capture_output=True,text=True,check=True)
+            lock=Path(str(target)+'.lazycat-lock');lock.mkdir();(lock/'pid').write_text(exited.stdout)
+            result=subprocess.run(['/bin/bash',str(ROOT/'common/lazycat-check.sh'),'recover-lock',str(target)],env=environment(home),capture_output=True,text=True,timeout=10)
+            self.assertEqual(result.returncode,3,result.stderr)
+            self.assertEqual((lock/'pid').read_text(),exited.stdout)
+            self.assertEqual(target.read_text(),'original')
 
     def test_failed_contender_cannot_unlock_owner(self):
         with tempfile.TemporaryDirectory() as directory:

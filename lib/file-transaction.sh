@@ -56,7 +56,12 @@ lc_tx_begin() {
     [[ ! -e "${LC_TX_LOCK}.recovery" && ! -L "${LC_TX_LOCK}.recovery" ]] || { echo '锁恢复正在进行或中断，请检查恢复记录' >&2; return 3; }
     (umask 077; mkdir "$LC_TX_LOCK") || { echo "操作锁已存在，请检查并发或中断状态：$LC_TX_LOCK" >&2; return 3; }
     LC_TX_LOCK_OWNED=1
-    printf '%s\n' "$$" > "$LC_TX_LOCK/pid"
+    # Bash $$ identifies the original shell even inside a live subshell.
+    # exec makes the helper's parent the actual caller, including Bash 3.2.
+    LC_TX_OWNER_PID=$(exec /bin/sh -c 'printf "%s\n" "$PPID"')
+    [[ "$LC_TX_OWNER_PID" =~ ^[1-9][0-9]*$ ]] || return 3
+    printf '%s\n' "$LC_TX_OWNER_PID" > "$LC_TX_LOCK/pid"
+    printf 'actual-shell-v1\n' > "$LC_TX_LOCK/pid-format"
     if [[ -e "${LC_TX_LOCK}.recovery" || -L "${LC_TX_LOCK}.recovery" ]]; then lc_tx_unlock; echo '锁恢复与新操作冲突，未写入目标' >&2; return 3; fi
     LC_TX_OPERATION=$(mktemp -d "${LC_TX_TARGET}.lazycat-operation.XXXXXX")
     chmod 700 "$LC_TX_OPERATION"
@@ -90,6 +95,7 @@ lc_tx_recover_lock() (
     lock="${target}.lazycat-lock"
     guard="${lock}.recovery"
     [[ -d "$lock" && ! -L "$lock" && -f "$lock/pid" && ! -L "$lock/pid" ]] || { echo '锁缺失、损坏或为链接，需人工检查' >&2; return 3; }
+    [[ -f "$lock/pid-format" && ! -L "$lock/pid-format" && "$(cat "$lock/pid-format")" == actual-shell-v1 ]] || { echo '旧锁没有实际持锁进程证据，需人工检查，未移动' >&2; return 3; }
     (umask 077; mkdir "$guard") || return 3
     trap 'rmdir "$guard"' EXIT
     IFS= read -r pid < "$lock/pid"
@@ -105,7 +111,10 @@ lc_tx_recover_lock() (
 )
 lc_tx_unlock() {
     [[ -n "${LC_TX_LOCK:-}" && "${LC_TX_LOCK_OWNED:-0}" == 1 ]] || return 0
-    rm -f "$LC_TX_LOCK/pid"
+    [[ ! -L "$LC_TX_LOCK" && -f "$LC_TX_LOCK/pid" && ! -L "$LC_TX_LOCK/pid" &&
+       "$(cat "$LC_TX_LOCK/pid")" == "${LC_TX_OWNER_PID:-}" &&
+       "$(exec /bin/sh -c 'printf "%s\n" "$PPID"')" == "${LC_TX_OWNER_PID:-}" ]] || { echo '锁归属变化，未释放' >&2; return 3; }
+    rm -f "$LC_TX_LOCK/pid" "$LC_TX_LOCK/pid-format"
     rmdir "$LC_TX_LOCK"
     LC_TX_LOCK=''
     LC_TX_LOCK_OWNED=0
