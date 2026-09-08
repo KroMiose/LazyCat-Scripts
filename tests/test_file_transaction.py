@@ -140,6 +140,7 @@ class FileTransactions(unittest.TestCase):
                 operation=parent/'config.lazycat-operation.fixture'
                 operation.mkdir(parents=True);(operation/'status').write_text('prepared\n')
                 expected.append(str(operation))
+            service_style=xdg/'.lazycat-operation.fixture';service_style.mkdir();(service_style/'status').write_text('recovery-conflict\n');expected.append(str(service_style))
             hidden=home/'.zshrc.lazycat-operation.fixture';hidden.mkdir();(hidden/'status').write_text('committed\n');expected.append(str(hidden))
             external=home/'unscanned';external.mkdir();(external/'status').write_text('prepared\n')
             (home/'linked.lazycat-operation.fixture').symlink_to(external,target_is_directory=True)
@@ -148,4 +149,27 @@ class FileTransactions(unittest.TestCase):
             result=subprocess.run(['bash',str(ROOT/'common/lazycat-check.sh'),'--json'],env=environment(home,{'XDG_CONFIG_HOME':str(xdg)}),capture_output=True,text=True,timeout=10)
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertEqual(sorted(row['path'] for row in json.loads(result.stdout)['operations']),sorted(expected))
+            self.assertEqual(snapshot(home),before)
+
+    def test_checker_discovers_ca_staging_without_reading_keys(self):
+        import json
+        from lib.support import snapshot
+        with tempfile.TemporaryDirectory() as directory:
+            home=Path(directory)
+            default=home/'.lazycat/ssh-ca';custom=home/'custom CA';unrecorded=home/'unrecorded CA'
+            expected=[]
+            for parent in (default, custom, unrecorded):
+                stage=parent/'.lazycat-ca-init.fixture';stage.mkdir(parents=True,mode=0o700)
+                (stage/'status').write_text('private-published\n')
+                # A FIFO instead of a key proves discovery never opens it.
+                import os
+                os.mkfifo(stage/'key')
+                expected.append(str(stage))
+            location=home/'.lazycat/ssh-ca-location'
+            location.write_text(str(custom)+'\npersonal\n')
+            before=snapshot(home)
+            cmd=['bash',str(ROOT/'common/lazycat-check.sh'),'--json','--scan-dir',str(unrecorded),'--scan-dir',str(default)]
+            r=subprocess.run(cmd,env=environment(home),capture_output=True,text=True,timeout=5)
+            self.assertEqual(r.returncode,0,r.stderr)
+            self.assertEqual(sorted(row['path'] for row in json.loads(r.stdout)['operations']),sorted(expected))
             self.assertEqual(snapshot(home),before)

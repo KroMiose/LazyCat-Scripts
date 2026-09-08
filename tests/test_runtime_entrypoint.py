@@ -79,3 +79,22 @@ npm() { [ "$FAILURE" != npm ] || return 14; printf '10.8.2\\n'; }
                 self.assertEqual(result.returncode, 17 if broken else 0, result.stdout+result.stderr)
                 self.assertEqual(snapshot(home), before)
                 self.assertNotIn('需要 curl', result.stderr)
+
+    def test_python_default_selects_only_uv_and_keeps_other_tools(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home=Path(directory);binary=home/'.local/bin';binary.mkdir(parents=True)
+            for tool in ('uv','pyenv','poetry','pdm'):
+                path=binary/tool
+                path.write_text('#!/bin/sh\n[ "$1" = --version ] || exit 29\nprintf "fixture-health:'+tool+'\\n"\n')
+                path.chmod(0o755)
+            config=home/'.config/pypoetry/config.toml';config.parent.mkdir(parents=True)
+            config.write_text('[keyring]\nenabled = true\n')
+            project=home/'project/.venv';project.mkdir(parents=True);(project/'pyvenv.cfg').write_text('existing project\n')
+            before=snapshot(home)
+            for selection,expected in (('\n',['uv']),('poetry pdm\n',['poetry','pdm']),('',[])):
+                result=subprocess.run(['bash',str(ROOT/'linux/setup_python_env.sh')],input=selection,
+                    env=environment(home),capture_output=True,text=True,timeout=10)
+                self.assertEqual(result.returncode==0,bool(expected),result.stdout+result.stderr)
+                calls=[line.removeprefix('fixture-health:') for line in result.stdout.splitlines() if line.startswith('fixture-health:')]
+                self.assertEqual(calls,expected)
+                self.assertEqual(snapshot(home),before)

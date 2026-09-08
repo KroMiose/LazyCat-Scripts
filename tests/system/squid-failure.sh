@@ -183,3 +183,57 @@ python3 -c 'import os; assert os.getxattr("/etc/squid/squid.conf", "user.lazycat
 printf '51938\n' | bash linux/setup_squid_proxy.sh
 observer
 echo 'PASS administrator edit conflict, unchanged credentials/service and native attribute preservation'
+
+# A real stop followed by a reported restart failure; an administrator edits
+# the just-published config before control returns to the installer.
+cat > "$work/bin/systemctl" <<'SH'
+#!/bin/sh
+if [ "$1" = restart ] && [ "$2" = squid ] && [ -f "$SQUID_FAULT/recovery-edit" ]; then
+    mv "$SQUID_FAULT/recovery-edit" "$SQUID_FAULT/recovery-edit-injected"
+    /usr/bin/systemctl stop squid || exit 74
+    printf '# administrator edit after publication\n' >> /etc/squid/squid.conf
+    python3 -c 'import os; os.setxattr("/etc/squid/squid.conf", "user.lazycat-fixture", b"after publication")'
+    exit 73
+fi
+exec /usr/bin/systemctl "$@"
+SH
+chmod 755 "$work/bin/systemctl"
+for implementation in old new; do
+    # Explicitly reconstruct each old/new scenario, including its real daemon.
+    cp --preserve=mode,ownership,timestamps,xattr "$work/config.before" /etc/squid/squid.conf
+    cp --preserve=mode,ownership,timestamps,xattr "$work/passwd.before" /etc/squid/passwd
+    /usr/bin/systemctl restart squid
+    observer
+    touch "$work/recovery-edit"
+    entry=linux/setup_squid_proxy.sh
+    [[ "$implementation" != old ]] || entry=tests/fixtures/squid-port-before.sh
+    status=0
+    printf '51939\nn\nrotated\nnew-fixture-only\n' | SQUID_FAULT="$work" PATH="$work/bin:/usr/sbin:/usr/bin:/sbin:/bin" bash "$entry" --rotate-credentials > "$work/$implementation-recovery-edit.log" 2>&1 || status=$?
+    cat "$work/$implementation-recovery-edit.log"
+    if [[ "$implementation" == old ]]; then
+        [[ "$status" == 1 ]]
+        if grep -q 'administrator edit after publication' /etc/squid/squid.conf; then
+            echo 'Old recovery fixture did not reproduce overwrite'; exit 1
+        fi
+        echo 'EXPECTED OLD DEFECT: failure recovery overwrote a subsequent administrator edit'
+    else
+        [[ "$status" == 3 ]]
+        grep -qx '# administrator edit after publication' /etc/squid/squid.conf
+        python3 -c 'import os; assert os.getxattr("/etc/squid/squid.conf", "user.lazycat-fixture") == b"after publication"'
+        htpasswd -vb /etc/squid/passwd rotated new-fixture-only
+        if /usr/bin/systemctl is-active --quiet squid; then echo 'Conflict unexpectedly restarted service'; exit 1; fi
+        bash common/lazycat-check.sh --json > "$work/checker-conflict.json"
+        python3 - "$work/checker-conflict.json" <<'PY'
+import json, sys
+report=json.load(open(sys.argv[1]))
+assert any(row['status']=='recovery-conflict' and row['path'].startswith('/etc/squid/.lazycat-operation.') for row in report['operations'])
+PY
+    fi
+done
+# This conflicting user edit requires explicit resolution. Reconstruct the
+# fixture baseline for subsequent independent observations, not product recovery.
+cp --preserve=mode,ownership,timestamps,xattr "$work/config.before" /etc/squid/squid.conf
+cp --preserve=mode,ownership,timestamps,xattr "$work/passwd.before" /etc/squid/passwd
+/usr/bin/systemctl restart squid
+observer
+echo 'PASS failure recovery preserves later administrator edit and reports unresolved pair/service state'

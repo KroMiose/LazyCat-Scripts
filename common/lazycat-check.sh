@@ -232,15 +232,45 @@ if [[ "${1:-}" == rollback ]]; then
     printf 'rolled-back\n' > "$operation/status"
     exit 0
 fi
-[[ $# == 0 || ( $# == 1 && "$1" == --json ) ]] || { echo '用法：lazycat-check.sh [--json] | rollback <操作目录> | recover-lock <目标文件绝对路径>' >&2; exit 2; }
+extra_scan_dirs=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --json) shift ;;
+        --scan-dir)
+            [[ $# -ge 2 && "$2" == /* && "$2" != *$'\n'* && "$2" != *$'\r'* ]] || { echo '--scan-dir 需要绝对单行目录路径' >&2; exit 2; }
+            lc_tx_check_path "$2" || exit 3
+            [[ -d "$2" ]] || { echo '检查目录不存在' >&2; exit 2; }
+            extra_scan_dirs+=("$2"); shift 2 ;;
+        *) echo '用法：lazycat-check.sh [--json] [--scan-dir <目录>] | rollback <操作目录> | recover-lock <目标文件绝对路径>' >&2; exit 2 ;;
+    esac
+done
 shopt -s nullglob
 scan_dirs=("$HOME" "$HOME/.lazycat" "$HOME/.ssh" "$HOME/.ssh/lazycat-hosts" "${XDG_CONFIG_HOME:-$HOME/.config}")
+for scan_dir in "${extra_scan_dirs[@]:-}"; do [[ -z "$scan_dir" ]] || scan_dirs+=("$scan_dir"); done
+scan_dirs+=("$HOME/.lazycat/ssh-ca")
+# Read only the two-line location data written by the CA entrypoint. Never
+# source it or inspect private key contents while discovering interrupted init.
+ca_location="$HOME/.lazycat/ssh-ca-location"
+if [[ -f "$ca_location" && ! -L "$ca_location" ]] && lc_tx_check_path "$ca_location" >/dev/null 2>&1; then
+    ca_directory='' ca_name='' extra=''
+    if { IFS= read -r ca_directory && IFS= read -r ca_name; } < "$ca_location"; then
+        extra=$(sed '1,2d' "$ca_location")
+        if [[ -z "$extra" && "$ca_directory" == /* && "$ca_directory" != *$'\r'* && "$ca_name" =~ ^[A-Za-z0-9._-]+$ && "$ca_name" != . && "$ca_name" != .. ]]; then
+            scan_dirs+=("$ca_directory")
+        fi
+    fi
+fi
 if [[ "$EUID" == 0 ]]; then scan_dirs+=(/etc/squid /etc/systemd/system/docker.service.d); fi
 operations=()
+visited=()
 for scan_dir in "${scan_dirs[@]}"; do
+    duplicate=0
+    for previous in "${visited[@]:-}"; do [[ "$previous" != "$scan_dir" ]] || duplicate=1; done
+    [[ "$duplicate" == 0 ]] || continue
+    visited+=("$scan_dir")
     [[ -d "$scan_dir" ]] || continue
     lc_tx_check_path "$scan_dir" >/dev/null 2>&1 || continue
-    operations+=("$scan_dir"/*.lazycat-operation.* "$scan_dir"/.*.lazycat-operation.*)
+    operations+=("$scan_dir"/*.lazycat-operation.* "$scan_dir"/.*.lazycat-operation.* "$scan_dir"/.lazycat-operation.* "$scan_dir"/.lazycat-ca-init.*)
 done
 printf '{"format_version":1,"read_only":true,"network":"not checked","operations":['
 separator=''
@@ -256,4 +286,4 @@ for operation in "${operations[@]:-}"; do
     printf ',"status":'; json_string "$status"; printf '}'
     separator=,
 done
-printf '],"limitations":["Only known HOME, SSH, XDG and root service directories are scanned; symlink directories are not followed","Go SSH journals require lazycat-ssh doctor --json","Legacy backups are not proof of ownership","Service behavior and credentials are not tested"]}\n'
+printf '],"limitations":["Only known HOME, SSH, XDG, recorded CA and root service directories are scanned; symlink directories are not followed","CA initialization records require explicit inspection; key pairs are not read or repaired","Go SSH journals require lazycat-ssh doctor --json","Legacy backups are not proof of ownership","Service behavior and credentials are not tested"]}\n'

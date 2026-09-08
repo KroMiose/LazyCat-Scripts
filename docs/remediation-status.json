@@ -114,10 +114,10 @@
     {
       "id": 15,
       "title": "SSH 私钥的默认工作流反向了",
-      "status": "部分实现，验收未完成",
+      "status": "对应审阅设计问题已整改并验证",
       "decision": "",
-      "release_complete": false,
-      "evidence_summary": "公钥登记和显式旧私钥导出已实现；授权限制保留与回滚入口回归通过。"
+      "release_complete": true,
+      "evidence_summary": "默认入口接收客户端公钥，只有显式 --export-private 返回指定私钥。90b135d PR34186766218 和 d132228 PR34187582510 在 Ubuntu/Debian 验证未登记拒绝、登记后新连接、重跑、公共回滚、受限授权保留；macOS 真实入口验证默认粘贴、取消/非法输入无写入、不生成/输出私钥及显式只读导出。此项不代表全部 SSH 客户端迁移完成。"
     },
     {
       "id": 16,
@@ -200,9 +200,10 @@
     {
       "id": 26,
       "title": "“一键 Python 环境”捆绑了互相重叠的选择",
-      "status": "部分实现，验收未完成",
+      "status": "对应审阅设计问题已整改并验证",
       "decision": "新装默认 uv；已有工具和项目环境保留。",
-      "release_complete": false
+      "release_complete": true,
+      "evidence_summary": "新安装默认选择 uv，pyenv/Poetry/PDM 独立选择；已有组件先做可运行性检查，不批量改 keyring/项目环境或卸载其他工具。真实 Shell 默认空回答和显式选择验证只调用选定组件，既有偏好与项目快照不变（组件版本命令为 fixture）；0cce6d9 完整运行34184584092的真实上游安装与解释器行为通过。缺少 curl/git 的首次依赖处理及全部平台生命周期仍属于独立剩余范围。"
     },
     {
       "id": 27,
@@ -218,7 +219,7 @@
       "status": "部分实现，验收未完成",
       "decision": "",
       "release_complete": false,
-      "evidence_summary": "Shell 检查器支持已知目录记录发现、内容/属性冲突检查、未提交候选和重复回滚；恢复 rename 后真实 SIGKILL 可续做，Go 原生任务公共 rollback 已验证。Shell ACL/xattr、多文件服务事务和恢复锁自身中断仍待补。"
+      "evidence_summary": "Shell 新事务记录提交后的 inode/ctime，拒绝之后的属性变化；已验证恢复 rename 后 SIGKILL 可续做。Squid 发布后外部编辑会阻止自动恢复并记录 recovery-conflict；只读检查器发现直接隐藏命名及默认/登记/显式目录中的 CA 候选。旧无版本记录的完整属性保护、多文件持久恢复和恢复锁自身中断仍待补；新 Squid 冲突系统场景待 CI。"
     },
     {
       "id": 29,

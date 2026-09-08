@@ -78,6 +78,16 @@ squid_check_original() {
     return 3
 }
 
+squid_can_restore() {
+    local target="$1" before="$2" expected="$3" revision="$4"
+    if [[ -f "$revision" && ! -L "$revision" ]]; then
+        [[ -f "$target" && ! -L "$target" && "$(LC_ALL=C stat -c '%d:%i:%z' -- "$target")" == "$(cat "$revision")" ]] &&
+            cmp -s "$target" "$expected" && return 0
+        return 3
+    fi
+    squid_check_original "$target" "$before"
+}
+
 # --- 检查并安装依赖 ---
 install_dependencies() {
     log_step "检查并安装依赖"
@@ -337,13 +347,19 @@ main() {
         log_success '配置及凭据未变化，不重启服务。'
         return
     fi
+    squid_copy "$SQUID_CANDIDATE" "$work/config.expected"
+    if [[ "$PRESERVE_CREDENTIALS" != 1 ]]; then squid_copy "$PASSWD_CANDIDATE" "$work/passwd.expected"; fi
     printf 'prepared\n' > "$work/status"
     set +e
     (
         set -e
-        if [[ "$PRESERVE_CREDENTIALS" != 1 ]]; then mv "$PASSWD_CANDIDATE" /etc/squid/passwd; fi
+        if [[ "$PRESERVE_CREDENTIALS" != 1 ]]; then
+            mv "$PASSWD_CANDIDATE" /etc/squid/passwd
+            LC_ALL=C stat -c '%d:%i:%z' /etc/squid/passwd > "$work/passwd.published-revision"
+        fi
         [[ -f "$work/config.before" ]] || chmod 644 "$SQUID_CANDIDATE"
         mv "$SQUID_CANDIDATE" /etc/squid/squid.conf
+        LC_ALL=C stat -c '%d:%i:%z' /etc/squid/squid.conf > "$work/config.published-revision"
         systemctl restart squid
         systemctl enable squid
         verify_deployment
@@ -351,6 +367,12 @@ main() {
     result=$?
     set -e
     if [[ "$result" != 0 ]]; then
+        if ! squid_can_restore /etc/squid/squid.conf "$work/config.before" "$work/config.expected" "$work/config.published-revision" ||
+           ! squid_can_restore /etc/squid/passwd "$work/passwd.before" "$work/passwd.expected" "$work/passwd.published-revision"; then
+            printf 'recovery-conflict\n' > "$work/status"
+            log_error "应用失败，且文件或属性已被外部修改；未覆盖任一文件或再次切换服务。请检查：$work"
+            return 3
+        fi
         if [[ -f "$work/config.before" ]]; then squid_copy "$work/config.before" /etc/squid/squid.conf; else rm -f /etc/squid/squid.conf; fi
         if [[ -f "$work/passwd.before" ]]; then squid_copy "$work/passwd.before" /etc/squid/passwd; else rm -f /etc/squid/passwd; fi
         if [[ "$was_active" == 1 ]]; then systemctl restart squid || log_error '恢复服务失败'; else systemctl stop squid; fi
