@@ -176,6 +176,24 @@
         "unsupported version: 2"
       ],
       "observer": "real OpenSSH parser; ProxyCommand is inspected without a connection or execution"
+    },
+    {
+      "id": "ssh-public-key-lifecycle",
+      "level": "full-system",
+      "initial": "fresh QEMU Ubuntu 24.04 / Debian 12; real fixture account HOME verified through getent, password disabled; own authorized_keys comment and mode0640; fictional key not registered",
+      "entrypoint": "bash tests/system/access-key.sh (disposable guest only)",
+      "preserve": [
+        "private key and public key bytes",
+        "authorized_keys owner and mode",
+        "existing forced-command and restrict options",
+        "no private key export on registration"
+      ],
+      "mutations": [
+        "fixture authorized_keys and owned operation backups",
+        "fixture password disabled as declared initialization"
+      ],
+      "observer": "real SSH new connection as fixture; unregistered and rolled-back key rejected, forced command actually executed",
+      "recovery": "public lazycat-check rollback restores original comment; fixture teardown verified by rejected connection"
     }
   ]
 }

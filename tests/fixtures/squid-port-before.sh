@@ -76,16 +76,9 @@ generate_credentials() {
 interactive_config() {
     log_step "配置代理参数"
 
-    # Preserve a single, plain existing listener on ordinary reruns. Do not
-    # guess how to collapse multiple listeners or address/TLS-specific syntax.
-    local default_port=51938 existing_port=''
-    if [[ -s /etc/squid/passwd && -f /etc/squid/squid.conf ]]; then
-        existing_port=$(awk '$1=="http_port" {count++; if(NF==2 && $2 ~ /^[0-9]+$/) value=$2; else bad=1} END {if(count==1 && !bad) print value}' /etc/squid/squid.conf)
-        [[ -n "$existing_port" ]] || { log_error '已有监听配置复杂或缺失，需要先审阅；未修改端口或凭据。'; return 3; }
-        default_port="$existing_port"
-    fi
-    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 请输入代理监听端口 (默认: ${default_port}): ${COLOR_RESET}")" input_port
-    PROXY_PORT="${input_port:-$default_port}"
+    # 代理端口
+    read -p "$(echo -e "${COLOR_YELLOW}QUESTION: 请输入代理监听端口 (默认: 51938): ${COLOR_RESET}")" input_port
+    PROXY_PORT="${input_port:-51938}"
 
     [[ "$PROXY_PORT" =~ ^[0-9]{1,5}$ ]] && (( 10#$PROXY_PORT > 0 && 10#$PROXY_PORT <= 65535 )) || { log_error '端口无效'; return 2; }
     if [[ -s /etc/squid/passwd && "${ROTATE_CREDENTIALS:-0}" != 1 ]]; then

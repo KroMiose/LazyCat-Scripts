@@ -251,7 +251,7 @@ lc_init_ca() {
   [[ "$ca_dir" == /* && "$ca_dir" != *$'\n'* && "$ca_dir" != *$'\r'* ]] || lc_die 'CA 目录必须为绝对单行路径'
   [[ "$ca_name" =~ ^[A-Za-z0-9._-]+$ && "$ca_name" != . && "$ca_name" != .. ]] || lc_die 'CA 名称无效'
 
-  [[ ! -L "$ca_dir" ]] || lc_die 'CA 目录为符号链接，需要人工采纳'
+  lc_tx_check_path "$ca_dir" || lc_die 'CA 目录包含符号链接，需要人工采纳'
   if [[ ! -d "$ca_dir" ]]; then (umask 077; mkdir -p "$ca_dir"); fi
 
   local priv pub
@@ -262,11 +262,25 @@ lc_init_ca() {
     lc_die "CA 私钥已存在：${priv}"
   fi
 
+  lc_need_cmd link
+  local staging
+  staging=$(mktemp -d "$ca_dir/.lazycat-ca-init.XXXXXX")
+  chmod 700 "$staging"
+  printf 'prepared\n' > "$staging/status"
   lc_log "⏳ 正在生成 ed25519 CA 密钥..."
-  ssh-keygen -t ed25519 -f "$priv" -N "" -C "$ca_name"
-  chmod 600 "$priv"
-  chmod 644 "$pub"
+  (umask 077; ssh-keygen -t ed25519 -f "$staging/key" -N "" -C "$ca_name")
+  chmod 600 "$staging/key"
+  chmod 644 "$staging/key.pub"
+  # link invokes the exclusive filesystem operation directly: unlike ln it
+  # never treats a newly appeared directory as permission to create inside it.
+  # On interruption retain the private staging directory for explicit recovery.
+  lc_tx_check_path "$ca_dir" || lc_die "路径已变化，候选密钥保存在：$staging"
+  link "$staging/key" "$priv" || lc_die "私钥目标被并发创建；未覆盖。候选保存在：$staging"
+  printf 'private-published\n' > "$staging/status"
+  link "$staging/key.pub" "$pub" || lc_die "公钥目标被并发创建；未覆盖。请检查已发布私钥及候选：$staging"
+  printf 'pair-published\n' > "$staging/status"
   persist_ca_location
+  rm -rf "$staging"
 
   lc_log "✅ CA 初始化完成："
   lc_log "  - 私钥: ${priv}"

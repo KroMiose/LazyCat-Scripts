@@ -87,10 +87,12 @@
         "ssh-contract"
       ],
       "jobs": [
-        "behavior"
+        "behavior",
+        "system"
       ],
       "scenarios": [
-        "shell-regressions"
+        "shell-regressions",
+        "ssh-public-key-lifecycle"
       ]
     },
     "shell-recovery": {

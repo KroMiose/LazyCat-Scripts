@@ -129,9 +129,10 @@
     {
       "id": 17,
       "title": "YAML 版本字段没有承担版本契约",
-      "status": "部分实现，验收未完成",
+      "status": "对应审阅缺陷已修复并验证",
       "decision": "",
-      "release_complete": false
+      "release_complete": true,
+      "evidence_summary": "0cce6d9完整运行34184584092的Linux VM以真实旧/新Shell客户端、yq、本地HTTP验证旧版接受version2而新版拒绝且不修改用户配置/权限；Go完整CLI拒绝不支持版本，规范解析及有界fuzz另有证据。该结案针对版本契约，不表示全部输入和升级矩阵完成。"
     },
     {
       "id": 18,

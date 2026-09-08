@@ -78,3 +78,33 @@ class CAEntrypoint(unittest.TestCase):
                 self.assertEqual((first/'personal.pub').read_bytes(),public)
                 self.assertTrue((second/'personal').is_file())
                 self.assertTrue((second/'personal.pub').is_file())
+
+    def test_key_creation_refuses_ancestor_link_and_concurrent_key(self):
+        for scenario in ('ancestor-link','concurrent-private','concurrent-public'):
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory);target=home/'ca';env=environment(home)
+                if scenario=='ancestor-link':
+                    outside=home/'outside';outside.mkdir()
+                    (home/'linked').symlink_to(outside,target_is_directory=True)
+                    target=home/'linked/ca'
+                else:
+                    target.mkdir()
+                    injection=home/'race.sh'
+                    injection.write_text('''ssh-keygen() {
+ printf 'concurrent user key\\n' > "$CA_TEST_TARGET"
+ command ssh-keygen "$@"
+}
+''')
+                    selected=target/('personal' if scenario=='concurrent-private' else 'personal.pub')
+                    env=environment(home,{'BASH_ENV':str(injection),'CA_TEST_TARGET':str(selected)})
+                result=subprocess.run(['bash',str(ROOT/'ssh/ca/lazycat-ssh-ca.sh'),'init','--dir',str(target),'--name','personal'],
+                    input='y\n',env=env,capture_output=True,text=True,timeout=15)
+                self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
+                self.assertFalse((home/'.lazycat/ssh-ca-location').exists())
+                if scenario=='ancestor-link':self.assertEqual(list(outside.iterdir()),[])
+                else:
+                    self.assertEqual(selected.read_text(),'concurrent user key\n')
+                    candidates=list(target.glob('.lazycat-ca-init.*'))
+                    self.assertEqual(len(candidates),1)
+                    self.assertEqual(candidates[0].stat().st_mode&0o777,0o700)
+                    self.assertEqual((candidates[0]/'key').stat().st_mode&0o777,0o600)

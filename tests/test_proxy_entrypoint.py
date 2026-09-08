@@ -104,3 +104,28 @@ class ProxyEntrypoint(unittest.TestCase):
             rc.write_text(broken)
             r=entry();self.assertNotEqual(r.returncode,0)
             self.assertEqual(rc.read_text(),broken)
+
+    def test_default_preference_is_read_from_locked_snapshot(self):
+        for initial in ('on', 'off'):
+            with self.subTest(initial=initial), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory);target=home/'.bashrc';script=ROOT/'common/setup_proxy_config.sh'
+                args=['bash',str(script),'--url','http://127.0.0.1:7890','--file',str(target),'--apply']
+                result=subprocess.run(args+['--default',initial],env=environment(home),capture_output=True,text=True,timeout=10)
+                self.assertEqual(result.returncode,0,result.stderr)
+                desired='off' if initial=='on' else 'on'
+                changed=target.read_text().replace('\nproxy\n','\n')
+                if desired=='on':changed=changed.replace('# --- PROXY-END ---','proxy\n# --- PROXY-END ---')
+                revised=home/'user-edit';revised.write_text(changed)
+                injection=home/'race.sh'
+                injection.write_text('''mkdir() {
+ command mkdir "$@" || return
+ for last in "$@"; do :; done
+ if [[ "$last" == "$HOME/.bashrc.lazycat-lock" ]]; then
+  command cp "$HOME/user-edit" "$HOME/.bashrc"
+ fi
+}
+''')
+                result=subprocess.run(args,env=environment(home,{'BASH_ENV':str(injection)}),capture_output=True,text=True,timeout=10)
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                self.assertEqual(target.read_text(),changed)
+                self.assertEqual('\nproxy\n' in target.read_text(),desired=='on')

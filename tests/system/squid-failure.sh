@@ -99,3 +99,21 @@ printf '51938\n' | bash linux/setup_squid_proxy.sh
 sha256sum -c "$work/before.sha256"
 observer
 echo 'PASS real Squid parser old/new proof, two-file restart recovery, preserved auth/modes/service, and no-restart rerun'
+
+# An ordinary blank answer retains a nondefault listener and old credentials.
+printf '51940\n' | bash linux/setup_squid_proxy.sh
+printf '\n' | bash tests/fixtures/squid-port-before.sh
+grep -qx 'http_port 51938' /etc/squid/squid.conf
+observer
+echo 'EXPECTED OLD DEFECT: blank rerun reset existing Squid port from 51940 to 51938'
+printf '51940\n' | bash linux/setup_squid_proxy.sh
+pid=$(systemctl show squid --property=MainPID --value)
+sha256sum /etc/squid/squid.conf /etc/squid/passwd > "$work/nondefault.sha256"
+printf '\n' | bash linux/setup_squid_proxy.sh
+sha256sum -c "$work/nondefault.sha256"
+[[ "$(systemctl show squid --property=MainPID --value)" == "$pid" ]]
+/usr/bin/curl --fail --max-time 15 --noproxy '' --proxy http://127.0.0.1:51940 --proxy-user fixture:fixture-test-only http://127.0.0.1:18080 >/dev/null
+# Return this lifecycle to its original port for later guest observations.
+printf '51938\n' | bash linux/setup_squid_proxy.sh
+observer
+echo 'PASS existing nondefault Squid port and credentials survive blank/default rerun without restart'

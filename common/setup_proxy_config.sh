@@ -231,15 +231,18 @@ if [[ "$MODE" == interactive ]]; then
     read -r -p '写入配置或仅打印命令？[P/t]: ' input
     if [[ "$input" =~ ^[Tt]$ ]]; then MODE=print; else MODE=apply; fi
 fi
+preserve_default() {
 if [[ "$DEFAULT_ON" == preserve ]]; then
     DEFAULT_ON=off
-    if [[ -f "$PROFILE_FILE" ]] && awk '
+    if [[ -f "$1" ]] && awk '
         /^# --- PROXY-START ---/ {inside=1;next}
         /^# --- PROXY-END ---$/ {inside=0}
         inside && (/^proxy$/ || /^export http_proxy=/) {found=1}
         END {exit !found}
-    ' "$PROFILE_FILE"; then DEFAULT_ON=on; fi
+    ' "$1"; then DEFAULT_ON=on; fi
 fi
+}
+
 render_proxy() {
     echo '# --- PROXY-START --- Managed by setup_proxy_config.sh'
     echo 'proxy() {'
@@ -252,10 +255,11 @@ render_proxy() {
     [[ "$DEFAULT_ON" != on ]] || echo proxy
     echo '# --- PROXY-END ---'
 }
-if [[ "$MODE" == print ]]; then render_proxy; exit 0; fi
+if [[ "$MODE" == print ]]; then preserve_default "$PROFILE_FILE"; render_proxy; exit 0; fi
 [[ -d "$(dirname "$PROFILE_FILE")" ]] || { echo '目标目录不存在' >&2; exit 2; }
 trap 'lc_tx_unlock' EXIT
 lc_tx_begin "$PROFILE_FILE"
+preserve_default "$LC_TX_CANDIDATE"
 lc_remove_block_candidate "$LC_TX_CANDIDATE" '# --- PROXY-START --- Managed by setup_proxy_config.sh' '# --- PROXY-END ---'
 # Complete the final user line, without accumulating blank lines on reruns.
 if [[ -s "$LC_TX_CANDIDATE" && -n "$(tail -c 1 "$LC_TX_CANDIDATE")" ]]; then printf '\n' >> "$LC_TX_CANDIDATE"; fi

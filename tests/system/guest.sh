@@ -142,6 +142,8 @@ cp -p /tmp/sudo-owned /etc/sudoers.d/99-nopasswd-fixture
 printf '2\ny\n' | SUDO_USER=fixture bash linux/setup_sudo_nopasswd.sh
 if runuser -u fixture -- sudo -n true; then echo 'sudo permission not revoked'; exit 1; fi
 echo 'PASS sudo actual grant/repeat, old edited-rule removal, new conflict preservation and explicit revoke'
+printf 'access-key-lifecycle\n' > /tmp/lazycat-phase
+bash tests/system/access-key.sh
 mkdir -p /tmp/http-fixture
 printf fixture > /tmp/http-fixture/index.html
 python3 -m http.server 18080 --bind 127.0.0.1 --directory /tmp/http-fixture >/tmp/http.log 2>&1 &
