@@ -126,6 +126,15 @@ def main():
             user(['/bin/launchctl','print-disabled',domain]);client('install-renew','3')
             disabled=user(['/bin/launchctl','print-disabled',domain]).stdout
             if not re.search(r'"'+re.escape(LABEL)+r'"\s*=>\s*(true|disabled)\s*$',disabled,re.M):raise AssertionError('update enabled disabled task')
+            removal=client('uninstall-renew')
+            operation=re.search(r'^Native operation: (\S+)$',removal.stdout,re.M)
+            if not operation:raise AssertionError('native removal operation missing')
+            run(['sudo','test','-e',plist],expected=1)
+            client('rollback',operation.group(1))
+            if plistlib.loads(read(plist).encode())['StartInterval']!=180:raise AssertionError('rollback lost previous interval')
+            user(['/bin/launchctl','print',domain+'/'+LABEL],expected=113)
+            disabled=user(['/bin/launchctl','print-disabled',domain]).stdout
+            if not re.search(r'"'+re.escape(LABEL)+r'"\s*=>\s*(true|disabled)\s*$',disabled,re.M):raise AssertionError('rollback enabled disabled task')
             client('uninstall-renew')
             run(['sudo','test','-e',plist],expected=1)
             passed('repeat-unloaded-disabled-update-and-removal')
@@ -135,7 +144,13 @@ def main():
             # owned Go candidate: this is task adoption, not full old-client upgrade.
             legacy=(ROOT/'tests/fixtures/legacy-launchd.plist').read_text().replace('/Users/fixture',home)
             write(plist,legacy);user(['/bin/launchctl','bootstrap',domain,plist])
-            client('migrate','--check');client('migrate','--apply')
+            client('migrate','--check');migration=client('migrate','--apply')
+            operation=re.search(r'^Native operation: (\S+)$',migration.stdout,re.M)
+            if not operation:raise AssertionError('native migration operation missing')
+            client('rollback',operation.group(1))
+            if read(plist)!=legacy:raise AssertionError('migration rollback lost original legacy plist')
+            user(['/bin/launchctl','print',domain+'/'+LABEL])
+            client('migrate','--apply')
             adopted=plistlib.loads(read(plist).encode());original=plistlib.loads(legacy.encode())
             expected=dict(original);expected['ProgramArguments']=[binary,'renew-certs','--scheduled']
             if adopted!=expected:raise AssertionError('adoption changed legacy task preferences')

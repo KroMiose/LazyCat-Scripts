@@ -288,9 +288,9 @@ func run(ctx context.Context, p paths, args []string) error {
 		}
 		return rollbackUserOperation(p, args[1])
 	case "install-renew":
-		return withFileLock(filepath.Join(p.Meta, "lifecycle-lock"), func() error { return installTimer(p, args[1:]) })
+		return lifecycle(p, func() error { return installTimer(p, args[1:]) })
 	case "uninstall-renew":
-		return withFileLock(filepath.Join(p.Meta, "lifecycle-lock"), func() error { return removeTimer(p) })
+		return lifecycle(p, func() error { return removeTimer(p) })
 	case "migrate":
 		if len(args) != 2 || (args[1] != "--check" && args[1] != "--apply") {
 			return errors.New("migrate --check|--apply")
@@ -298,9 +298,9 @@ func run(ctx context.Context, p paths, args []string) error {
 		if args[1] == "--check" {
 			return migrate(ctx, p, false)
 		}
-		return withFileLock(filepath.Join(p.Meta, "lifecycle-lock"), func() error { return migrate(ctx, p, true) })
+		return lifecycle(p, func() error { return migrate(ctx, p, true) })
 	case "uninstall", "purge":
-		return withFileLock(filepath.Join(p.Meta, "lifecycle-lock"), func() error { return uninstall(p, args[0] == "purge") })
+		return lifecycle(p, func() error { return uninstall(p, args[0] == "purge") })
 	default:
 		return errors.New("unknown command; run --help")
 	}

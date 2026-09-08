@@ -1,0 +1,168 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// Only the service adapter is simulated here. Files, process death, locks and
+// the public command dispatcher are real. QEMU separately validates systemd.
+func nativeFixture(t *testing.T) paths {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	p, e := defaultPaths()
+	if e != nil {
+		t.Fatal(e)
+	}
+	fixture := t.TempDir()
+	write := func(path, data string) {
+		t.Helper()
+		if e := os.MkdirAll(filepath.Dir(path), 0700); e != nil {
+			t.Fatal(e)
+		}
+		if e := os.WriteFile(path, []byte(data), 0700); e != nil {
+			t.Fatal(e)
+		}
+	}
+	files := timerFiles(p, 30)
+	for path, data := range files {
+		write(path, data)
+	}
+	b, _ := json.Marshal(timerReceipt{Version: 1, Minutes: 30, Files: files})
+	write(timerReceiptPath(p), string(b))
+	write(p.Binary, "#!/bin/sh\necho fixture-version\n")
+	write(filepath.Join(fixture, "active"), "active\n")
+	write(filepath.Join(fixture, "enabled"), "enabled\n")
+	t.Setenv("NATIVE_FIXTURE", fixture)
+	t.Setenv("NATIVE_TIMER", filepath.Join(p.Home, ".config/systemd/user/lazycat-ssh-renew.timer"))
+	t.Setenv("NATIVE_OPERATIONS", p.Ops)
+	manager := `#!/bin/sh
+set -eu
+shift
+printf '%s\n' "$*" >> "$NATIVE_FIXTURE/calls"
+crash() {
+ if [ -f "$NATIVE_FIXTURE/crash" ] && [ "$(cat "$NATIVE_FIXTURE/crash")" = "$1" ]; then
+  rm "$NATIVE_FIXTURE/crash"
+  kill -KILL "$PPID"
+  exit 97
+ fi
+}
+case "$1" in
+ show)
+  case "$3" in
+   --property=LoadState) if [ -f "$NATIVE_TIMER" ]; then echo loaded; else echo not-found; fi ;;
+   --property=ActiveState) if [ "$2" = lazycat-ssh-renew.service ]; then echo inactive; else cat "$NATIVE_FIXTURE/active"; fi ;;
+   --property=UnitFileState) cat "$NATIVE_FIXTURE/enabled" ;;
+   --property=DropInPaths) : ;;
+   *) exit 91 ;;
+  esac ;;
+ stop)
+  # Prove the durable journal precedes the native side effect.
+  grep -q '"Phase": "\(pausing\|rollback-pausing\)"' "$NATIVE_OPERATIONS/"*.json
+  printf 'inactive\n' > "$NATIVE_FIXTURE/active"
+  crash stop ;;
+ start) printf 'active\n' > "$NATIVE_FIXTURE/active" ;;
+ disable) printf 'disabled\n' > "$NATIVE_FIXTURE/enabled" ;;
+ enable) if [ "$2" = --runtime ]; then echo enabled-runtime; else echo enabled; fi > "$NATIVE_FIXTURE/enabled" ;;
+ daemon-reload) crash daemon-reload ;;
+ *) exit 92 ;;
+esac
+`
+	write(filepath.Join(fixture, "systemctl"), manager)
+	t.Setenv("PATH", fixture+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return p
+}
+func TestNativeCrashHelper(t *testing.T) {
+	if os.Getenv("LAZYCAT_NATIVE_CRASH_HELPER") != "1" {
+		return
+	}
+	p, e := defaultPaths()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = run(context.Background(), p, []string{"install-renew", "31"}); e != nil {
+		t.Fatal(e)
+	}
+	t.Fatal("expected fixture to kill this child")
+}
+func TestNativeInterruptedRecovery(t *testing.T) {
+	for _, phase := range []string{"stop", "daemon-reload"} {
+		t.Run(phase, func(t *testing.T) {
+			p := nativeFixture(t)
+			timer := os.Getenv("NATIVE_TIMER")
+			before, e := state(timer)
+			if e != nil {
+				t.Fatal(e)
+			}
+			fixture := os.Getenv("NATIVE_FIXTURE")
+			if e = os.WriteFile(filepath.Join(fixture, "crash"), []byte(phase), 0600); e != nil {
+				t.Fatal(e)
+			}
+			child := exec.Command(os.Args[0], "-test.run=^TestNativeCrashHelper$")
+			child.Env = append(os.Environ(), "LAZYCAT_NATIVE_CRASH_HELPER=1")
+			output, e := child.CombinedOutput()
+			var killed *exec.ExitError
+			if !errors.As(e, &killed) || !strings.Contains(e.Error(), "killed") {
+				t.Fatalf("expected SIGKILL, got %v: %s", e, output)
+			}
+			pending, e := unfinishedOperations(p.Ops)
+			if e != nil || len(pending) != 1 || pending[0].Native == nil {
+				t.Fatal("missing interrupted native operation", pending, e)
+			}
+			expectedPhase := "pausing"
+			if phase == "daemon-reload" {
+				expectedPhase = "activating"
+			}
+			if pending[0].Native.Phase != expectedPhase {
+				t.Fatal(pending[0].Native.Phase)
+			}
+			calls, _ := os.ReadFile(filepath.Join(fixture, "calls"))
+			if e = run(context.Background(), p, []string{"install-renew", "32"}); e == nil {
+				t.Fatal("new lifecycle ignored interrupted operation")
+			}
+			afterCalls, _ := os.ReadFile(filepath.Join(fixture, "calls"))
+			if string(calls) != string(afterCalls) {
+				t.Fatal("blocked lifecycle touched manager")
+			}
+			current, _ := os.ReadFile(timer)
+			if e = os.WriteFile(timer, append(append([]byte(nil), current...), []byte("# user edit\n")...), 0600); e != nil {
+				t.Fatal(e)
+			}
+			if e = run(context.Background(), p, []string{"rollback", pending[0].ID}); e == nil {
+				t.Fatal("rollback overwrote user edit")
+			}
+			afterCalls, _ = os.ReadFile(filepath.Join(fixture, "calls"))
+			if string(calls) != string(afterCalls) {
+				t.Fatal("conflicting rollback touched manager")
+			}
+			if e = os.WriteFile(timer, current, os.FileMode(before.Mode)); e != nil {
+				t.Fatal(e)
+			}
+			if e = run(context.Background(), p, []string{"rollback", pending[0].ID}); e != nil {
+				t.Fatal(e)
+			}
+			restored, e := state(timer)
+			if e != nil || !same(restored, before) {
+				t.Fatal("file not restored", e)
+			}
+			active, _ := os.ReadFile(filepath.Join(fixture, "active"))
+			enabled, _ := os.ReadFile(filepath.Join(fixture, "enabled"))
+			if string(active) != "active\n" || string(enabled) != "enabled\n" {
+				t.Fatal("native state not restored", string(active), string(enabled))
+			}
+			pending, e = unfinishedOperations(p.Ops)
+			if e != nil || len(pending) != 0 {
+				t.Fatal("recovery not completed", e)
+			}
+			if e = run(context.Background(), p, []string{"install-renew", "31"}); e != nil {
+				t.Fatal("rerun failed", e)
+			}
+		})
+	}
+}

@@ -150,37 +150,34 @@ func migrate(ctx context.Context, p paths, apply bool) error {
 		fmt.Println("Installation and tasks already match; no files or services changed.")
 		return nil
 	}
+	verify := func() error {
+		verifyCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		return exec.CommandContext(verifyCtx, p.Binary, "version").Run()
+	}
+	var id string
 	if adoption != nil {
-		if e = adoption.pause(ctx); e != nil {
-			return e
+		domain := ""
+		if adoption.Launch != nil {
+			domain = adoption.Launch.Domain
 		}
-	}
-	id, e := commit(p.Ops, changes)
-	if e != nil {
-		if adoption != nil {
-			e = errors.Join(e, adoption.restore(ctx))
+		before, err := readNative(p, domain)
+		if err != nil {
+			return err
 		}
-		return e
-	}
-	if adoption != nil {
-		if e = adoption.restore(ctx); e != nil {
-			e = errors.Join(e, rollback(p.Ops, id), adoption.restore(ctx))
-			return e
-		}
-	}
-	verifyCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(verifyCtx, p.Binary, "version")
-	if e = cmd.Run(); e != nil {
-		if id != "" {
-			e = errors.Join(e, rollback(p.Ops, id))
-			if adoption != nil {
-				e = errors.Join(e, adoption.restore(ctx))
+		id, e = executeNative(p, changes, before, before, verify)
+	} else {
+		id, e = commit(p.Ops, changes)
+		if e == nil {
+			if e = verify(); e != nil && id != "" {
+				e = errors.Join(e, rollback(p.Ops, id))
 			}
-			return e
 		}
+	}
+	if e != nil {
 		return e
 	}
+
 	fmt.Println("Migration operation:", id)
 	return nil
 }

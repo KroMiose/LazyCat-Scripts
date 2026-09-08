@@ -34,6 +34,7 @@ type operation struct {
 	Version    int
 	ID, Status string
 	Changes    []change
+	Native     *nativeOperation `json:",omitempty"`
 }
 
 func checkPathLinks(path string) error {
@@ -275,7 +276,7 @@ func commitWithWriter(dir string, changes []change, write func(string, fileState
 			return e
 		}
 		id = time.Now().UTC().Format("20060102T150405") + "-" + hex.EncodeToString(nonce)
-		op := operation{1, id, "prepared", pending}
+		op := operation{Version: 1, ID: id, Status: "prepared", Changes: pending}
 		if e := journal(dir, op); e != nil {
 			return e
 		}
@@ -375,6 +376,9 @@ func rollbackChecked(dir, id string, check func(operation) error) error {
 		if op.Version != 1 || op.ID != id {
 			return errors.New("unsupported operation record")
 		}
+		if op.Native != nil {
+			return errors.New("native operation requires lifecycle rollback")
+		}
 		if check != nil {
 			if e := check(op); e != nil {
 				return e
@@ -414,6 +418,13 @@ func rollbackChecked(dir, id string, check func(operation) error) error {
 // public lifecycle rollback is implemented, reject those records BEFORE writes.
 // Internal failure recovery calls rollback together with its service recovery.
 func rollbackUserOperation(p paths, id string) error {
+	op, e := readOperation(p.Ops, id)
+	if e != nil {
+		return e
+	}
+	if op.Native != nil {
+		return withFileLock(filepath.Join(p.Meta, "lifecycle-lock"), func() error { return rollbackNative(p, id) })
+	}
 	return rollbackChecked(p.Ops, id, func(op operation) error {
 		for _, c := range op.Changes {
 			if c.Path == p.Binary {

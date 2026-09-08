@@ -117,14 +117,21 @@ for enabled in enabled disabled enabled-runtime; do
             enabled-runtime) user_systemctl enable --runtime lazycat-ssh-renew.timer ;;
         esac
         if [[ "$active" == active ]]; then user_systemctl start lazycat-ssh-renew.timer; fi
-        client install-renew "$minutes"
+        previous_interval=$(sed -n 's/^OnUnitActiveSec=//p' "$home/.config/systemd/user/lazycat-ssh-renew.timer")
+        operation=$(client install-renew "$minutes" | tee /tmp/timer-update.log | awk '/^Native operation:/ {print $3}')
         [[ "$(user_systemctl show lazycat-ssh-renew.timer --property=ActiveState --value)" == "$active" ]]
         [[ "$(user_systemctl show lazycat-ssh-renew.timer --property=UnitFileState --value)" == "$enabled" ]]
         grep -qx "OnUnitActiveSec=${minutes}min" "$home/.config/systemd/user/lazycat-ssh-renew.timer"
+        [[ -n "$operation" ]]
+        client rollback "$operation"
+        grep -qx "OnUnitActiveSec=$previous_interval" "$home/.config/systemd/user/lazycat-ssh-renew.timer"
+        [[ "$(user_systemctl show lazycat-ssh-renew.timer --property=ActiveState --value)" == "$active" ]]
+        [[ "$(user_systemctl show lazycat-ssh-renew.timer --property=UnitFileState --value)" == "$enabled" ]]
+        client install-renew "$minutes"
         minutes=$((minutes+1))
     done
 done
-echo 'PASS timer updates preserve six active/enabled combinations'
+echo 'PASS timer updates and public rollback preserve six active/enabled combinations'
 # Refusing client uninstall must not disable/remove an otherwise healthy task.
 user_systemctl enable lazycat-ssh-renew.timer
 user_systemctl start lazycat-ssh-renew.timer
@@ -145,7 +152,7 @@ echo 'PASS uninstall conflicts preserve client files and real active/enabled tas
 client uninstall-renew
 [[ ! -e "$home/.config/systemd/user/lazycat-ssh-renew.timer" ]]
 client install-renew 30
-client uninstall
+uninstall_operation=$(client uninstall | tee /tmp/full-uninstall.log | awk '/^Native operation:/ {print $3}')
 [[ ! -e "$home/.config/systemd/user/lazycat-ssh-renew.timer" ]]
 [[ ! -e "$home/.config/systemd/user/lazycat-ssh-renew.service" ]]
 [[ ! -e "$home/.lazycat/ssh/timer.json" ]]
@@ -163,6 +170,14 @@ operations=[json.loads(p.read_text()) for p in (home/'.lazycat/ssh/operations').
 assert any(o['Status']=='committed' and required <= {c['Path'] for c in o['Changes']} for o in operations), 'uninstall must record client and task files in one committed operation'
 PY
 echo 'PASS complete uninstall removes only owned client/task files in one transaction'
+[[ -n "$uninstall_operation" ]]
+client rollback "$uninstall_operation"
+[[ -x "$home/.local/bin/lazycat-ssh" ]]
+[[ -f "$home/.ssh/config.d/lazycat.conf" ]]
+[[ "$(user_systemctl show lazycat-ssh-renew.timer --property=ActiveState --value)" == active ]]
+[[ "$(user_systemctl show lazycat-ssh-renew.timer --property=UnitFileState --value)" == enabled ]]
+client uninstall
+echo 'PASS public uninstall rollback restores client files and real timer; repeated uninstall succeeds' 
 # With no login and no remaining timer, logind may already have collected the
 # user record. Linger's persistent registration must still be absent.
 [[ ! -e /var/lib/systemd/linger/fixture ]]

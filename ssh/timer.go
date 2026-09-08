@@ -189,63 +189,28 @@ func installTimer(p paths, args []string) error {
 	if unchanged {
 		return nil
 	}
-	ctx := context.Background()
-	var saved *linuxTimerState
-	if len(previous.Files) > 0 && runtime.GOOS == "linux" {
-		saved, e = readLinuxTimerState(ctx)
-		if e != nil {
-			return e
-		}
-	}
-	restorePrevious := func() error {
-		if saved != nil {
-			return saved.restore(ctx)
-		}
-		if launchSaved != nil {
-			return launchSaved.restore(p)
-		}
-		if len(previous.Files) > 0 {
-			return serviceTimer(p, true)
-		}
-		return nil
-	}
-	if saved != nil {
-		if e = saved.pause(ctx); e != nil {
-			return e
-		}
-	} else if launchSaved != nil {
-		if e = launchSaved.pause(); e != nil {
-			return e
-		}
-	} else if len(previous.Files) > 0 {
-		if e = serviceTimer(p, false); e != nil {
-			return e
-		}
-	}
-	id, e := commit(p.Ops, changes)
+	before, e := readNative(p, launchDomain)
 	if e != nil {
-		return errors.Join(e, restorePrevious())
+		return e
 	}
-	if saved != nil {
-		e = saved.restore(ctx)
-	} else if launchSaved != nil {
-		after := *launchSaved
-		if len(previous.Files) == 0 {
-			after.Loaded = true
-			after.Path = filepath.Join(p.Home, "Library/LaunchAgents/"+launchLabel+".plist")
+	after := before
+	if len(previous.Files) == 0 {
+		if runtime.GOOS == "linux" {
+			if !before.Absent {
+				return &migrationConflict{"unowned systemd registration requires migration review"}
+			}
+			after = nativeState{Platform: "linux", Active: true, Enabled: "enabled"}
+		} else {
+			v := *before.Launch
+			v.Loaded = true
+			v.Path = filepath.Join(p.Home, "Library/LaunchAgents/"+launchLabel+".plist")
+			after.Launch = &v
 		}
-		e = after.restore(p)
-	} else {
-		e = serviceTimer(p, true)
 	}
-	if e != nil {
-		if id != "" {
-			e = errors.Join(e, rollback(p.Ops, id))
-		}
-		return errors.Join(e, restorePrevious())
-	}
-	return nil
+	_, e = executeNative(p, changes, before, after, nil)
+	return e
 }
+
 func removeTimer(p paths) error {
 	return removeTimerWithChanges(p, nil)
 }
@@ -294,51 +259,16 @@ func removeTimerWithChanges(p paths, clientChanges []change) error {
 		return e
 	}
 	changes = append(changes, change{timerReceiptPath(p), s, fileState{}})
-	ctx := context.Background()
-	var saved *linuxTimerState
+	before, e := readNative(p, receiptLaunchDomain(r))
+	if e != nil {
+		return e
+	}
+	after := nativePaused(before)
 	if runtime.GOOS == "linux" {
-		saved, e = readLinuxTimerState(ctx)
-		if e != nil {
-			return e
-		}
-		if e = saved.pause(ctx); e != nil {
-			return e
-		}
+		after = nativeState{Platform: "linux", Absent: true}
 	}
-	restorePrevious := func() error {
-		if saved != nil {
-			return saved.restore(ctx)
-		}
-		if launchSaved != nil {
-			return launchSaved.restore(p)
-		}
-		return serviceTimer(p, true)
-	}
-	if launchSaved != nil {
-		e = launchSaved.pause()
-	} else {
-		e = serviceTimer(p, false)
-	}
-	if e != nil {
-		return errors.Join(e, restorePrevious())
-	}
-	id, e := commit(p.Ops, changes)
-	if e != nil {
-		return errors.Join(e, restorePrevious())
-	}
-	if runtime.GOOS == "linux" {
-		_, e = timerCommand(ctx, "daemon-reload")
-	} else if launchSaved != nil {
-		var current *launchState
-		current, e = readLaunchState(launchSaved.Domain)
-		if e == nil && (current.Loaded || current.Disabled != launchSaved.Disabled) {
-			e = errors.New("launchd task removal did not preserve expected registration state")
-		}
-	}
-	if e != nil {
-		return errors.Join(e, rollback(p.Ops, id), restorePrevious())
-	}
-	if len(clientChanges) > 0 {
+	id, e := executeNative(p, changes, before, after, nil)
+	if e == nil && len(clientChanges) > 0 {
 		fmt.Println("Detached managed SSH configuration and renewal task; keys and backups retained. Operation:", id)
 	}
 	return e
