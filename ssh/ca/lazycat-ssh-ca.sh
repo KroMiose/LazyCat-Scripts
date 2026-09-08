@@ -238,6 +238,82 @@ lc_ca_exists() {
   [[ -f "$(ca_priv_path)" ]] && [[ -f "$(ca_pub_path)" ]]
 }
 
+lc_ca_location_unchanged() {
+  local staging="$1"
+  lc_tx_check_path "$CA_LOCATION" || return 3
+  case "$(cat "$staging/location-existed")" in 0|1) ;; *) return 3 ;; esac
+  if [[ "$(cat "$staging/location-existed")" == 1 ]]; then
+    [[ -f "$staging/location.before" && ! -L "$staging/location.before" && -f "$staging/location-revision" && ! -L "$staging/location-revision" ]] || return 3
+    [[ -f "$CA_LOCATION" && "$(lc_tx_revision "$CA_LOCATION")" == "$(cat "$staging/location-revision")" ]] &&
+      cmp -s "$CA_LOCATION" "$staging/location.before" && return 0
+  elif [[ ! -e "$CA_LOCATION" && ! -L "$CA_LOCATION" ]]; then return 0; fi
+  lc_log 'CA 位置记录已变化，候选密钥保留；请先审阅。'
+  return 3
+}
+
+# Finish only the exact generated pair. Never regenerate, replace an existing
+# target, or infer the destination of an old unversioned staging directory.
+lc_recover_ca_init() (
+  local staging="$1" record state derived declared resource target
+  [[ "$staging" == /* && "$staging" != *$'\n'* && "${staging##*/}" == .lazycat-ca-init.* ]] || return 3
+  lc_tx_check_path "$staging" || return 3
+  [[ -d "$staging" ]] || return 3
+  local owner_mode
+  case "$(uname -s)" in
+    Darwin) owner_mode=$(stat -f '%u:%Lp' "$staging") ;;
+    Linux) owner_mode=$(stat -c '%u:%a' "$staging") ;;
+    *) return 3 ;;
+  esac
+  [[ "$owner_mode" == "$EUID:700" ]] || { lc_log 'CA 候选目录归属或权限无效'; return 3; }
+  for record in journal-version directory name status public-fingerprint location-existed key key.pub; do
+    [[ -f "$staging/$record" && ! -L "$staging/$record" ]] || { lc_log '旧格式或不完整候选不能自动恢复'; return 3; }
+  done
+  [[ "$(cat "$staging/journal-version")" == 1 ]] || return 3
+  for resource in key key.pub; do
+    case "$(uname -s)" in
+      Darwin) owner_mode=$(stat -f '%u:%Lp' "$staging/$resource") ;;
+      Linux) owner_mode=$(stat -c '%u:%a' "$staging/$resource") ;;
+    esac
+    target=600; [[ "$resource" != key.pub ]] || target=644
+    [[ "$owner_mode" == "$EUID:$target" ]] || { lc_log '候选密钥权限或归属已变化，未自动修改'; return 3; }
+  done
+  ca_dir="${staging%/*}"; ca_name=$(cat "$staging/name")
+  [[ "$ca_dir" == "$(cat "$staging/directory")" ]] || { lc_log '候选已搬离原目录，需要先审阅'; return 3; }
+  [[ "$ca_name" =~ ^[A-Za-z0-9._-]+$ && "$ca_name" != . && "$ca_name" != .. ]] || return 3
+  state=$(cat "$staging/status")
+  case "$state" in keys-ready|private-published|pair-published|recovered) ;; *) return 3 ;; esac
+  # Explicit empty passphrase avoids a terminal prompt for damaged/replaced keys.
+  derived=$(ssh-keygen -y -P '' -f "$staging/key" | awk 'NR==1 && NF>=2 {print $1 " " $2}') || return 3
+  declared=$(awk 'NR==1 && NF>=2 {print $1 " " $2}' "$staging/key.pub")
+  [[ "$derived" == "$declared" && "$(ssh-keygen -lf "$staging/key.pub" | awk '{print $2}')" == "$(cat "$staging/public-fingerprint")" ]] || return 3
+  for resource in key key.pub; do
+    target="$(ca_priv_path)"; [[ "$resource" != key.pub ]] || target="$(ca_pub_path)"
+    if [[ "$state" == recovered && ! "$target" -ef "$staging/$resource" ]]; then return 3; fi
+    [[ ! -L "$target" && ( ! -e "$target" || ( -f "$target" && "$target" -ef "$staging/$resource" ) ) ]] || { lc_log '目标不是本次生成的密钥，未覆盖任一文件'; return 3; }
+  done
+  local desired
+  desired=$(printf '%s\n%s' "$ca_dir" "$ca_name")
+  if [[ "$state" == recovered ]]; then
+    [[ -f "$CA_LOCATION" && ! -L "$CA_LOCATION" && "$(cat "$CA_LOCATION")" == "$desired" ]] || return 3
+    lc_log '该 CA 初始化已恢复，未修改文件。'
+    return
+  fi
+  if [[ ! -f "$CA_LOCATION" || "$(cat "$CA_LOCATION")" != "$desired" ]]; then
+    lc_ca_location_unchanged "$staging" || return 3
+  fi
+  for resource in key key.pub; do
+    target="$(ca_priv_path)"; [[ "$resource" != key.pub ]] || target="$(ca_pub_path)"
+    [[ -e "$target" ]] || link "$staging/$resource" "$target" || return 3
+  done
+  printf 'pair-published\n' > "$staging/status"
+  if [[ ! -f "$CA_LOCATION" || "$(cat "$CA_LOCATION")" != "$desired" ]]; then
+    lc_ca_location_unchanged "$staging" || return 3
+    persist_ca_location
+  fi
+  printf 'recovered\n' > "$staging/status"
+  lc_log "CA 原密钥对及位置已恢复，候选保留：$staging"
+)
+
 lc_init_ca() {
   lc_require_cmds
 
@@ -269,11 +345,26 @@ lc_init_ca() {
   local staging
   staging=$(mktemp -d "$ca_dir/.lazycat-ca-init.XXXXXX")
   chmod 700 "$staging"
+  printf '1\n' > "$staging/journal-version"
+  printf '%s\n' "${staging%/*}" > "$staging/directory"
+  printf '%s\n' "$ca_name" > "$staging/name"
+  lc_tx_check_path "$CA_LOCATION" || return 3
+  if [[ -e "$CA_LOCATION" ]]; then
+    [[ -f "$CA_LOCATION" ]] || return 3
+    printf '1\n' > "$staging/location-existed"
+    lc_tx_revision "$CA_LOCATION" > "$staging/location-revision"
+    lc_tx_copy "$CA_LOCATION" "$staging/location.before"
+  else
+    printf '0\n' > "$staging/location-existed"
+  fi
+  lc_ca_location_unchanged "$staging" || return 3
   printf 'prepared\n' > "$staging/status"
   lc_log "⏳ 正在生成 ed25519 CA 密钥..."
   (umask 077; ssh-keygen -t ed25519 -f "$staging/key" -N "" -C "$ca_name")
   chmod 600 "$staging/key"
   chmod 644 "$staging/key.pub"
+  ssh-keygen -lf "$staging/key.pub" | awk '{print $2}' > "$staging/public-fingerprint"
+  printf 'keys-ready\n' > "$staging/status"
   # link invokes the exclusive filesystem operation directly: unlike ln it
   # never treats a newly appeared directory as permission to create inside it.
   # On interruption retain the private staging directory for explicit recovery.
@@ -282,6 +373,7 @@ lc_init_ca() {
   printf 'private-published\n' > "$staging/status"
   link "$staging/key.pub" "$pub" || lc_die "公钥目标被并发创建；未覆盖。请检查已发布私钥及候选：$staging"
   printf 'pair-published\n' > "$staging/status"
+  lc_ca_location_unchanged "$staging" || return 3
   persist_ca_location
   rm -rf "$staging"
 
@@ -412,7 +504,8 @@ main() {
     "") main_menu ;;
     show) [[ $# == 1 ]] || lc_die 'show 不接受参数'; lc_show_ca_pub ;;
     init) [[ $# == 5 && "$2" == --dir && "$4" == --name ]] || lc_die 'init --dir <绝对路径> --name <名称>'; lc_init_ca "$3" "$5" ;;
-    *) lc_die '用法：lazycat-ssh-ca.sh [show | init --dir <目录> --name <名称>]' ;;
+    recover-init) [[ $# == 2 ]] || lc_die 'recover-init <候选目录>'; lc_recover_ca_init "$2" ;;
+    *) lc_die '用法：lazycat-ssh-ca.sh [show | init --dir <目录> --name <名称> | recover-init <候选目录>]' ;;
   esac
 }
 

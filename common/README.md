@@ -68,3 +68,5 @@ bash common/lazycat-check.sh recover-lock /absolute/.bashrc
 检查器会发现 CA 默认目录、合法位置记录指向的目录及显式 `--scan-dir` 下的初始化候选；只读取阶段记录，不读取私钥或自动补齐密钥对。Squid 的 `recovery-conflict` 表示文件或服务仍待处理，不能用通用单文件 `rollback` 直接恢复整项服务。
 
 Squid 新记录使用其自身的 `setup_squid_proxy.sh --recover <操作目录>` 恢复两份文件及原服务状态，具体限制见 [Linux 工具说明](../linux/README.md)。恢复涉及真实服务操作；旧格式记录不推测缺失的原状态。
+
+CA 新版初始化记录可由 CA 自身的 `recover-init <候选目录>` 完成原密钥对，不由通用单文件 rollback 操作密钥。命令会读取候选密钥进行关联校验；默认 `lazycat-check` 仍只读阶段记录，不读取私钥。

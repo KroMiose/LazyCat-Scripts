@@ -318,3 +318,7 @@ Squid新增版本化中断记录及 --recover <操作目录>：提交前保存�
 本地断网、只读源码适配验证通过五种中断/服务状态组合，真实执行CLI、flock、SIGKILL、htpasswd及文件/ACL/xattr校验；systemd、Squid parser、监听与HTTP在此轮为模拟，不计完整系统通过。记录：artifacts/squid-recovery-driver/result.json。首次进入驱动后发现跨文件系统rename假设并失败，原日志cross-device-driver-failure.log保留；改用明确的fixture移动后重建环境通过。
 
 旧 Shell 客户端将程序安装/更新和缺失 yq 的 Homebrew 安装收敛到显式 install，普通菜单、sync、renew-certs 和未知命令不再隐式安装。完整入口的旧实现五个子场景失败保存在 artifacts/regression-proof/legacy-install-cfbe632/before.log；修复后新旧安装状态、缺失依赖和未知命令均无安装副作用，5条相关入口测试及完整82条Python测试通过。依赖可见性和brew/curl观察使用明确适配，非真实上游安装证据。现有完整安装不搬路径或换密钥，缺依赖的旧环境需明确修复；远程入口公共库加载及安装器多文件更新恢复仍未结案。
+
+CA增加显式recover-init：新候选记录原名称、公钥指纹及原位置状态；只对缺失目标建立原候选的硬链接，拒绝覆盖其他inode、变化的候选或位置记录，原密钥不重新生成。已恢复记录保留且重复运行不改文件。旧6070ec8完整入口缺少恢复能力的失败记录在artifacts/regression-proof/ca-recovery-6070ec8/before.log；本地原生OpenSSH、完整CLI、SIGKILL覆盖私钥发布、公钥发布、恢复中再次中断、外来公钥和位置修改。初版实现误将OpenSSH输出的公钥注释纳入关联比较而失败，修正为比较算法及key数据；不隐藏首次失败。此处尚未声称Linux CI或断电持久性通过。
+
+cfbe632完整运行34196304378的Debian源码和每周线路失败，原始product-failure报告保留在artifacts/github/34196304378。日志确认交互冲突断言失败：新未完成记录扫描也调用read，旧注入器误在扫描时提前编辑，导致编辑发生在快照之前。驱动改为仅在真实read -p提示触发，不放宽冲突断言。6070ec8尚不包含此修正，不能将其运行当作修复后证据；先前cfbe632 PR34196280227被后续推送取消，也不算通过。

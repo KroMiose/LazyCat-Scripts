@@ -1,5 +1,6 @@
 from pathlib import Path
 import subprocess
+import signal
 import tempfile
 import unittest
 from lib.support import ROOT, environment, snapshot
@@ -108,3 +109,51 @@ class CAEntrypoint(unittest.TestCase):
                     self.assertEqual(len(candidates),1)
                     self.assertEqual(candidates[0].stat().st_mode&0o777,0o700)
                     self.assertEqual((candidates[0]/'key').stat().st_mode&0o777,0o600)
+
+    def test_interrupted_pair_recovery_never_rekeys_or_overwrites(self):
+        for stage in ('private','public','recover-kill','existing-location','foreign-public','location-edit','permission-edit'):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory);ca=home/'CA 中文';script=ROOT/'ssh/ca/lazycat-ssh-ca.sh'
+                if stage=='existing-location':
+                    initial=subprocess.run(['bash',str(script),'init','--dir',str(home/'first CA'),'--name','first'],
+                        env=environment(home),capture_output=True,text=True,timeout=15)
+                    self.assertEqual(initial.returncode,0,initial.stdout+initial.stderr)
+                    first_before=snapshot(home/'first CA')
+                injection=home/'kill.sh'
+                injection.write_text('link() { command link "$@" || return; if [[ "$2" == "$KILL_TARGET" ]]; then kill -KILL -- "-$$"; fi; }\n')
+                target=ca/('personal.pub' if stage=='public' else 'personal')
+                result=subprocess.run(['bash',str(script),'init','--dir',str(ca),'--name','personal'],
+                    env=environment(home,{'BASH_ENV':str(injection),'KILL_TARGET':str(target)}),capture_output=True,text=True,timeout=15,start_new_session=True)
+                self.assertEqual(result.returncode,-signal.SIGKILL,result.stdout+result.stderr)
+                operation=next(ca.glob('.lazycat-ca-init.*'))
+                private=(operation/'key').read_bytes();public=(operation/'key.pub').read_bytes()
+                if stage=='permission-edit':(ca/'personal').chmod(0o640)
+                if stage=='foreign-public':(ca/'personal.pub').write_text('operator key\n')
+                if stage=='location-edit':
+                    location=home/'.lazycat/ssh-ca-location';location.parent.mkdir(parents=True)
+                    location.write_text('/operator/CA\nother\n')
+                before=snapshot(home)
+                recover=['bash',str(script),'recover-init',str(operation)]
+                if stage=='recover-kill':
+                    interrupted=subprocess.run(recover,env=environment(home,{'BASH_ENV':str(injection),'KILL_TARGET':str(ca/'personal.pub')}),
+                        capture_output=True,text=True,timeout=15,start_new_session=True)
+                    self.assertEqual(interrupted.returncode,-signal.SIGKILL,interrupted.stdout+interrupted.stderr)
+                    self.assertEqual((ca/'personal').read_bytes(),private)
+                    self.assertEqual((ca/'personal.pub').read_bytes(),public)
+                result=subprocess.run(recover,env=environment(home),capture_output=True,text=True,timeout=15)
+                if stage in ('foreign-public','location-edit','permission-edit'):
+                    self.assertEqual(result.returncode,3,result.stdout+result.stderr)
+                    self.assertEqual(snapshot(home),before)
+                else:
+                    self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                    self.assertEqual((ca/'personal').read_bytes(),private)
+                    self.assertEqual((ca/'personal.pub').read_bytes(),public)
+                    shown=subprocess.run(['bash',str(script),'show'],env=environment(home),capture_output=True,timeout=10)
+                    self.assertEqual(shown.returncode,0,shown.stderr);self.assertEqual(shown.stdout,public)
+                    after=snapshot(home)
+                    result=subprocess.run(recover,env=environment(home),capture_output=True,text=True,timeout=15)
+                    self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                    self.assertEqual(snapshot(home),after)
+                if stage=='existing-location':self.assertEqual(snapshot(home/'first CA'),first_before)
+                self.assertEqual((operation/'key').read_bytes(),private)
+                self.assertEqual((operation/'key.pub').read_bytes(),public)
