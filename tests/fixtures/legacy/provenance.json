@@ -5,7 +5,8 @@
     "common/setup_zsh_p10k.sh",
     "common/add_ssh_config.sh",
     "linux/setup_squid_proxy.sh",
-    "ssh/lib/common.sh"
+    "ssh/lib/common.sh",
+    "linux/setup_python_env.sh"
   ],
   "purpose": "Read-only regression fixtures. Never execute installers on the host."
 }

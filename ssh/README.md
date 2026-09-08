@@ -36,8 +36,15 @@ Go 候选客户端与验证边界见 [整改记录](../docs/REMEDIATION.md) 和 
 
 在 **管理员电脑** 或 **中央堡垒机** 上运行：
 
+<!-- lazycat-example: ca-download -->
 ```bash
-bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/ca/lazycat-ssh-ca.sh)"
+(
+  set -e
+  script=$(mktemp)
+  trap 'rm -f "$script"' EXIT
+  curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/ca/lazycat-ssh-ca.sh -o "$script"
+  bash "$script"
+)
 ```
 
 1. 选择 `1) 初始化 CA`。
@@ -56,9 +63,15 @@ bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/ca/lazycat
 2. **在服务器执行**：
    登录到你的目标服务器（如 Ubuntu/CentOS 或 macOS），粘贴并执行该命令：
 
+   <!-- lazycat-example: node-download -->
    ```bash
-   # 示例（请务必使用 CA 脚本生成的实际命令）
-   sudo bash -c "$(curl -fsSL ...)" -- "ssh-ed25519 AAAA..."
+   (
+     set -e
+     script=$(mktemp)
+     trap 'rm -f "$script"' EXIT
+     curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/node/lazycat-ssh-node.sh -o "$script"
+     sudo bash "$script" 'ssh-ed25519 <替换为实际CA公钥>'
+   )
    ```
 
    _该操作会自动修改 `/etc/ssh/sshd_config` 添加 `TrustedUserCAKeys`。Linux 会尝试重载 sshd；macOS 的 sshd 由 launchd 按需启动，新连接会自动读取最新配置，无需手动重载。_
@@ -165,8 +178,15 @@ hosts:
 
 在开发者电脑上运行：
 
+<!-- lazycat-example: client-download -->
 ```bash
-bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/client/lazycat-ssh.sh)"
+(
+  set -e
+  script=$(mktemp)
+  trap 'rm -f "$script"' EXIT
+  curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/client/lazycat-ssh.sh -o "$script"
+  bash "$script"
+)
 ```
 
 1. 运行 `lazycat-ssh`。
@@ -181,7 +201,7 @@ bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/client/laz
 ssh prod-db
 ```
 
-无需输入密码，也无需手动管理 key。
+证书登录是否免输密码取决于既有密钥、解锁方式和服务端策略；请用新会话验证实际登录。
 
 ---
 

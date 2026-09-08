@@ -29,6 +29,9 @@ def main():
         if result:raise SystemExit('Unformatted Go files:\n'+result)
     subprocess.run([sys.executable, str(ROOT/'scripts/embed.py'), '--check'],check=True)
     subprocess.run([sys.executable, str(ROOT/'tests/docs_check.py')],check=True)
+    # Documentation-only changes do not select behavior jobs. Exercise the
+    # registered commands here too, with local download/privilege adapters.
+    subprocess.run([sys.executable,'-B','-m','unittest','discover','-s','tests','-p','test_download_examples.py'],cwd=ROOT,check=True)
     subprocess.run(['go','run','github.com/rhysd/actionlint/cmd/actionlint@v1.7.12','-shellcheck='],cwd=ROOT,check=True)
     print('PASS syntax, ShellCheck errors, scenario contract, go vet, gofmt')
 

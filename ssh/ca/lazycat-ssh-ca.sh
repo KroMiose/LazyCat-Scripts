@@ -190,7 +190,15 @@ lc_show_node_setup_hint() {
   lc_log ""
   lc_log "Node 端配置提示："
   lc_log "1) 在被访问设备上执行："
-  lc_log "   sudo bash -c \"\$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/node/lazycat-ssh-node.sh)\" -- \"$(cat "$(ca_pub_path)")\""
+  cat <<'DOWNLOAD'
+(
+  set -e
+  script=$(mktemp)
+  trap 'rm -f "$script"' EXIT
+  curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/node/lazycat-ssh-node.sh -o "$script"
+DOWNLOAD
+  printf '  sudo bash "$script" %q\n' "$(cat "$(ca_pub_path)")"
+  printf ')\n'
   lc_log "2) 如果已使用第一种方式（带参数），则自动完成配置。"
   lc_log "   否则运行后选择“初始化/更新”，按提示粘贴下面的 CA 公钥："
   lc_log ""
@@ -252,4 +260,3 @@ main() {
 }
 
 main "$@"
-

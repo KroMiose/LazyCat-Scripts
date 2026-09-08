@@ -83,7 +83,23 @@ TIMER
 chown -R fixture:fixture "$home/.config"
 cp "$home/.config/systemd/user/lazycat-ssh-renew.timer" /tmp/timer-before
 user_systemctl daemon-reload
+rm -f "$home/.lazycat/ssh/renew-status.json"
 user_systemctl enable --now lazycat-ssh-renew.timer
+# OnBootSec may already be elapsed, so enabling the legacy timer can start a
+# real renewal immediately. Migration correctly refuses that active old job.
+# Establish its completed state explicitly, never assume enable waits for it.
+deadline=$((SECONDS+180))
+while true; do
+    legacy_active=$(user_systemctl show lazycat-ssh-renew.service --property=ActiveState --value)
+    case "$legacy_active" in
+        inactive) if [[ -f "$home/.lazycat/ssh/renew-status.json" ]]; then break; fi ;;
+        active|activating|deactivating) ;;
+        *) echo "unexpected initial legacy task state: $legacy_active"; exit 1 ;;
+    esac
+    ((SECONDS<deadline)) || { echo 'initial legacy renewal did not finish'; exit 1; }
+    sleep .2
+done
+[[ $(user_systemctl show lazycat-ssh-renew.service --property=Result --value) == success ]]
 client migrate --check
 client migrate --apply
 cmp /tmp/timer-before "$home/.config/systemd/user/lazycat-ssh-renew.timer"
