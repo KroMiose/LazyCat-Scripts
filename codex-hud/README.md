@@ -1,5 +1,7 @@
 # codex-hud
 
+手动 `notify` 与自动 Stop 共用文本清理：移除 Markdown 标记并合并为单行，再按既有正文预算截断。通知时机仍由调用方决定；去重、格式和超时由程序处理。普通文字、Key、通知偏好和其他 Hooks 不因这项修改而更新。
+
 通过 Bark，把 Codex 的审批请求、工作结束和重要事项推送到 iPhone，也可由 RayNeo iO 转发到眼镜。通知自动缩短为单行，适合快速查看。
 
 支持 macOS 和 Linux，提供 Apple Silicon / ARM64、Intel / AMD64 独立程序，无需安装 Go、Python 或 Node。

@@ -134,7 +134,8 @@
       ],
       "scenarios": [
         "hud-lifecycle",
-        "hud-published-history"
+        "hud-published-history",
+        "hud-notification-budget"
       ]
     },
     "packaging": {

@@ -59,6 +59,7 @@ jobs:
           CGO_ENABLED=0 go build -ldflags "-X main.version=codex-hud-v0.1.0" -o /tmp/codex-hud-test .
           python3 tests/lifecycle.py /tmp/codex-hud-test
           python3 tests/installer.py /tmp/codex-hud-test
+          python3 tests/notification_budget.py /tmp/codex-hud-test
 
   build:
     needs: test

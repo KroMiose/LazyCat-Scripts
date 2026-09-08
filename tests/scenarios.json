@@ -140,6 +140,21 @@
         "binary replacement compatibility; not full installer interruption recovery",
         "candidate built from source; not publicly released candidate"
       ]
+    },
+    {
+      "id": "hud-notification-budget",
+      "level": "native-process",
+      "initial": "isolated HOME, fictional Key, real local HTTP observer with controlled delay and six child processes",
+      "entrypoint": "python3 codex-hud/tests/notification_budget.py <candidate-binary>",
+      "preserve": [
+        "key and unrelated configuration",
+        "configuration on invalid CLI inputs",
+        "no retry after unknown delivery"
+      ],
+      "mutations": [
+        "temporary config and per-turn state",
+        "local HTTP fixture requests only"
+      ]
     }
   ]
 }

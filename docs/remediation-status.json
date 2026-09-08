@@ -293,14 +293,16 @@
       "title": "通知锁等待预算与网络耗时不匹配",
       "status": "相关回归已通过，完整验收待补",
       "decision": "",
-      "release_complete": false
+      "release_complete": false,
+      "evidence_summary": "Go 测试验证共享4.5秒上下文和慢响应去重；新增真实六进程 Stop、本地延迟 HTTP 和送达不明不重发用例，本地通过，超时约4.01秒。托管原生结果待此次提交验证。"
     },
     {
       "id": 40,
       "title": "通知产品策略过多依赖模型遵守全局自然语言",
-      "status": "待实施",
+      "status": "部分实现，验收未完成",
       "decision": "确定性去重和格式放程序；模型仍决定通知时机。",
-      "release_complete": false
+      "release_complete": false,
+      "evidence_summary": "手动 notify 与 Stop 现在共用 Markdown/控制字符/单行清理；程序承担格式、去重和超时，模型仅决定时机。旧实际二进制把 Markdown 发给观察者，新实现清理后通过；Go race通过，托管验证待执行。"
     },
     {
       "id": 41,
@@ -308,7 +310,7 @@
       "status": "部分实现，验收未完成",
       "decision": "",
       "release_complete": false,
-      "evidence_summary": "HUD enabled/stop/alias CLI 与菜单共用实现，Go 测试通过；发布版入口未切换。"
+      "evidence_summary": "完整原生 CLI 已验证 enabled/stop on/off、alias 设置/删除和非法值不写入；Key和其他配置保留。菜单共用配置实现。此次新增原生用例托管验证待执行。"
     },
     {
       "id": 42,

@@ -149,7 +149,7 @@ func (a *app) notify(o notifyOptions) error {
 		}
 		o.Message = string(b)
 	}
-	body := truncateBody(singleLine(redact(o.Message)), c.BodyMaxBytes)
+	body := truncateBody(sanitizeText(redact(o.Message)), c.BodyMaxBytes)
 	if body == "" {
 		return errors.New("通知正文不能为空")
 	}
