@@ -969,9 +969,11 @@ lc_sync_from_raw_url() (
   # Validate all inventory fields before requesting credentials or modifying
   # user directories. Existing SSH directory permissions belong to the user.
   [[ ! -L "$SSH_DIR" && ! -L "$SSH_CONFIG_D" && ! -L "$SSH_CONFIG" && ! -L "$LAZYCAT_CONF" ]] || lc_die 'SSH 配置路径是符号链接，需要先审阅。'
+  [[ ! -e "$LAZYCAT_CONF" || -f "$LAZYCAT_CONF" ]] || lc_die '生成配置目标不是普通文件，未修改。'
   if [[ "$ca_enabled" == 1 ]]; then
     [[ ! -L "$CA_KEY_PATH" && ! -L "$CA_PUB_PATH" && ! -L "$CA_CERT_PATH" ]] || lc_die '证书或密钥路径是符号链接，未修改。'
   fi
+  lc_validate_marked_block "$SSH_CONFIG" "$LC_MARK_BEGIN_SSH_CONFIG" "$LC_MARK_END_SSH_CONFIG"
   (umask 077; mkdir -p "$SSH_DIR" "$SSH_CONFIG_D")
   umask 077
   mv "$out" "${LAZYCAT_CONF}.tmp"

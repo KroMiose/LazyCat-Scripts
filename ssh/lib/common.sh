@@ -64,9 +64,10 @@ lc_backup_file() {
   lc_log "  -> 已创建备份: $bak"
 }
 
-lc_remove_marked_block() {
-  local path="$1" begin="$2" end="$3" tmp
+lc_validate_marked_block() {
+  local path="$1" begin="$2" end="$3"
   [[ ! -L "$path" ]] || lc_die "拒绝修改符号链接: $path"
+  [[ ! -e "$path" || -f "$path" ]] || lc_die "目标不是普通文件，未修改: $path"
   [[ -f "$path" ]] || return 0
   # Validate before creating a candidate; a broken block must never eat user data.
   awk -v b="$begin" -v e="$end" '
@@ -74,6 +75,12 @@ lc_remove_marked_block() {
     $0 == e { if (!inside) exit 1; inside=0 }
     END { if (inside) exit 1 }
   ' "$path" || lc_die "托管标记损坏或重复，未修改: $path"
+}
+
+lc_remove_marked_block() {
+  local path="$1" begin="$2" end="$3" tmp
+  lc_validate_marked_block "$path" "$begin" "$end"
+  [[ -f "$path" ]] || return 0
   grep -qxF "$begin" "$path" || return 0
   tmp="$(mktemp "${path}.XXXXXX")" || return 1
   cp -p "$path" "$tmp" || { rm -f "$tmp"; return 1; }

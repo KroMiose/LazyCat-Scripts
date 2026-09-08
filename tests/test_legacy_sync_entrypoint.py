@@ -46,6 +46,24 @@ exit 0
                 self.assertEqual(observed.returncode,0,observed.stderr)
                 self.assertIn('hostname '+address+'\n',observed.stdout)
 
+            config=ssh_dir/'config'
+            config.write_text('# >>> LazyCat SSH BEGIN >>>\nHost retained\n HostName original.invalid\n')
+            config.chmod(0o640)
+            generated=ssh_dir/'config.d/lazycat.conf'
+            generated.write_text('# existing generated configuration\n')
+            before=snapshot(ssh_dir)
+            result=subprocess.run(['/bin/bash',str(ROOT/'ssh/client/lazycat-ssh.sh'),'sync'],env=environment(home,{'PATH':str(binary)+':/usr/bin:/bin'}),capture_output=True,text=True,timeout=10)
+            self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
+            self.assertEqual(snapshot(ssh_dir),before,result.stdout+result.stderr)
+            # A special file is not an empty configuration; never open a FIFO.
+            import os
+            config.unlink();os.mkfifo(config)
+            before=snapshot(ssh_dir)
+            result=subprocess.run(['/bin/bash',str(ROOT/'ssh/client/lazycat-ssh.sh'),'sync'],env=environment(home,{'PATH':str(binary)+':/usr/bin:/bin'}),capture_output=True,text=True,timeout=10)
+            self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
+            self.assertIn('不是普通文件',result.stdout+result.stderr)
+            self.assertEqual(snapshot(ssh_dir),before)
+
     def test_ca_failure_does_not_block_config_or_fetch_inventory_twice(self):
         # A real locked yq is supplied by the Linux VM driver there. This fast
         # entrypoint test uses a finite YAML-query adapter, not a full parser.

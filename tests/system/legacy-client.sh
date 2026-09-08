@@ -194,3 +194,21 @@ for implementation in old new; do
     fi
 done
 echo 'PASS real yq and old/new CLI reject generated alias collision without publishing config'
+
+cat > /tmp/legacy-inventory/inventory.yaml <<'YAML'
+version: 1
+hosts:
+  valid-target:
+    host: 192.0.2.5
+YAML
+printf '# >>> LazyCat SSH BEGIN >>>\nHost retained\n HostName original.invalid\n' > "$home/.ssh/config"
+chmod 640 "$home/.ssh/config"
+cp -a "$home/.ssh" /tmp/legacy-damaged-marker-before
+status=0
+runuser -u legacy-fixture -- env -i HOME="$home" USER=legacy-fixture PATH=/work:/usr/bin:/bin bash "$home/.local/bin/lazycat-ssh" sync > /tmp/legacy-damaged-marker.log 2>&1 || status=$?
+cat /tmp/legacy-damaged-marker.log
+[[ "$status" != 0 ]]
+grep -F '托管标记损坏' /tmp/legacy-damaged-marker.log
+diff -r /tmp/legacy-damaged-marker-before "$home/.ssh"
+[[ $(stat -c %a "$home/.ssh/config") == 640 ]]
+echo 'PASS valid inventory with damaged Include markers leaves both SSH files and permissions unchanged'
