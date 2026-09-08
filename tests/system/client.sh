@@ -156,6 +156,21 @@ grep -qx 'OnUnitActiveSec=1min' "$home/.config/systemd/user/lazycat-ssh-renew.ti
 sha256sum -c /tmp/cert-before-timer
 echo 'PASS SIGKILL after real timer pause: durable record, blocked rerun, recovered original task, no operation-lock deadlock'
 # Updating the interval must preserve independent active/enabled choices.
+reset_fixture_rate_counters() {
+    local unit output
+    for unit in lazycat-ssh-renew.timer lazycat-ssh-renew.service; do
+        if output=$(user_systemctl reset-failed "$unit" 2>&1); then
+            printf 'rate-counter baseline cleared: %s\n' "$unit"
+        elif [[ "$output" == "Failed to reset failed state of unit $unit: Unit $unit not loaded." ]]; then
+            # systemd can garbage-collect an inactive, disabled unit between
+            # commands. An unloaded object has no retained start counter.
+            printf 'rate-counter baseline already absent: %s\n' "$unit"
+        else
+            printf '%s\n' "$output" >&2
+            return 1
+        fi
+    done
+}
 minutes=2
 for enabled in enabled disabled enabled-runtime; do
     for active in active inactive; do
@@ -164,7 +179,9 @@ for enabled in enabled disabled enabled-runtime; do
         # Each preference combination starts with an explicit rate-counter
         # baseline. Rate exhaustion has a separate real failure scenario below.
         [[ "$(user_systemctl show lazycat-ssh-renew.service --property=ActiveState --value)" == inactive ]]
-        user_systemctl reset-failed lazycat-ssh-renew.timer lazycat-ssh-renew.service
+        printf 'fixture-rate-baseline\n' > /tmp/lazycat-phase
+        reset_fixture_rate_counters
+        printf 'go-client-lifecycle\n' > /tmp/lazycat-phase
         case "$enabled" in
             enabled) user_systemctl enable lazycat-ssh-renew.timer ;;
             enabled-runtime) user_systemctl enable --runtime lazycat-ssh-renew.timer ;;
@@ -206,6 +223,7 @@ client uninstall-renew
 [[ ! -e "$home/.config/systemd/user/lazycat-ssh-renew.timer" ]]
 # Declare a slow, deterministic rate-limit fixture through the disposable user
 # manager, not by editing product-owned units or disabling system protection.
+printf 'fixture-rate-limit-setup\n' > /tmp/lazycat-phase
 rate_config=/etc/systemd/user.conf.d/90-lazycat-rate-fixture.conf
 [[ ! -e "$rate_config" ]]
 mkdir -p /etc/systemd/user.conf.d
@@ -233,6 +251,7 @@ RATE
 chmod 755 /tmp/lazycat-rate-bin/systemctl
 touch /tmp/lazycat-rate-once
 chown fixture:fixture /tmp/lazycat-rate-once
+printf 'go-client-rate-limit-recovery\n' > /tmp/lazycat-phase
 status=0
 runuser -u fixture -- env -i HOME="$home" USER=fixture PATH=/tmp/lazycat-rate-bin:/usr/bin:/bin XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" /work/lazycat-ssh install-renew 30 > /tmp/lazycat-rate.log 2>&1 || status=$?
 cat /tmp/lazycat-rate.log

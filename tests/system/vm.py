@@ -186,7 +186,7 @@ def main():
                     try:
                         phase=subprocess.run(ssh+['cat /tmp/lazycat-phase 2>/dev/null'],capture_output=True,text=True,timeout=10)
                         report['guest_phase']=phase.stdout.strip()
-                        if report['guest_phase']=='observer-packages':report['status']='environment-error'
+                        if report['guest_phase'] in ('observer-packages','fixture-rate-baseline','fixture-rate-limit-setup'):report['status']='environment-error'
                     except (OSError,subprocess.TimeoutExpired) as error:
                         report.setdefault('diagnostic_errors',[]).append(str(error))
                     try:
