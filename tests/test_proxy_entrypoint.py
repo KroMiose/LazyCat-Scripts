@@ -34,6 +34,61 @@ class ProxyEntrypoint(unittest.TestCase):
             self.assertNotEqual(result.returncode,0)
             self.assertFalse((home/'.bashrc').exists())
 
+    def test_legacy_uppercase_http_proxy_really_connects_directly(self):
+        direct_requests=[];proxy_requests=[]
+        def handler(observed):
+            class Endpoint(http.server.BaseHTTPRequestHandler):
+                def do_GET(self):
+                    observed.append(self.path);self.send_response(200);self.end_headers();self.wfile.write(b'fixture-ip')
+                def log_message(self,*args):pass
+            return Endpoint
+        with tempfile.TemporaryDirectory() as directory, http.server.ThreadingHTTPServer(('127.0.0.1',0),handler(direct_requests)) as direct, http.server.ThreadingHTTPServer(('127.0.0.1',0),handler(proxy_requests)) as proxy:
+            for server in (direct,proxy):
+                threading.Thread(target=server.serve_forever,daemon=True).start();self.addCleanup(server.shutdown)
+            home=Path(directory);bin_dir=home/'bin';bin_dir.mkdir()
+            # Keep real curl's proxy interpretation. Only DNS routing for the
+            # direct destination is redirected to the isolated local observer.
+            # HTTPS failure ends the old entrypoint after its HTTP observation.
+            wrapper=bin_dir/'curl'
+            wrapper.write_text('#!/bin/sh\ncase "$*" in *https://ifconfig.me*) exit 7 ;; *--proxy*) exec /usr/bin/curl "$@" ;; esac\nexec /usr/bin/curl --connect-to ifconfig.me:80:127.0.0.1:'+str(direct.server_port)+' --noproxy \'\' "$@"\n')
+            wrapper.chmod(0o755)
+            env=environment(home,{'PATH':str(bin_dir)+':/usr/bin:/bin:/usr/sbin:/sbin'})
+            old=subprocess.run(['bash',str(ROOT/'tests/fixtures/legacy/common/setup_proxy_config.sh')],
+                input='127.0.0.1\n'+str(proxy.server_port)+'\ny\n',env=env,capture_output=True,text=True,timeout=10)
+            self.assertEqual(old.returncode,7,old.stdout+old.stderr)
+            self.assertEqual(direct_requests,['/']);self.assertEqual(proxy_requests,[])
+            direct_requests.clear()
+            new=subprocess.run(['bash',str(ROOT/'common/setup_proxy_config.sh'),'--url','http://127.0.0.1:'+str(proxy.server_port),'--socks-url','','--test-url','http://ifconfig.me/fixture','--test','--print'],
+                env=env,capture_output=True,text=True,timeout=10)
+            self.assertEqual(new.returncode,0,new.stdout+new.stderr)
+            self.assertEqual(direct_requests,[]);self.assertEqual(proxy_requests,['http://ifconfig.me/fixture'])
+
+    def test_failed_interactive_test_can_continue_or_cancel(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home=Path(directory);bin_dir=home/'bin';bin_dir.mkdir()
+            curl=bin_dir/'curl';curl.write_text('#!/bin/sh\nexit 7\n');curl.chmod(0o755)
+            env=environment(home,{'PATH':str(bin_dir)+':/usr/bin:/bin:/usr/sbin:/sbin'})
+            original=b'# user settings\n';rc=home/'.bashrc';rc.write_bytes(original)
+            # Same declared network failure; the historical actual entrypoint
+            # exits before consuming the user's explicit continue/print choice.
+            old=subprocess.run(['bash',str(ROOT/'tests/fixtures/legacy/common/setup_proxy_config.sh')],
+                input='127.0.0.1\n7890\ny\ny\nt\n',env=env,capture_output=True,text=True,timeout=10)
+            self.assertEqual(old.returncode,7,old.stdout+old.stderr)
+            self.assertNotIn('export http_proxy=',old.stdout)
+            script=ROOT/'common/setup_proxy_config.sh'
+            new=subprocess.run(['bash',str(script)],input='http://127.0.0.1:7890\ny\ny\nt\n',
+                env=env,capture_output=True,text=True,timeout=10)
+            self.assertEqual(new.returncode,0,new.stdout+new.stderr)
+            self.assertIn('export http_proxy=http://127.0.0.1:7890',new.stdout)
+            self.assertEqual(rc.read_bytes(),original)
+            cancelled=subprocess.run(['bash',str(script)],input='http://127.0.0.1:7890\ny\nn\n',
+                env=env,capture_output=True,text=True,timeout=10)
+            self.assertEqual(cancelled.returncode,0,cancelled.stdout+cancelled.stderr)
+            eof=subprocess.run(['bash',str(script)],input='',env=env,capture_output=True,text=True,timeout=10)
+            self.assertNotEqual(eof.returncode,0)
+            self.assertEqual(rc.read_bytes(),original)
+            self.assertEqual(sorted(p.name for p in home.iterdir()),['.bashrc','bin'])
+
     def test_apply_repeat_ipv6_and_broken_marker(self):
         with tempfile.TemporaryDirectory() as directory:
             home=Path(directory);rc=home/'.bashrc';rc.write_text('# user preference\n');rc.chmod(0o640)
