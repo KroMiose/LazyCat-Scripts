@@ -18,6 +18,10 @@ class RequiredChecks(unittest.TestCase):
 
     def test_docs_and_shared_dependency_mapping(self):
         self.assertFalse(select(['README.md'])['system'])
+        self.assertFalse(select(['README.md'])['assets'])
+        self.assertFalse(select(['codex-hud/main.go'])['assets'])
+        self.assertFalse(select(['codex-hud/main.go'])['system'])
+        self.assertTrue(select(['scripts/build_release.py'])['assets'])
         for path in ('lib/file-transaction.sh','tests/gate.py','.github/workflows/reliability.yml','ssh/model.go'):
             selected=select([path])
             self.assertTrue(selected['system'],path);self.assertTrue(selected['behavior'],path)

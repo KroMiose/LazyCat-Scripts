@@ -8,7 +8,8 @@
       ],
       "depends_on": [],
       "jobs": [
-        "behavior"
+        "behavior",
+        "assets"
       ],
       "scenarios": [
         "shell-regressions"
@@ -22,7 +23,8 @@
       "jobs": [
         "behavior",
         "system",
-        "go"
+        "go",
+        "assets"
       ],
       "scenarios": [
         "shell-regressions",
@@ -32,7 +34,8 @@
         "ssh-launchd",
         "ssh-launchd-gui",
         "legacy-client-renewal",
-        "legacy-input-validation"
+        "legacy-input-validation",
+        "linux-packaged-system"
       ]
     },
     "shell-proxy": {
@@ -70,7 +73,8 @@
       "depends_on": [],
       "jobs": [
         "behavior",
-        "system"
+        "system",
+        "assets"
       ],
       "scenarios": [
         "shell-regressions",
@@ -119,7 +123,8 @@
       ],
       "jobs": [
         "behavior",
-        "system"
+        "system",
+        "assets"
       ],
       "scenarios": [
         "shell-regressions",
@@ -151,14 +156,16 @@
       "jobs": [
         "behavior",
         "system",
-        "go"
+        "go",
+        "assets"
       ],
       "scenarios": [
         "shell-regressions",
         "linux-system",
         "native-package",
         "ssh-launchd",
-        "ssh-launchd-gui"
+        "ssh-launchd-gui",
+        "linux-packaged-system"
       ]
     }
   },

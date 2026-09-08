@@ -24,9 +24,11 @@ import xml.etree.ElementTree as ET
 if __package__:
     from .packages import materialize, record_export
     from . import opkg
+    from .assets import materialize_assets
 else:
     from packages import materialize, record_export
     import opkg
+    from assets import materialize_assets
 
 ROOT=Path(__file__).resolve().parents[2]
 
@@ -66,7 +68,8 @@ def source_snapshot(root=ROOT):
     return frozen
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--image',choices=['ubuntu','debian','openwrt'],required=True);parser.add_argument('--suite',choices=['core','upstream','docker'],default='core');parser.add_argument('--fresh-download',action='store_true');parser.add_argument('--package-lock',type=Path);parser.add_argument('--fresh-packages',action='store_true');parser.add_argument('--export-package-lock',type=Path);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--image',choices=['ubuntu','debian','openwrt'],required=True);parser.add_argument('--suite',choices=['core','upstream','docker'],default='core');parser.add_argument('--fresh-download',action='store_true');parser.add_argument('--package-lock',type=Path);parser.add_argument('--fresh-packages',action='store_true');parser.add_argument('--export-package-lock',type=Path);parser.add_argument('--assets',type=Path);args=parser.parse_args()
+    if args.assets and (args.image=='openwrt' or args.export_package_lock):parser.error('--assets requires a Linux product lifecycle, not package export/OpenWrt')
     if args.package_lock and args.export_package_lock:parser.error('cannot use and create a package lock together')
     if args.fresh_packages and not args.package_lock:parser.error('--fresh-packages requires --package-lock')
     if args.package_lock and args.suite=='upstream':parser.error('real-upstream suite cannot use a network-restricted guest')
@@ -98,6 +101,10 @@ def main():
             work=Path(directory);snapshot=work/'source';snapshot.mkdir()
             for name,data,mode in frozen:
                 target=snapshot/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data);target.chmod(mode)
+            release_binary=None
+            if args.assets:
+                release_binary=work/'lazycat-ssh'
+                report['product_artifacts']=materialize_assets(args.assets,snapshot,release_binary,report['commit'])
             package_archive=None
             if args.package_lock:
                 package_archive=work/'packages.tar'
@@ -145,11 +152,14 @@ def main():
                     if r.returncode==0:break
                     time.sleep(2)
                 else:raise RuntimeError('guest SSH did not become ready within 600s')
-                client_binary=None;legacy_yq=None
+                client_binary=release_binary;legacy_yq=None
                 if args.image!='openwrt' and not args.export_package_lock:
-                    report['phase']='build-client'
-                    client_binary=work/'lazycat-ssh'
-                    execute(['go','build','-trimpath','-o',str(client_binary),'.'],cwd=snapshot/'ssh',env={**os.environ,'GOOS':'linux','GOARCH':'amd64','CGO_ENABLED':'0'},timeout=180)
+                    report['phase']='prepare-client-and-legacy-observer'
+                    if client_binary is None:
+                        report['client_origin']='source-build'
+                        client_binary=work/'lazycat-ssh'
+                        execute(['go','build','-trimpath','-o',str(client_binary),'.'],cwd=snapshot/'ssh',env={**os.environ,'GOOS':'linux','GOARCH':'amd64','CGO_ENABLED':'0'},timeout=180)
+                    else:report['client_origin']='verified-release-archive'
                     legacy_yq=work/'yq'
                     execute(['go','build','-mod=readonly','-trimpath','-o',str(legacy_yq),'github.com/mikefarah/yq/v4'],cwd=snapshot/'tests/tools',env={**os.environ,'GOOS':'linux','GOARCH':'amd64','CGO_ENABLED':'0'},timeout=240)
                     report['legacy_yq_sha256']=hashlib.sha256(legacy_yq.read_bytes()).hexdigest()

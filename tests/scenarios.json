@@ -194,6 +194,22 @@
       ],
       "observer": "real SSH new connection as fixture; unregistered and rolled-back key rejected, forced command actually executed",
       "recovery": "public lazycat-check rollback restores original comment; fixture teardown verified by rejected connection"
+    },
+    {
+      "id": "linux-packaged-system",
+      "level": "full-system",
+      "initial": "fresh Ubuntu24.04/Debian12 AMD64 overlay, locked local apt source, exact clean-commit Shell and Go release archives; independent checkout test drivers",
+      "entrypoint": "python3 tests/system/vm.py --image <ubuntu|debian> --suite docker --package-lock <lock> --assets <candidate-directory>",
+      "preserve": [
+        "fixture credentials, user configuration and service preferences according to component lifecycle assertions",
+        "test driver bytes are never supplied by the product archive"
+      ],
+      "mutations": [
+        "disposable guest product files and services only",
+        "host temporary verified source snapshot and evidence directory"
+      ],
+      "observer": "same real SSH, systemd, sudo, Squid and Docker observers as source lifecycle; actual product bytes originate in archives",
+      "limits": "Linux AMD64 only; not public download or complete release approval"
     }
   ]
 }

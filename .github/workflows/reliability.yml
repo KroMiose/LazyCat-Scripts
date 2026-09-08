@@ -18,6 +18,7 @@ jobs:
       behavior: ${{ steps.map.outputs.behavior }}
       system: ${{ steps.map.outputs.system }}
       go: ${{ steps.map.outputs.go }}
+      assets: ${{ steps.map.outputs.assets }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -85,7 +86,7 @@ jobs:
           if-no-files-found: error
   candidate-artifacts:
     needs: affected
-    if: needs.affected.outputs.behavior == 'true'
+    if: needs.affected.outputs.assets == 'true'
     uses: ./.github/workflows/candidate-assets.yml
   system:
     needs: affected
@@ -211,7 +212,7 @@ jobs:
           MAPPING: ${{ needs.affected.result }}
           QUALITY: ${{ needs.quality.result }}
           EXPECT_BEHAVIOR: ${{ needs.affected.outputs.behavior }}
-          EXPECT_ASSETS: ${{ needs.affected.outputs.behavior }}
+          EXPECT_ASSETS: ${{ needs.affected.outputs.assets }}
           ASSETS: ${{ needs.candidate-artifacts.result }}
           EXPECT_SYSTEM: ${{ needs.affected.outputs.system }}
           BEHAVIOR: ${{ needs.behavior.result }}

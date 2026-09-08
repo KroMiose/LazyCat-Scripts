@@ -103,3 +103,8 @@ f22d7e3 的 PR 34178623052 和完整运行 34178662431 均失败在新增场景�
 
 
 候选归档测试现在覆盖已登记c8ffb57旧程序替换、重复迁移不新增日志、用户后改程序阻止回滚，以及公共rollback恢复旧程序字节；配置为独立手写的最小样本，系统ssh -G验证连接参数。使用实际下载归档，不重新编译待测客户端。JSON额外记录驱动摘要，JUnit/摘要显示中途未执行的场景。此场景不等于旧正式SSH发行包升级，也不覆盖CA登录、原生任务或安装器SIGKILL；launchd继续独立验证。
+
+
+Linux完整系统也可验证实际归档：`python3 tests/system/vm.py --image ubuntu --suite docker --package-lock tests/system/apt/ubuntu.lock.json --assets artifacts/candidate`。归档必须属于当前提交、非开发构建，manifest/SHA256SUMS/BUILD.json一致且二进制确为Linux AMD64；产品脚本集合与当前checkout一致，归档不能覆盖测试驱动。缺失、错提交、错架构或不安全条目在启动产品测试前拒绝。报告分别记录测试源码快照和实际产品归档摘要；此模式不重新编译SSH客户端，yq仍作为独立旧客户端观察依赖在客体外构建。
+
+candidate-assets新增Ubuntu/Debian实际归档系统作业，其失败通过可复用作业结果进入required-checks；macOS仍由实际归档驱动原生launchd。新路径完成输入校验的成功/反向测试，真实VM结果须以对应Actions运行记录为准。普通源码系统作业继续验证raw脚本入口，两者不互相替代。

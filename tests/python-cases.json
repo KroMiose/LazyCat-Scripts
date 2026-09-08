@@ -68,6 +68,7 @@
     "test_runtime_entrypoint.RuntimeEntrypoint.test_node_health_failure_and_eof_never_report_complete",
     "test_runtime_entrypoint.RuntimeEntrypoint.test_python_existing_tools_and_failed_health_preserve_preferences",
     "test_runtime_entrypoint.RuntimeEntrypoint.test_python_existing_tools_need_no_install_dependencies",
+    "test_system_assets.SystemAssets.test_verified_artifacts_and_known_bad_inputs",
     "test_system_fixture.SystemFixture.test_rate_baseline_accepts_only_success_or_unloaded_unit",
     "test_transaction_attributes.TransactionAttributes.test_concurrent_xattr_change_is_preserved",
     "test_vm_archive.VMArchive.test_plain_and_fwtool_trailer",

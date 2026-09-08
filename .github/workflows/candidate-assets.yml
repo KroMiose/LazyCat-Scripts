@@ -86,3 +86,39 @@ jobs:
           if-no-files-found: error
       - name: Declare verified scope
         run: echo 'Native staging, rendering and known-program migration/rollback with constructed configuration. Native launchd has separate reports. No historical formal release or public-download approval; stable is unchanged.' >> "$GITHUB_STEP_SUMMARY"
+  system-package:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ubuntu, debian]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        with:
+          go-version-file: tests/tools/go.mod
+          cache: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: candidate-assets
+          path: artifacts/candidate
+      - name: Install VM observers on disposable runner
+        run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils
+      - name: Allow available KVM acceleration
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod a+rw /dev/kvm; fi
+      - name: Run actual archives in a fresh full system
+        env:
+          TEST_IMAGE: ${{ matrix.image }}
+        run: python3 tests/system/vm.py --image "$TEST_IMAGE" --suite docker --package-lock "tests/system/apt/$TEST_IMAGE.lock.json" --assets artifacts/candidate
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: system-package-${{ matrix.image }}
+          path: artifacts/system/
+          retention-days: 90
+          if-no-files-found: error

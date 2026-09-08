@@ -15,7 +15,7 @@ def graph():
     for name,component in components.items():
         if not component['paths'] or not component['scenarios']:raise ValueError('empty component: '+name)
         if set(component['depends_on'])-set(components):raise ValueError('unknown dependency: '+name)
-        if set(component['jobs'])-{'behavior','system','go'}:raise ValueError('unknown job: '+name)
+        if set(component['jobs'])-{'behavior','system','go','assets'}:raise ValueError('unknown job: '+name)
         if set(component['scenarios'])-scenes:raise ValueError('unknown scenario: '+name)
     return data
 
@@ -39,7 +39,7 @@ def impact(files):
         for dependency in components[pending.pop()]['depends_on']:
             if dependency not in selected:selected.add(dependency);pending.append(dependency)
     jobs.update(job for name in selected for job in components[name]['jobs'])
-    return dict(components=sorted(selected),scenarios=sorted({scene for name in selected for scene in components[name]['scenarios']}),jobs={**{job:job in jobs for job in ('behavior','system','go')},'docs':docs})
+    return dict(components=sorted(selected),scenarios=sorted({scene for name in selected for scene in components[name]['scenarios']}),jobs={**{job:job in jobs for job in ('behavior','system','go','assets')},'docs':docs})
 
 def select(files):return impact(files)['jobs']
 
