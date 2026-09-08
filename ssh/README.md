@@ -1,5 +1,7 @@
 # LazyCat SSH - 极简 SSH 证书与配置管理方案
 
+候选 Go 客户端的 `doctor --json` 对配置、证书和续签状态中的非普通文件会报告无效，不等待 FIFO 写入端。损坏的任务记录显示 `receipt_valid: false`、`interval_minutes: null`；损坏的续签结果显示 `last_attempt_valid: false`。诊断不会修复或替换这些文件。
+
 LazyCat SSH 是一套轻量级的 SSH 基础设施管理工具，旨在通过 **SSH 证书认证（SSH CA）** 简化多服务器的访问控制。
 
 本项目定位为个人管理员工具。CA SSH 账户有直接使用 CA 私钥签发的权限，不是面向团队的受限授权服务。已有 root 身份创建的 CA 继续由原身份管理，不因文档改为普通用户入口而搬迁。

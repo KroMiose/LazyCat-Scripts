@@ -153,7 +153,7 @@ func diagnostics(p paths) map[string]any {
 	if e != nil {
 		result["source_error"] = "missing or unsupported source configuration"
 	}
-	b, e := os.ReadFile(p.Config)
+	b, e := readConfigurationFile(p.Config)
 	if e == nil {
 		_, e = stripBlock(b)
 	}
@@ -244,7 +244,7 @@ func run(ctx context.Context, p paths, args []string) error {
 		if len(args) != 3 || args[1] != "--file" {
 			return errors.New("render --file <yaml>")
 		}
-		b, e := readInventoryFile(args[2])
+		b, e := readConfigurationFile(args[2])
 		if e != nil {
 			return e
 		}

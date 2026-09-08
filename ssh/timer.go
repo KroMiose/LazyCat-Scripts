@@ -43,7 +43,7 @@ func validateTimerReceipt(p paths, r timerReceipt) error {
 	return nil
 }
 func timerInterval(p paths) int {
-	b, e := os.ReadFile(timerReceiptPath(p))
+	b, e := readConfigurationFile(timerReceiptPath(p))
 	var r timerReceipt
 	if e == nil && json.Unmarshal(b, &r) == nil && r.Minutes > 0 {
 		return r.Minutes
@@ -54,10 +54,21 @@ func timerStatus(p paths) map[string]any {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	result := map[string]any{"registered": "not verified", "interval_minutes": timerInterval(p), "logout_behavior": "user session; linger is never enabled automatically"}
-	b, e := os.ReadFile(filepath.Join(p.Meta, "renew-status.json"))
-	if e == nil {
+	b, e := readConfigurationFile(timerReceiptPath(p))
+	if !os.IsNotExist(e) {
+		var receipt timerReceipt
+		valid := e == nil && json.Unmarshal(b, &receipt) == nil && receipt.Minutes > 0
+		result["receipt_valid"] = valid
+		if !valid {
+			result["interval_minutes"] = nil
+		}
+	}
+	b, e = readConfigurationFile(filepath.Join(p.Meta, "renew-status.json"))
+	if !os.IsNotExist(e) {
 		var v any
-		if json.Unmarshal(b, &v) == nil {
+		valid := e == nil && json.Unmarshal(b, &v) == nil
+		result["last_attempt_valid"] = valid
+		if valid {
 			result["last_attempt"] = v
 		}
 	}
@@ -92,7 +103,7 @@ func installTimer(p paths, args []string) error {
 	}
 	files := timerFiles(p, minutes)
 	var previous timerReceipt
-	b, e := os.ReadFile(timerReceiptPath(p))
+	b, e := readConfigurationFile(timerReceiptPath(p))
 	if e == nil {
 		if json.Unmarshal(b, &previous) != nil {
 			return errors.New("invalid timer receipt")
@@ -189,7 +200,7 @@ func removeTimer(p paths) error {
 }
 
 func removeTimerWithChanges(p paths, clientChanges []change) error {
-	b, e := os.ReadFile(timerReceiptPath(p))
+	b, e := readConfigurationFile(timerReceiptPath(p))
 	if os.IsNotExist(e) {
 		return &migrationConflict{"no owned timer receipt; existing task is preserved"}
 	}
@@ -249,7 +260,7 @@ func removeTimerWithChanges(p paths, clientChanges []change) error {
 
 func readTimerReceiptForStatus(p paths) timerReceipt {
 	var r timerReceipt
-	b, e := os.ReadFile(timerReceiptPath(p))
+	b, e := readConfigurationFile(timerReceiptPath(p))
 	if e == nil {
 		_ = json.Unmarshal(b, &r)
 	}

@@ -29,7 +29,7 @@ func parseCertificate(b []byte) (*ssh.Certificate, error) {
 }
 func certificateStatus(path string) map[string]any {
 	result := map[string]any{"path": path, "valid": false}
-	b, e := os.ReadFile(path)
+	b, e := readConfigurationFile(path)
 	if e != nil {
 		return result
 	}

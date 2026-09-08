@@ -138,24 +138,10 @@ func parseLegacy(b []byte) (sourceConfig, error) {
 	return out, nil
 }
 func readSource(p paths) (sourceConfig, error) {
-	b, e := os.ReadFile(filepath.Join(p.Meta, "source.json"))
-	if e == nil {
-		var s sourceConfig
-		e = json.Unmarshal(b, &s)
-		if e == nil && s.Version != 1 {
-			e = errors.New("unsupported source version")
-		}
-		return s, e
-	}
-	if !os.IsNotExist(e) {
-		return sourceConfig{}, e
-	}
-	b, e = os.ReadFile(filepath.Join(p.Meta, "meta.env"))
-	if e != nil {
-		return sourceConfig{}, e
-	}
-	return parseLegacy(b)
+	source, _, err := sourceSnapshot(p)
+	return source, err
 }
+
 func fetch(ctx context.Context, raw string) ([]byte, error) {
 	if e := validateSourceURL(raw); e != nil {
 		return nil, e
@@ -213,13 +199,13 @@ func sourceSnapshot(p paths) (sourceConfig, []change, error) {
 	source, e = parseLegacy(s.Data)
 	return source, observed, e
 }
-func readInventoryFile(path string) ([]byte, error) {
+func readConfigurationFile(path string) ([]byte, error) {
 	info, e := os.Stat(path)
 	if e != nil {
 		return nil, e
 	}
 	if !info.Mode().IsRegular() {
-		return nil, invalid("inventory must be a regular file")
+		return nil, invalid("configuration input must be a regular file")
 	}
 	file, e := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if e != nil {
@@ -231,7 +217,7 @@ func readInventoryFile(path string) ([]byte, error) {
 		return nil, e
 	}
 	if !info.Mode().IsRegular() {
-		return nil, invalid("inventory must be a regular file")
+		return nil, invalid("configuration input must be a regular file")
 	}
 	b, e := io.ReadAll(io.LimitReader(file, 4<<20+1))
 	if len(b) > 4<<20 {
@@ -252,7 +238,7 @@ func loadInventorySource(ctx context.Context, s sourceConfig) (inventory, source
 		if !filepath.IsAbs(s.Local) || s.Raw != "" || s.Gist != "" {
 			return inventory{}, s, invalid("local source must be absolute and cannot mix with a URL")
 		}
-		b, e := readInventoryFile(s.Local)
+		b, e := readConfigurationFile(s.Local)
 		if e != nil {
 			return inventory{}, s, e
 		}
