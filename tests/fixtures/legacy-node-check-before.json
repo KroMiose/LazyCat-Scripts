@@ -1,0 +1,6 @@
+{
+  "source": "common/setup_node_env.sh",
+  "commit": "368e993db06d5e656d384dd2c4961269fa0ad2e7",
+  "sha256": "1f2b8007700ce4b76afb6daa545cebb023c736be9a723cfa0d2631fe95a38976",
+  "scope": "Only executed by the disposable root bootstrap regression container"
+}

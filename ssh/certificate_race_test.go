@@ -18,7 +18,7 @@ func TestCLIRenewCredentialValidationAndConcurrentEdit(t *testing.T) {
 	if b, e := exec.Command("go", "build", "-o", binary, ".").CombinedOutput(); e != nil {
 		t.Fatal(e, string(b))
 	}
-	for _, target := range []string{"certificate", "public", "private", "source", "invalid-timer", "healthy", "expired", "future", "overlong", "wrong-principal", "extra-principal", "wrong-ca", "wrong-key", "host-certificate"} {
+	for _, target := range []string{"certificate", "public", "private", "source", "invalid-timer", "healthy", "expired", "future", "overlong", "wrong-principal", "extra-principal", "wrong-ca", "wrong-key", "host-certificate", "historical-overlong", "duplicate-principals"} {
 		t.Run(target, func(t *testing.T) {
 			home := t.TempDir()
 			key := filepath.Join(home, ".ssh/lazycat_ca_ed25519")
@@ -40,6 +40,10 @@ func TestCLIRenewCredentialValidationAndConcurrentEdit(t *testing.T) {
 				duration = "+1h:+12h"
 			case "overlong":
 				duration = "-1m:+24h"
+			case "historical-overlong":
+				duration = "-24h:+1h"
+			case "duplicate-principals":
+				principals = "fixture,fixture"
 			case "wrong-principal":
 				principals = "intruder"
 			case "extra-principal":
@@ -83,6 +87,13 @@ cat "$RESPONSE"
 			edit := map[string]string{"certificate": cert, "public": key + ".pub", "private": key, "source": filepath.Join(home, ".lazycat/ssh/source.json")}[target]
 			inventory := filepath.Join(home, "inventory.yaml")
 			os.WriteFile(inventory, []byte("version: 1\nca:\n  ssh_host: fixture-ca\n  ca_key_path: /fixture/ca\n  validity: 12h\n  principals: fixture\nhosts:\n  node:\n    host: 127.0.0.1\n"), 0600)
+			if target == "duplicate-principals" {
+				contents, e := os.ReadFile(inventory)
+				if e != nil {
+					t.Fatal(e)
+				}
+				os.WriteFile(inventory, []byte(strings.Replace(string(contents), "principals: fixture", "principals: fixture,intruder", 1)), 0600)
+			}
 			call := func(want int, args ...string) {
 				t.Helper()
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

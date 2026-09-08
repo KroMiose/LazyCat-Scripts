@@ -2,7 +2,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from lib.support import ROOT, environment
+from lib.support import ROOT, environment, snapshot
 
 class CAEntrypoint(unittest.TestCase):
     def test_custom_location_is_persisted_without_rekey(self):
@@ -19,3 +19,20 @@ class CAEntrypoint(unittest.TestCase):
             self.assertNotEqual(result.returncode,0)
             self.assertEqual((ca/'personal-ca').read_bytes(),private)
             self.assertEqual((ca/'personal-ca').stat().st_mode&0o777,0o600)
+
+    def test_old_new_custom_location_survives_new_process(self):
+        for legacy in (True, False):
+            with self.subTest(legacy=legacy), tempfile.TemporaryDirectory(prefix='ca historical ') as directory:
+                home=Path(directory);ca=home/'custom 中文 CA'
+                script=ROOT/('tests/fixtures/legacy/ssh/ca/lazycat-ssh-ca.sh' if legacy else 'ssh/ca/lazycat-ssh-ca.sh')
+                initial=subprocess.run(['bash',str(script)],input='1\n'+str(ca)+'\npersonal-ca\n4\n',env=environment(home),capture_output=True,text=True,cwd=home,timeout=15)
+                self.assertEqual(initial.returncode,0,initial.stdout+initial.stderr)
+                before=snapshot(home)
+                # EOF only observes the freshly started menu; it must not mutate
+                # or silently generate a second CA at the default location.
+                next_run=subprocess.run(['bash',str(script)],input='',env=environment(home),capture_output=True,text=True,cwd=home,timeout=10)
+                self.assertNotEqual(next_run.returncode,0)
+                self.assertEqual(snapshot(home),before)
+                self.assertIn('状态：未初始化' if legacy else '状态：已初始化',next_run.stdout)
+                self.assertTrue((ca/'personal-ca').is_file())
+                self.assertFalse((home/'.lazycat/ssh-ca/lazycat-ssh-ca').exists())

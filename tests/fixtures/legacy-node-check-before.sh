@@ -10,11 +10,6 @@
 
 set -e -o pipefail
 
-if [[ "$EUID" == 0 ]]; then
-    echo '此脚本不应以 root 或 sudo 身份运行，请以普通用户执行。' >&2
-    exit 1
-fi
-
 if [[ "${1:-}" == --check ]]; then
     export NVM_DIR="$HOME/.nvm"
     [[ -s "$NVM_DIR/nvm.sh" ]] || { echo "nvm 安装不完整" >&2; exit 1; }
@@ -50,6 +45,13 @@ log_error() {
 }
 
 # --- 安全与环境检查 ---
+# 检查是否以 root 或 sudo 身份运行
+if [ "$(id -u)" -eq 0 ]; then
+    log_error "此脚本不应以 root 或 sudo 身份运行！"
+    log_error "请以普通用户身份执行，它会自动处理所需的一切。"
+    exit 1
+fi
+
 USER_HOME="$HOME"
 
 # --- 功能函数 ---

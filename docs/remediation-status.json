@@ -59,9 +59,10 @@
     {
       "id": 8,
       "title": "Python 执行封装混合了数据和 Shell 代码",
-      "status": "部分实现，验收未完成",
+      "status": "对应审阅缺陷已修复并验证",
       "decision": "",
-      "release_complete": false
+      "release_complete": true,
+      "evidence_summary": "188da91 run 34181587057 的 Linux 断网容器执行旧/新完整 Python 入口：真实目标 UID、明确的sudo环境/apt/curl适配。旧版裸export输出虚构环境变量，新版不枚举环境、不执行字符串封装且保留已有工具和配置；Linux/macOS另有带引号中文HOME的实际入口测试。该结案不包含所有身份/依赖首次安装组合。"
     },
     {
       "id": 9,

@@ -6,7 +6,8 @@
     "common/add_ssh_config.sh",
     "linux/setup_squid_proxy.sh",
     "ssh/lib/common.sh",
-    "linux/setup_python_env.sh"
+    "linux/setup_python_env.sh",
+    "ssh/ca/lazycat-ssh-ca.sh"
   ],
   "purpose": "Read-only regression fixtures. Never execute installers on the host."
 }

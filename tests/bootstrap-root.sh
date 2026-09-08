@@ -32,3 +32,28 @@ LIB
     fi
 done
 printf 'PASS real root bootstrap refuses user cache before execution\n'
+for implementation in before after; do
+    home="$scratch/node-$implementation"
+    mkdir -p "$home/.nvm"
+    cat > "$home/.nvm/nvm.sh" <<'NVM'
+printf 'nvm executed as %s\n' "$EUID" > "$HOME/executed"
+exit 91
+NVM
+    if [[ "$implementation" == before ]]; then
+        script="$root/tests/fixtures/legacy-node-check-before.sh"
+    else
+        script="$root/common/setup_node_env.sh"
+    fi
+    set +e
+    env -i HOME="$home" PATH=/usr/bin:/bin bash "$script" --check > "$home/output" 2>&1
+    status=$?
+    set -e
+    if [[ "$implementation" == before ]]; then
+        [[ "$status" == 91 ]]
+        grep -qx 'nvm executed as 0' "$home/executed"
+    else
+        [[ "$status" == 1 && ! -e "$home/executed" ]]
+        grep -q '不应以 root' "$home/output"
+    fi
+done
+printf 'PASS real root Node check refuses user nvm code before sourcing\n'

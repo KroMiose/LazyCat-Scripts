@@ -198,7 +198,7 @@ func validateCertificate(cert *ssh.Certificate, key ssh.PublicKey, fingerprint, 
 	if cert.CertType != ssh.UserCert || string(cert.Key.Marshal()) != string(key.Marshal()) || ssh.FingerprintSHA256(cert.SignatureKey) != fingerprint {
 		return errors.New("certificate key, type or signer mismatch")
 	}
-	if cert.ValidBefore > uint64(time.Now().Add(d+2*time.Minute).Unix()) {
+	if cert.ValidBefore > uint64(time.Now().Add(d+2*time.Minute).Unix()) || cert.ValidBefore < cert.ValidAfter || cert.ValidBefore-cert.ValidAfter > uint64((d+2*time.Minute)/time.Second) {
 		return errors.New("certificate validity exceeds request")
 	}
 	expected := strings.Split(principals, ",")
@@ -211,8 +211,9 @@ func validateCertificate(cert *ssh.Certificate, key ssh.PublicKey, fingerprint, 
 	}
 	for _, s := range cert.ValidPrincipals {
 		if !allowed[s] {
-			return errors.New("unexpected principal")
+			return errors.New("unexpected or duplicate principal")
 		}
+		delete(allowed, s)
 	}
 	checker := ssh.CertChecker{}
 	if e := checker.CheckCert(expected[0], cert); e != nil {
