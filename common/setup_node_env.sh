@@ -4,8 +4,8 @@
 # 脚本名称: setup_node_env.sh
 # 功    能: 在 Linux/macOS 系统上提供一个交互式向导，用于安装 nvm (Node Version Manager)
 #           并可选安装指定的 Node.js 版本 (如 LTS) 和流行的包管理器 (yarn, pnpm)。
-# 适用系统: 所有主流 Linux 发行版及 macOS。
-# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_node_env.sh)"
+# 目标平台: Linux / macOS；具体自动验证范围与限制见 docs/TESTING.md。
+# 仓库入口: bash common/setup_node_env.sh；安装与兼容说明见 common/README.md。
 # ==============================================================================
 
 set -e -o pipefail

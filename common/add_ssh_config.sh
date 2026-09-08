@@ -22,6 +22,15 @@ lc_tx_revision() {
         *) return 1 ;;
     esac
 }
+# Automatic failure recovery may only replace the exact revision we published.
+# Missing revision evidence is a conflict, not permission to discard user attrs.
+lc_tx_matches_committed() {
+    local target="$1" operation="$2"
+    [[ -f "$target" && ! -L "$target" && -f "$operation/after" && ! -L "$operation/after" &&
+       -f "$operation/committed-revision" && ! -L "$operation/committed-revision" ]] || return 3
+    [[ "$(lc_tx_revision "$target")" == "$(cat "$operation/committed-revision")" ]] &&
+        cmp -s "$target" "$operation/after" || return 3
+}
 lc_tx_check_revision() {
     lc_tx_check_path "$LC_TX_TARGET" || return 3
     if [[ "$LC_TX_EXISTED" == 1 ]]; then
@@ -235,9 +244,17 @@ host_finish() {
             op="${operations[$j]}"
             [[ -d "$op" ]] || continue
             IFS= read -r target < "$op/target"
-            if [[ ! -L "$target" ]] && cmp -s "$target" "$op/after"; then
+            if lc_tx_matches_committed "$target" "$op"; then
                 IFS= read -r existed < "$op/existed"
-                if [[ "$existed" == 1 ]]; then cp -p "$op/before" "$op/restore";mv "$op/restore" "$target";else rm "$target";fi
+                if [[ "$existed" == 1 ]]; then
+                    lc_tx_copy "$op/before" "$op/restore"
+                    if ! lc_tx_matches_committed "$target" "$op"; then
+                        printf 'rollback-required\n' > "$op/status"
+                        echo "恢复期间文件又被修改，保留现场：$op" >&2
+                        continue
+                    fi
+                    mv "$op/restore" "$target"
+                else rm "$target";fi
                 printf 'rolled-back\n' > "$op/status"
             else
                 printf 'rollback-required\n' > "$op/status"

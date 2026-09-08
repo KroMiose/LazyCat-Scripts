@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Docker drop-in configuration and service restart are explicit separate actions.
+# Add an independent owned SSH fragment; never parse-and-delete old Host blocks.
 set -euo pipefail
 # lazycat-file-transaction:begin
 # Single-file candidate/backup protocol. Embedded into standalone release scripts.
@@ -21,15 +21,6 @@ lc_tx_revision() {
         Darwin) LC_ALL=C stat -f '%d:%i:%Fc' "$1" ;;
         *) return 1 ;;
     esac
-}
-# Automatic failure recovery may only replace the exact revision we published.
-# Missing revision evidence is a conflict, not permission to discard user attrs.
-lc_tx_matches_committed() {
-    local target="$1" operation="$2"
-    [[ -f "$target" && ! -L "$target" && -f "$operation/after" && ! -L "$operation/after" &&
-       -f "$operation/committed-revision" && ! -L "$operation/committed-revision" ]] || return 3
-    [[ "$(lc_tx_revision "$target")" == "$(cat "$operation/committed-revision")" ]] &&
-        cmp -s "$target" "$operation/after" || return 3
 }
 lc_tx_check_revision() {
     lc_tx_check_path "$LC_TX_TARGET" || return 3
@@ -156,76 +147,140 @@ lc_remove_block_candidate() {
     mv "$tmp" "$file"
 }
 # lazycat-file-transaction:end
-[[ "$EUID" == 0 && -d /run/systemd/system ]] || { echo '需要 root 和真实 systemd' >&2; exit 2; }
-command -v docker >/dev/null || { echo 'Docker 尚未安装' >&2; exit 1; }
-target=/etc/systemd/system/docker.service.d/http-proxy.conf
-mode="${1:-menu}"
-[[ $# == 0 ]] || shift
-url=''
-no_proxy_value=localhost,127.0.0.1,::1
-restart=0
-adopt=0
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --url|--no-proxy) [[ $# -ge 2 ]] || exit 2; if [[ "$1" == --url ]]; then url="$2"; else no_proxy_value="$2"; fi; shift 2 ;;
-        --restart) restart=1;shift ;;
-        --adopt) adopt=1;shift ;;
-        *) echo '参数无效' >&2;exit 2 ;;
-    esac
-done
-if [[ "$mode" == menu ]]; then
-    read -r -p '1 配置代理 / 2 移除托管代理 / 3 退出: ' choice
-    case "$choice" in 1) mode=set;read -r -p '完整 HTTP(S) 代理 URL: ' url ;; 2) mode=remove ;; *) exit 0 ;; esac
-fi
-if [[ "$mode" == check ]]; then
-    if [[ -e "$target" ]]; then echo "配置文件存在：$target（不输出认证内容）"; else echo '未发现此代理片段'; fi
-    systemctl is-active docker
-    exit
-fi
-case "$mode" in set|remove) ;; *) echo '用法：set --url URL [--no-proxy LIST] [--restart] [--adopt] | remove [--restart] | check' >&2;exit 2 ;; esac
-if [[ "$mode" == set ]]; then
-    case "$url" in http://*|https://*) ;; *) echo 'Docker 代理需要 HTTP(S) URL' >&2;exit 2 ;; esac
-    [[ "$url" != *[[:space:]]* && "$url" != *['"\`']* && "$no_proxy_value" != *[[:space:]]* && "$no_proxy_value" != *['"\`']* ]] || { echo '配置包含非法控制或引号字符' >&2;exit 2; }
-fi
-if [[ -f "$target" && "$adopt" != 1 ]] && ! grep -qx '# Managed by LazyCat Docker proxy' "$target"; then
-    echo '既有片段归属未确认；检查后使用 --adopt 明确采纳，原文件未修改。' >&2;exit 3
-fi
-[[ ! -L "$(dirname "$target")" ]] || exit 3
-if [[ ! -d "$(dirname "$target")" ]]; then mkdir -p "$(dirname "$target")"; fi
-trap 'lc_tx_unlock' EXIT
-lc_tx_begin "$target"
-if [[ "$mode" == set ]]; then
-    # systemd expands % specifiers even inside quotes; URL escapes need %%.
-    url=${url//%/%%};no_proxy_value=${no_proxy_value//%/%%}
-    printf '# Managed by LazyCat Docker proxy\n[Service]\nEnvironment="HTTP_PROXY=%s"\nEnvironment="HTTPS_PROXY=%s"\nEnvironment="NO_PROXY=%s"\n' "$url" "$url" "$no_proxy_value" > "$LC_TX_CANDIDATE"
+alias_value='';hostname_value='';user_value='';port=22;identity='';allow_includes=0
+if [[ $# == 0 ]]; then
+    read -r -p '服务器别名: ' alias_value
+    read -r -p 'IP 或主机名: ' hostname_value
+    read -r -p '登录用户: ' user_value
+    read -r -p '端口 [22]: ' port;port=${port:-22}
+    read -r -p '已有私钥绝对路径（留空使用现有 SSH/agent 选择，不导入私钥）: ' identity
 else
-    # A commented empty owned fragment stops contributing proxy variables;
-    # other Docker fragments and daemon.json remain untouched.
-    printf '# Managed by LazyCat Docker proxy\n# Proxy settings removed\n' > "$LC_TX_CANDIDATE"
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --alias|--host|--user|--port|--identity)
+                [[ $# -ge 2 ]] || exit 2
+                case "$1" in --alias) alias_value="$2" ;; --host) hostname_value="$2" ;; --user) user_value="$2" ;; --port) port="$2" ;; --identity) identity="$2" ;; esac
+                shift 2 ;;
+            --allow-existing-includes) allow_includes=1;shift ;;
+            *) echo '用法：--alias NAME --host HOST --user USER [--port PORT] [--identity PATH] [--allow-existing-includes]' >&2;exit 2 ;;
+        esac
+    done
 fi
-was_active=0
-systemctl is-active --quiet docker && was_active=1
+[[ "$alias_value" =~ ^[A-Za-z0-9._-]+$ && "$alias_value" != -* && "$alias_value" != . && "$alias_value" != .. ]] || exit 2
+[[ "$hostname_value" =~ ^[A-Za-z0-9._:%-]+$ && "$hostname_value" != -* ]] || exit 2
+[[ "$user_value" =~ ^[A-Za-z0-9._-]+$ && "$user_value" != -* ]] || exit 2
+[[ "$port" =~ ^[0-9]{1,5}$ ]] && ((10#$port>0 && 10#$port<=65535)) || exit 2
+if [[ -n "$identity" ]]; then
+    [[ "$identity" == /* && -f "$identity" && "$identity" != *$'\n'* && "$identity" != *$'\r'* ]] || { echo '私钥路径无效；未改动原密钥' >&2;exit 2; }
+fi
+config="$HOME/.ssh/config"
+folder="$HOME/.ssh/lazycat-hosts"
+fragment="$folder/$alias_value.conf"
+receipt="$folder/$alias_value.receipt"
+begin='# --- LAZYCAT HOSTS START ---'
+end='# --- LAZYCAT HOSTS END ---'
+escaped=${folder//\\/\\\\};escaped=${escaped//\"/\\\"}
+include_line="Include \"${escaped}/*.conf\""
+host_include_present() {
+    local line inside=0 seen=0 includes=0
+    [[ -f "$1" ]] || return 1
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        case "$line" in
+            "$begin")
+                [[ "$inside" == 0 && "$seen" == 0 ]] || return 3
+                inside=1;seen=1 ;;
+            "$end")
+                [[ "$inside" == 1 && "$includes" == 1 ]] || return 3
+                inside=0 ;;
+            *)
+                if [[ "$inside" == 1 ]]; then
+                    [[ "$line" == "$include_line" && "$includes" == 0 ]] || return 3
+                    includes=1
+                fi ;;
+        esac
+    done < "$1"
+    [[ "$inside" == 0 ]] || return 3
+    [[ "$seen" == 1 ]]
+}
+include_status=0
+host_include_present "$config" || include_status=$?
+[[ "$include_status" != 3 ]] || { echo 'Include 托管块损坏或有手改内容，未修改配置' >&2; exit 3; }
+if [[ -f "$config" ]]; then
+    if awk -v alias="$alias_value" 'tolower($1)=="host" {for(i=2;i<=NF;i++) if($i==alias) found=1} END{exit !found}' "$config"; then
+        echo '旧主配置已有同名 Host；未删除或覆盖，请先审阅迁移。' >&2;exit 3
+    fi
+    if [[ "$allow_includes" == 0 ]] && awk '
+        $0=="# --- LAZYCAT HOSTS START ---" {owned=1;next}
+        $0=="# --- LAZYCAT HOSTS END ---" {owned=0;next}
+        !owned && tolower($1)=="include" {found=1}
+        END {exit !found}
+    ' "$config"; then
+        echo '主配置包含外部 Include，无法证明没有同名条目；审阅后可显式 --allow-existing-includes。' >&2;exit 3
+    fi
+fi
+[[ ! -L "$HOME/.ssh" && ! -L "$folder" && ! -L "$receipt" && ! -L "$fragment" && ! -L "$config" ]] || { echo '符号链接需要人工采纳' >&2;exit 3; }
+if [[ -e "$fragment" ]]; then
+    [[ -f "$receipt" ]] && cmp -s "$fragment" "$receipt" || { echo '既有片段没有匹配的归属记录或已被修改' >&2;exit 3; }
+fi
+(umask 077;mkdir -p "$folder")
+# Keep every completed file operation available for recovery until all commit.
+committed=0
+operations=()
+host_finish() {
+    local result=$? j op target existed
+    trap - EXIT
+    lc_tx_unlock
+    if [[ "$committed" == 0 ]]; then
+        for ((j=${#operations[@]}-1;j>=0;j--)); do
+            op="${operations[$j]}"
+            [[ -d "$op" ]] || continue
+            IFS= read -r target < "$op/target"
+            if [[ ! -L "$target" ]] && cmp -s "$target" "$op/after"; then
+                IFS= read -r existed < "$op/existed"
+                if [[ "$existed" == 1 ]]; then cp -p "$op/before" "$op/restore";mv "$op/restore" "$target";else rm "$target";fi
+                printf 'rolled-back\n' > "$op/status"
+            else
+                printf 'rollback-required\n' > "$op/status"
+                echo "恢复发现后续修改，保留现场：$op" >&2
+            fi
+        done
+    fi
+    exit "$result"
+}
+trap host_finish EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+lc_tx_begin "$fragment"
+{
+    printf '# Managed by LazyCat Host entry\nHost %s\n    HostName %s\n    User %s\n    Port %s\n' "$alias_value" "$hostname_value" "$user_value" "$((10#$port))"
+    if [[ -n "$identity" ]]; then
+        escaped=${identity//\\/\\\\};escaped=${escaped//\"/\\\"}
+        printf '    IdentityFile "%s"\n    IdentitiesOnly yes\n' "$escaped"
+    fi
+} > "$LC_TX_CANDIDATE"
+# Only the generated fragment is parsed; never evaluate Match exec in user config.
+ssh -G -F "$LC_TX_CANDIDATE" "$alias_value" >/dev/null
+operations+=("$LC_TX_OPERATION")
 lc_tx_commit
-[[ "$restart" == 1 ]] || { echo '配置已保存，待应用；Docker 未重启。维护窗口执行 daemon-reload 和 restart。';exit 0; }
-if systemctl daemon-reload && systemctl restart docker && systemctl is-active --quiet docker; then
-    echo 'Docker 已按显式请求重启；请验证实际拉取行为。'
-    exit 0
-fi
-# A restart can affect containers; only config/service state is recoverable here.
-if [[ -d "$LC_TX_OPERATION" ]]; then
-    lc_tx_matches_committed "$target" "$LC_TX_OPERATION" || {
-        printf 'recovery-conflict\n' > "$LC_TX_OPERATION/status"
-        echo 'Docker 应用失败后配置或属性已变化，保留现场，不继续恢复文件或切换服务。' >&2
-        exit 3
-    }
-    if [[ "$LC_TX_EXISTED" == 1 ]]; then
-        lc_tx_copy "$LC_TX_OPERATION/before" "$LC_TX_OPERATION/restore"
-        lc_tx_matches_committed "$target" "$LC_TX_OPERATION" || { printf 'recovery-conflict\n' > "$LC_TX_OPERATION/status"; exit 3; }
-        mv "$LC_TX_OPERATION/restore" "$target"
-    else rm "$target"; fi
-    printf 'rollback-attempted\n' > "$LC_TX_OPERATION/status"
-    systemctl daemon-reload || echo '恢复后的 daemon-reload 失败' >&2
-    if [[ "$was_active" == 1 ]]; then systemctl restart docker || echo '旧配置服务恢复失败' >&2; else systemctl stop docker || echo '服务停止失败' >&2; fi
-fi
-echo 'Docker 应用失败；请查看操作记录和 journalctl，不能把容器业务状态视为已回滚。' >&2
-exit 1
+lc_tx_begin "$receipt"
+cat "$fragment" > "$LC_TX_CANDIDATE"
+operations+=("$LC_TX_OPERATION")
+lc_tx_commit
+lc_tx_begin "$config"
+include_status=0
+host_include_present "$LC_TX_CANDIDATE" || include_status=$?
+case "$include_status" in
+    0) : ;; # Existing Include retains its exact position and SSH precedence.
+    1)
+        lc_tx_copy "$LC_TX_CANDIDATE" "$LC_TX_OPERATION/remainder"
+        {
+            printf '%s\n%s\n%s\n' "$begin" "$include_line" "$end"
+            cat "$LC_TX_OPERATION/remainder"
+        } > "$LC_TX_CANDIDATE"
+        ;;
+    *) echo 'Include 托管块被并发修改，停止提交' >&2; exit 3 ;;
+esac
+operations+=("$LC_TX_OPERATION")
+lc_tx_commit
+committed=1
+printf 'Host %s 已写入独立片段。原密钥、旧 Host 块和其他配置已保留。\n' "$alias_value"

@@ -1,4 +1,6 @@
 import os
+import json
+import signal
 from pathlib import Path
 import subprocess
 import tempfile
@@ -106,3 +108,56 @@ class ZshEntrypoint(unittest.TestCase):
                     env=environment(home),cwd=home,capture_output=True,text=True,timeout=15)
                 self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
                 self.assertEqual(snapshot(home),before)
+
+    def test_old_new_sigkill_shared_recovery_preserves_attributes(self):
+        for old in (True,False):
+            with self.subTest(old=old), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory);omz=home/'.oh-my-zsh'
+                for name in ('themes/powerlevel10k','plugins/zsh-autosuggestions','plugins/zsh-syntax-highlighting'):
+                    (omz/'custom'/name).mkdir(parents=True)
+                (omz/'oh-my-zsh.sh').write_text('(( LOAD_COUNT += 1 ))\n')
+                rc=home/'.zshrc';original='plugins=(userplugin git)\n# personal configuration\n'
+                rc.write_text(original);rc.chmod(0o640)
+                attribute='user.lazycat-zsh-test'
+                if hasattr(os,'setxattr'):
+                    os.setxattr(rc,attribute,b'personal preference')
+                    def observed_attribute():return os.getxattr(rc,attribute)
+                else:
+                    subprocess.run(['/usr/bin/xattr','-w',attribute,'personal preference',str(rc)],check=True,capture_output=True)
+                    def observed_attribute():return subprocess.check_output(['/usr/bin/xattr','-p',attribute,str(rc)]).rstrip(b'\n')
+                injection=home/'kill.sh'
+                injection.write_text('mv() { command mv "$@" || return; for last in "$@"; do :; done; if [[ "$last" == "$HOME/.zshrc" ]]; then kill -KILL -- "-$$"; fi; }\n')
+                entry=ROOT/('tests/fixtures/zsh-transaction-before.sh' if old else 'common/setup_zsh_p10k.sh')
+                result=subprocess.run(['/bin/bash',str(entry),'--yes'],env=environment(home,{'BASH_ENV':str(injection)}),
+                    capture_output=True,text=True,timeout=15,start_new_session=True)
+                self.assertEqual(result.returncode,-signal.SIGKILL,result.stdout+result.stderr)
+                self.assertNotEqual(rc.read_text(),original)
+                checker=ROOT/'common/lazycat-check.sh'
+                def check(*args):
+                    return subprocess.run(['/bin/bash',str(checker),*args],env=environment(home),capture_output=True,text=True,timeout=15)
+                report=check('--json');self.assertEqual(report.returncode,0,report.stderr)
+                operations=list(home.glob('.zshrc.lazycat-operation.*'))
+                if old:
+                    self.assertEqual(operations,[])
+                    if os.uname().sysname=='Linux':
+                        self.assertNotIn(attribute,os.listxattr(rc))
+                        print('EXPECTED OLD DEFECT: Zsh publication dropped native Linux xattr')
+                    self.assertTrue((home/'.lazycat-zsh.lock').exists())
+                    self.assertEqual(check('recover-lock',str(rc)).returncode,3)
+                    print('EXPECTED OLD DEFECT: Zsh publication interrupted without shared journal/lock recovery')
+                else:
+                    self.assertEqual(len(operations),1)
+                    self.assertTrue(any(row['path']==str(operations[0]) for row in json.loads(report.stdout)['operations']))
+                    self.assertEqual(observed_attribute(),b'personal preference')
+                    interrupted=rc.read_bytes()
+                    retry=subprocess.run(['/bin/bash',str(entry),'--yes'],env=environment(home),capture_output=True,text=True,timeout=15)
+                    self.assertEqual(retry.returncode,3,retry.stdout+retry.stderr)
+                    self.assertEqual(rc.read_bytes(),interrupted)
+                    for args in (('recover-lock',str(rc)),('rollback',str(operations[0]))):
+                        recovered=check(*args);self.assertEqual(recovered.returncode,0,recovered.stdout+recovered.stderr)
+                    self.assertEqual(rc.read_text(),original)
+                    self.assertEqual(rc.stat().st_mode&0o777,0o640)
+                    self.assertEqual(observed_attribute(),b'personal preference')
+                    retry=subprocess.run(['/bin/bash',str(entry),'--yes'],env=environment(home),capture_output=True,text=True,timeout=15)
+                    self.assertEqual(retry.returncode,0,retry.stdout+retry.stderr)
+                    self.assertEqual(observed_attribute(),b'personal preference')

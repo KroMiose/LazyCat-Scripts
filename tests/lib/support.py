@@ -39,3 +39,18 @@ def snapshot(root):
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest()
             if path.is_file() and not path.is_symlink() else None}
     return result
+
+
+def set_attribute(path, name, value):
+    if hasattr(os, "setxattr"):
+        os.setxattr(path, name, value)
+    else:
+        subprocess.run(["/usr/bin/xattr", "-wx", name, value.hex(), str(path)],
+                       check=True, capture_output=True, timeout=10)
+
+
+def get_attribute(path, name):
+    if hasattr(os, "getxattr"):
+        return os.getxattr(path, name)
+    return bytes.fromhex(subprocess.check_output(
+        ["/usr/bin/xattr", "-px", name, str(path)], text=True, timeout=10))

@@ -5,7 +5,7 @@
 # 功    能: 被访问设备侧启用 SSH CA：写入 CA 公钥、幂等修改 sshd_config，
 #           并使配置生效。提供移除功能。
 # 适用系统: Linux / macOS（需 root）
-# 使用方法: sudo bash -c \"$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/node/lazycat-ssh-node.sh)\"
+# 仓库入口: sudo bash ssh/node/lazycat-ssh-node.sh；下载与服务操作说明见 ssh/README.md。
 # ==============================================================================
 
 set -euo pipefail

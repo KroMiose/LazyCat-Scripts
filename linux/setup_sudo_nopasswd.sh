@@ -5,7 +5,7 @@
 # 功    能: 为当前 sudo 用户配置或移除免密 sudo 权限。
 # 警    告: 这是一个高风险操作，会显著降低系统安全性。请仅在受信任的环境中使用。
 # 适用系统: 使用 sudo 和 /etc/sudoers.d/ 的 Linux 发行版。
-# 使用方法: sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_sudo_nopasswd.sh)"
+# 仓库入口: sudo bash linux/setup_sudo_nopasswd.sh；权限影响见 linux/README.md。
 # ==============================================================================
 
 set -e

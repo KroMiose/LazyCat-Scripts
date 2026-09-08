@@ -6,166 +6,10 @@
 #           以及 zsh-autosuggestions 和 zsh-syntax-highlighting 插件。
 #           它会自动处理 git, curl, zsh 的依赖安装。
 # 适用系统: 主流 Linux (Debian/Ubuntu, RHEL/CentOS, Arch) & macOS
-# 仓库入口: bash common/setup_zsh_p10k.sh；安装与兼容说明见 common/README.md。
+# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/common/setup_zsh_p10k.sh)"
 # ==============================================================================
 
 set -euo pipefail
-
-# lazycat-file-transaction:begin
-# Single-file candidate/backup protocol. Embedded into standalone release scripts.
-# Call lc_tx_begin, edit "$LC_TX_CANDIDATE", validate, then lc_tx_commit.
-lc_tx_copy() {
-    # GNU cp -p preserves modes/ACLs but silently drops user xattrs. Request
-    # xattr explicitly (rather than --preserve=all, which tolerates failures).
-    case "$(uname -s)" in
-        Linux) cp --preserve=mode,ownership,timestamps,xattr -- "$1" "$2" ;;
-        Darwin) cp -p "$1" "$2" ;;
-        *) echo '未验证的文件属性复制平台，未提交修改' >&2; return 1 ;;
-    esac
-}
-# inode plus nanosecond ctime detects metadata-only edits (including ACL/xattr)
-# without adding Python/getfattr as an installation dependency.
-lc_tx_revision() {
-    case "$(uname -s)" in
-        Linux) LC_ALL=C stat -c '%d:%i:%z' -- "$1" ;;
-        Darwin) LC_ALL=C stat -f '%d:%i:%Fc' "$1" ;;
-        *) return 1 ;;
-    esac
-}
-# Automatic failure recovery may only replace the exact revision we published.
-# Missing revision evidence is a conflict, not permission to discard user attrs.
-lc_tx_matches_committed() {
-    local target="$1" operation="$2"
-    [[ -f "$target" && ! -L "$target" && -f "$operation/after" && ! -L "$operation/after" &&
-       -f "$operation/committed-revision" && ! -L "$operation/committed-revision" ]] || return 3
-    [[ "$(lc_tx_revision "$target")" == "$(cat "$operation/committed-revision")" ]] &&
-        cmp -s "$target" "$operation/after" || return 3
-}
-lc_tx_check_revision() {
-    lc_tx_check_path "$LC_TX_TARGET" || return 3
-    if [[ "$LC_TX_EXISTED" == 1 ]]; then
-        [[ -f "$LC_TX_TARGET" && "$(lc_tx_revision "$LC_TX_TARGET")" == "$LC_TX_REVISION" ]] || { echo '文件或属性被并发修改，已停止' >&2; return 3; }
-    else
-        [[ ! -e "$LC_TX_TARGET" && ! -L "$LC_TX_TARGET" ]] || { echo '目标被并发创建，已停止' >&2; return 3; }
-    fi
-}
-lc_tx_check_path() {
-    local parent="$1"
-    while [[ -n "$parent" && "$parent" != / ]]; do
-        if [[ -L "$parent" ]]; then
-            case "$parent" in
-                /var|/tmp|/etc) [[ "$(uname -s)" == Darwin && "$parent" != "$1" ]] || { echo '路径包含符号链接，需要先明确采纳' >&2; return 3; } ;;
-                *) echo '路径包含符号链接，需要先明确采纳' >&2; return 3 ;;
-            esac
-        fi
-        parent="${parent%/*}"
-    done
-}
-lc_tx_begin() {
-    LC_TX_TARGET="$1"
-    [[ "$LC_TX_TARGET" == /* && "$LC_TX_TARGET" != *$'\n'* && "$LC_TX_TARGET" != *$'\r'* ]] || { echo '事务目标必须是绝对单行路径' >&2; return 2; }
-    lc_tx_check_path "$LC_TX_TARGET" || return 3
-    LC_TX_LOCK="${LC_TX_TARGET}.lazycat-lock"
-    LC_TX_LOCK_OWNED=0
-    [[ ! -e "${LC_TX_LOCK}.recovery" && ! -L "${LC_TX_LOCK}.recovery" ]] || { echo '锁恢复正在进行或中断，请检查恢复记录' >&2; return 3; }
-    (umask 077; mkdir "$LC_TX_LOCK") || { echo "操作锁已存在，请检查并发或中断状态：$LC_TX_LOCK" >&2; return 3; }
-    LC_TX_LOCK_OWNED=1
-    printf '%s\n' "$$" > "$LC_TX_LOCK/pid"
-    if [[ -e "${LC_TX_LOCK}.recovery" || -L "${LC_TX_LOCK}.recovery" ]]; then lc_tx_unlock; echo '锁恢复与新操作冲突，未写入目标' >&2; return 3; fi
-    LC_TX_OPERATION=$(mktemp -d "${LC_TX_TARGET}.lazycat-operation.XXXXXX")
-    chmod 700 "$LC_TX_OPERATION"
-    printf '%s\n' "$LC_TX_TARGET" > "$LC_TX_OPERATION/target"
-    LC_TX_EXISTED=0
-    if [[ -e "$LC_TX_TARGET" ]]; then
-        [[ -f "$LC_TX_TARGET" ]] || { lc_tx_unlock; echo '目标不是普通文件' >&2; return 3; }
-        LC_TX_EXISTED=1
-        LC_TX_REVISION=$(lc_tx_revision "$LC_TX_TARGET") || { lc_tx_unlock; return 1; }
-        LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')
-        printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
-        lc_tx_copy "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { lc_tx_unlock; return 1; }
-    else
-        (umask 077; : > "$LC_TX_OPERATION/before")
-    fi
-    lc_tx_check_revision || { lc_tx_unlock; return 3; }
-    LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_OPERATION/before" | awk '{print $1, $3, $4}')
-    printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
-    printf '%s\n' "$LC_TX_EXISTED" > "$LC_TX_OPERATION/existed"
-    lc_tx_copy "$LC_TX_OPERATION/before" "$LC_TX_OPERATION/after" || { lc_tx_unlock; return 1; }
-    LC_TX_CANDIDATE="$LC_TX_OPERATION/after"
-    printf 'prepared\n' > "$LC_TX_OPERATION/status"
-}
-# Explicit stale-lock recovery. A live/reused PID, incomplete lock or competing
-# recovery is a conflict. Keep the original lock as evidence; never delete it.
-lc_tx_recover_lock() (
-    set -e
-    local target="$1" lock guard pid archived process result
-    [[ "$target" == /* && "$target" != *$'\n'* && "$target" != *$'\r'* ]] || return 2
-    lc_tx_check_path "$target" || return 3
-    lock="${target}.lazycat-lock"
-    guard="${lock}.recovery"
-    [[ -d "$lock" && ! -L "$lock" && -f "$lock/pid" && ! -L "$lock/pid" ]] || { echo '锁缺失、损坏或为链接，需人工检查' >&2; return 3; }
-    (umask 077; mkdir "$guard") || return 3
-    trap 'rmdir "$guard"' EXIT
-    IFS= read -r pid < "$lock/pid"
-    [[ "$pid" =~ ^[1-9][0-9]*$ ]] || { echo '锁的 PID 无效，未移动' >&2; return 3; }
-    # ps also sees processes which kill -0 cannot probe due to permissions.
-    result=0
-    process=$(LC_ALL=C ps -p "$pid" -o pid=) || result=$?
-    [[ "$result" == 1 && -z "$process" ]] || { echo '锁的进程仍存在或无法确认，未移动' >&2; return 3; }
-    archived=$(mktemp -d "${lock}.recovered.XXXXXX")
-    chmod 700 "$archived"
-    mv "$lock" "$archived/lock"
-    printf '已保存失效锁：%s\n目标与事务备份未修改；请检查后回滚或重新执行。\n' "$archived"
-)
-lc_tx_unlock() {
-    [[ -n "${LC_TX_LOCK:-}" && "${LC_TX_LOCK_OWNED:-0}" == 1 ]] || return 0
-    rm -f "$LC_TX_LOCK/pid"
-    rmdir "$LC_TX_LOCK"
-    LC_TX_LOCK=''
-    LC_TX_LOCK_OWNED=0
-}
-lc_tx_commit() {
-    lc_tx_check_revision || return 3
-    if [[ "$LC_TX_EXISTED" == 1 ]]; then
-        [[ "$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] || { echo '文件权限或属主被并发修改' >&2; return 3; }
-        cmp -s "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { echo '检测到并发修改，已停止' >&2; return 3; }
-    else
-        [[ ! -e "$LC_TX_TARGET" ]] || { echo '目标被并发创建，已停止' >&2; return 3; }
-    fi
-    if [[ "$LC_TX_EXISTED" == 1 && "$(LC_ALL=C ls -ldn "$LC_TX_CANDIDATE" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] && cmp -s "$LC_TX_CANDIDATE" "$LC_TX_OPERATION/before"; then
-        rm -rf "$LC_TX_OPERATION"
-        lc_tx_unlock
-        return 0
-    fi
-    local staged
-    staged=$(mktemp "${LC_TX_TARGET}.lazycat-stage.XXXXXX")
-    lc_tx_copy "$LC_TX_CANDIDATE" "$staged" || { rm -f "$staged"; return 1; }
-    lc_tx_check_revision || { rm -f "$staged"; return 3; }
-    if ! mv "$staged" "$LC_TX_TARGET"; then rm -f "$staged"; return 1; fi
-    # A later metadata-only edit must also prevent destructive rollback. Record
-    # the published inode, not the candidate inode which rename may replace.
-    lc_tx_revision "$LC_TX_TARGET" > "$LC_TX_OPERATION/committed-revision" || return 1
-    printf 'committed\n' > "$LC_TX_OPERATION/status"
-    lc_tx_unlock
-    printf '操作记录与备份：%s\n' "$LC_TX_OPERATION"
-}
-lc_remove_block_candidate() {
-    local file="$1" begin="$2" end="$3" tmp
-    awk -v begin="$begin" -v end="$end" '
-        $0 == begin { if (inside || seen++) bad=1; inside=1 }
-        $0 == end { if (!inside) bad=1; inside=0 }
-        END { exit (bad || inside) ? 1 : 0 }
-    ' "$file" || { echo '托管标记损坏，未修改目标文件' >&2; return 3; }
-    tmp=$(mktemp "${file}.XXXXXX")
-    lc_tx_copy "$file" "$tmp" || { rm -f "$tmp"; return 1; }
-    awk -v begin="$begin" -v end="$end" '
-        $0 == begin { inside=1; next }
-        $0 == end { inside=0; next }
-        !inside { print }
-    ' "$file" > "$tmp"
-    mv "$tmp" "$file"
-}
-# lazycat-file-transaction:end
 
 MODE="install"
 ASSUME_YES=0
@@ -282,7 +126,7 @@ remove_lazycat_managed_block() {
 
     local tmp_file
     tmp_file="$(mktemp "${zshrc_file}.tmp.XXXXXX")"
-    lc_tx_copy "$zshrc_file" "$tmp_file"
+    cp -p "$zshrc_file" "$tmp_file"
     awk -v start="$start_marker" -v end="$end_marker" '
         $0 == start { in_block=1; next }
         $0 == end { in_block=0; next }
@@ -295,7 +139,7 @@ sanitize_zshrc_known_bad_lines() {
     local zshrc_file="$1"
     local tmp_file
     tmp_file="$(mktemp "${zshrc_file}.tmp.XXXXXX")"
-    lc_tx_copy "$zshrc_file" "$tmp_file"
+    cp -p "$zshrc_file" "$tmp_file"
 
     # 历史版本脚本错误地把 `p10k configure` 写进 .zshrc，导致 zsh 启动时直接报错并中断主题/插件加载。
     awk '
@@ -322,7 +166,7 @@ inject_lazycat_block_before_omz_source() {
     local block_file="$2"
     local tmp_file
     tmp_file="$(mktemp "${zshrc_file}.tmp.XXXXXX")"
-    lc_tx_copy "$zshrc_file" "$tmp_file"
+    cp -p "$zshrc_file" "$tmp_file"
 
     awk -v block_path="$block_file" '
         BEGIN {
@@ -353,7 +197,7 @@ remove_legacy_theme_and_plugin_lines() {
     local zshrc_file="$1"
     local tmp_file
     tmp_file="$(mktemp "${zshrc_file}.tmp.XXXXXX")"
-    lc_tx_copy "$zshrc_file" "$tmp_file"
+    cp -p "$zshrc_file" "$tmp_file"
 
     awk '
         # 仅清理历史版本脚本常见注入行（非托管块）。避免误删用户自定义内容。
@@ -368,17 +212,35 @@ remove_legacy_theme_and_plugin_lines() {
 # Work only on a same-directory candidate. Unknown user edits win over commits.
 begin_zshrc_edit() {
     ZSHRC_TARGET="$HOME/.zshrc"
-    [[ ! -e "$HOME/.lazycat-zsh.lock" && ! -L "$HOME/.lazycat-zsh.lock" ]] || {
-        echo '旧 Zsh 操作锁仍存在，请先审阅；未删除旧锁或备份。' >&2
-        return 3
-    }
-    trap lc_tx_unlock EXIT
-    lc_tx_begin "$ZSHRC_TARGET"
-    ZSHRC_FILE="$LC_TX_CANDIDATE"
+    [[ ! -L "$ZSHRC_TARGET" ]] || { echo '.zshrc 是符号链接，需要先明确采纳目标' >&2; exit 1; }
+    ZSHRC_LOCK="$HOME/.lazycat-zsh.lock"
+    mkdir "$ZSHRC_LOCK" || { echo '另一个操作正在执行，或上次中断留下锁；请先检查' >&2; exit 1; }
+    EDIT_DIR=$(mktemp -d "$HOME/.lazycat-zsh.XXXXXX")
+    trap 'rm -rf "$EDIT_DIR"; rmdir "$ZSHRC_LOCK"' EXIT
+    ZSHRC_EXISTED=0
+    if [[ -e "$ZSHRC_TARGET" ]]; then
+        ZSHRC_EXISTED=1
+        cp -p "$ZSHRC_TARGET" "$EDIT_DIR/before"
+    else
+        (umask 077; : > "$EDIT_DIR/before")
+    fi
+    cp -p "$EDIT_DIR/before" "$EDIT_DIR/candidate"
+    ZSHRC_FILE="$EDIT_DIR/candidate"
 }
 commit_zshrc_edit() {
     zsh -n "$ZSHRC_FILE"
-    lc_tx_commit
+    if [[ "$ZSHRC_EXISTED" -eq 1 ]]; then
+        [[ ! -L "$ZSHRC_TARGET" ]] && cmp -s "$ZSHRC_TARGET" "$EDIT_DIR/before" || { echo '配置被并发修改，已停止' >&2; exit 1; }
+    else
+        [[ ! -e "$ZSHRC_TARGET" && ! -L "$ZSHRC_TARGET" ]] || { echo '配置被并发创建，已停止' >&2; exit 1; }
+    fi
+    if cmp -s "$ZSHRC_FILE" "$EDIT_DIR/before"; then return; fi
+    if [[ "$ZSHRC_EXISTED" -eq 1 ]]; then
+        local backup
+        backup=$(mktemp "$HOME/.zshrc.lazycat.bak.XXXXXX")
+        cp -p "$EDIT_DIR/before" "$backup"
+    fi
+    mv "$ZSHRC_FILE" "$ZSHRC_TARGET"
 }
 
 # --- 安全检查 ---
@@ -539,7 +401,7 @@ echo ""
 echo "========================================================================"
 echo "      🎉 Zsh 环境配置完成! 🎉"
 echo "------------------------------------------------------------------------"
-echo "  配置已提交并通过语法检查。请在新 Zsh 中检查实际加载结果。"
+echo "  所有您请求的组件均已安装和配置完毕。请执行最后一步:"
 echo ""
 
 if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
@@ -551,12 +413,14 @@ if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
 fi
 
 echo "  - 启动 Zsh:"
-echo "     在当前窗口输入 'exec zsh' 来加载新配置。默认 Shell 未改变。"
+echo "     请注销并重新登录，以使所有更改（包括默认 Shell）完全生效。"
+echo "     或者，在当前窗口输入 'exec zsh' 来立即体验新配置。"
 echo ""
 
 if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
     echo "  - Powerlevel10k 配置:"
-    echo "     需要主题向导时，在新 Zsh 中手动执行 p10k configure。"
+    echo "     当您第一次启动 Zsh 时，Powerlevel10k 的配置向导会自动运行。"
+    echo "     请根据提示回答问题，打造您专属的酷炫终端！"
 fi
 echo "========================================================================"
 

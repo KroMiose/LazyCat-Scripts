@@ -22,15 +22,6 @@ lc_tx_revision() {
         *) return 1 ;;
     esac
 }
-# Automatic failure recovery may only replace the exact revision we published.
-# Missing revision evidence is a conflict, not permission to discard user attrs.
-lc_tx_matches_committed() {
-    local target="$1" operation="$2"
-    [[ -f "$target" && ! -L "$target" && -f "$operation/after" && ! -L "$operation/after" &&
-       -f "$operation/committed-revision" && ! -L "$operation/committed-revision" ]] || return 3
-    [[ "$(lc_tx_revision "$target")" == "$(cat "$operation/committed-revision")" ]] &&
-        cmp -s "$target" "$operation/after" || return 3
-}
 lc_tx_check_revision() {
     lc_tx_check_path "$LC_TX_TARGET" || return 3
     if [[ "$LC_TX_EXISTED" == 1 ]]; then
@@ -212,15 +203,9 @@ if systemctl daemon-reload && systemctl restart docker && systemctl is-active --
     exit 0
 fi
 # A restart can affect containers; only config/service state is recoverable here.
-if [[ -d "$LC_TX_OPERATION" ]]; then
-    lc_tx_matches_committed "$target" "$LC_TX_OPERATION" || {
-        printf 'recovery-conflict\n' > "$LC_TX_OPERATION/status"
-        echo 'Docker 应用失败后配置或属性已变化，保留现场，不继续恢复文件或切换服务。' >&2
-        exit 3
-    }
+if [[ -d "$LC_TX_OPERATION" ]] && cmp -s "$target" "$LC_TX_OPERATION/after"; then
     if [[ "$LC_TX_EXISTED" == 1 ]]; then
-        lc_tx_copy "$LC_TX_OPERATION/before" "$LC_TX_OPERATION/restore"
-        lc_tx_matches_committed "$target" "$LC_TX_OPERATION" || { printf 'recovery-conflict\n' > "$LC_TX_OPERATION/status"; exit 3; }
+        cp -p "$LC_TX_OPERATION/before" "$LC_TX_OPERATION/restore"
         mv "$LC_TX_OPERATION/restore" "$target"
     else rm "$target"; fi
     printf 'rollback-attempted\n' > "$LC_TX_OPERATION/status"

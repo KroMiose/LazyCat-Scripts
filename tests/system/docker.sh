@@ -28,11 +28,11 @@ until [[ -f /tmp/docker-proxy-ready ]]; do ((SECONDS<deadline)) || exit 1;sleep 
 before=$(systemctl show docker --property=MainPID --value)
 bash linux/setup_docker_proxy.sh set --url http://127.0.0.1:18081 --no-proxy localhost,127.0.0.1
 [[ "$(systemctl show docker --property=MainPID --value)" == "$before" ]]
-# Repeating the same desired file is a no-op, even with explicit restart.
+# An ordinary repeat preserves the file and does not restart the daemon.
 bash linux/setup_docker_proxy.sh set --url http://127.0.0.1:18081 --no-proxy localhost,127.0.0.1
 [[ "$(systemctl show docker --property=MainPID --value)" == "$before" ]]
-# Applying a changed setting with --restart explicitly opts into interruption.
-bash linux/setup_docker_proxy.sh set --url http://127.0.0.1:18081 --no-proxy localhost,127.0.0.1,fixture.local --restart
+# Explicit restart applies the already-saved pending file, even if its bytes are unchanged.
+bash linux/setup_docker_proxy.sh set --url http://127.0.0.1:18081 --no-proxy localhost,127.0.0.1 --restart
 systemctl show docker --property=Environment --value | grep -F 'HTTP_PROXY=http://127.0.0.1:18081'
 if timeout 30 docker pull registry.fixture.invalid/test/image:fixture; then echo 'fixture rejected all registry requests but pull succeeded';exit 1;fi
 grep -F 'registry.fixture.invalid' /tmp/docker-proxy-requests
@@ -46,3 +46,5 @@ bash linux/setup_docker_proxy.sh remove --restart
 docker info >/dev/null
 if systemctl show docker --property=Environment --value | grep -q 'HTTP_PROXY=';then echo 'proxy remained after removal';exit 1;fi
 echo 'PASS actual Docker daemon proxy request, denied and successful fixture pull, explicit restart, removal and group permission lifecycle'
+
+bash tests/system/docker-recovery.sh

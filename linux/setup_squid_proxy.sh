@@ -5,7 +5,7 @@
 # 功    能: 在 Linux 服务器上一键部署带 Basic Auth 认证的 Squid HTTP/HTTPS 代理。
 #           自动生成随机账号密码、写入匿名化配置，并输出可直接使用的代理 URL。
 # 适用系统: 基于 Debian/Ubuntu 的 Linux 系统（使用 systemd）
-# 使用方法: sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/setup_squid_proxy.sh)"
+# 仓库入口: sudo bash linux/setup_squid_proxy.sh；服务与凭据影响见 linux/README.md。
 # ==============================================================================
 
 set -euo pipefail

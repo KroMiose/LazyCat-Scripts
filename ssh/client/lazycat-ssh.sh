@@ -5,9 +5,9 @@
 # 功    能: 控制端 SSH 管理入口：通过 Secret Gist（只读）同步标准 YAML，
 #           生成并维护 ~/.ssh/config.d/lazycat.conf，同时对 ~/.ssh/config 写入
 #           可移除的 Include 标记块。支持多套配置（多 Gist / 同 Gist 多文件）。
-# 适用系统: Linux & macOS（Bash >= 4）
-# 使用方法: 1) 首次一键执行（安装到 ~/.local/bin/lazycat-ssh）
-#              bash -c \"$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/client/lazycat-ssh.sh)\"\n#           2) 之后直接运行：lazycat-ssh
+# 目标平台: Linux / macOS；验证范围与系统 Bash 版本见 docs/TESTING.md。
+# 仓库安装入口: bash ssh/client/lazycat-ssh.sh install；日常运行 lazycat-ssh。
+# 下载样例与迁移限制见 ssh/README.md；不要在日常命令中隐式安装。
 # ==============================================================================
 
 set -euo pipefail
