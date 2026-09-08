@@ -25,28 +25,13 @@ if [ -z "$CALLING_USER" ] || [ "$CALLING_USER" = "root" ]; then
     echo "   请确保您是以普通用户身份通过 'sudo' 来执行此脚本。" >&2
     exit 1
 fi
-[[ "$CALLING_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*\$?$ ]] || { echo '用户名不能安全表示为现有 sudoers 文件名，未修改权限。' >&2; exit 2; }
-target_uid=$(id -u -- "$CALLING_USER") || { echo '目标用户不存在，未修改权限。' >&2; exit 2; }
-[[ "$target_uid" != 0 ]] || { echo '目标必须为普通用户，未修改权限。' >&2; exit 2; }
 
 # --- 定义配置文件路径 ---
 # 文件名使用 99- 前缀确保它在其他规则之后被加载，并且包含用户名以示清晰。
 SUDOERS_FILE="/etc/sudoers.d/99-nopasswd-${CALLING_USER}"
-CONFIG_CONTENT="$CALLING_USER ALL=(ALL) NOPASSWD: ALL"
-
-check_owned_rule() {
-    [[ ! -L "$SUDOERS_FILE" ]] || { echo 'sudoers 文件为符号链接，未修改。' >&2; return 3; }
-    if [[ -e "$SUDOERS_FILE" ]]; then
-        [[ -f "$SUDOERS_FILE" ]] && printf '%s\n' "$CONFIG_CONTENT" | cmp -s - "$SUDOERS_FILE" || {
-            echo 'sudoers 文件包含无法确认归属的修改，保留原权限；请先审阅。' >&2
-            return 3
-        }
-    fi
-}
 
 # --- 启用免密 sudo 的函数 ---
 enable_nopasswd() {
-    check_owned_rule || return "$?"
     echo "即将为用户 '$CALLING_USER' 创建免密 sudo 规则..."
     echo "🚨 警告: 这是一个高风险操作，请再次确认。"
     # 要求用户输入 "yes" 来确认，避免意外操作
@@ -61,25 +46,21 @@ enable_nopasswd() {
     # 定义要写入的配置内容
     CONFIG_CONTENT="$CALLING_USER ALL=(ALL) NOPASSWD: ALL"
 
-    [[ ! -L "$SUDOERS_FILE" ]] || { echo '拒绝替换符号链接' >&2; return 1; }
-    local candidate backup
-    candidate=$(mktemp /etc/sudoers.d/.lazycat-check.XXXXXX)
-    backup=$(mktemp /etc/sudoers.d/.lazycat-before.XXXXXX)
-    if [[ -f "$SUDOERS_FILE" ]]; then cp -p "$SUDOERS_FILE" "$backup"; else rm -f "$backup"; fi
-    printf '%s\n' "$CONFIG_CONTENT" > "$candidate"
-    chmod 0440 "$candidate"
-    if ! visudo -c -f "$candidate"; then rm -f "$candidate" "$backup"; return 1; fi
-    if [[ -f "$SUDOERS_FILE" ]] && cmp -s "$candidate" "$SUDOERS_FILE"; then
-        rm -f "$candidate" "$backup"
-        echo '配置未变化。'
-        return 0
+    # 使用 tee 和 sudo 来写入文件，这是在脚本中安全写入特权文件的标准做法
+    echo "$CONFIG_CONTENT" | sudo tee "$SUDOERS_FILE" >/dev/null
+
+    echo "  -> 设置文件权限为 0440 (只读，属主和属组可读)..."
+    sudo chmod 0440 "$SUDOERS_FILE"
+
+    echo "  -> 正在使用 'visudo -c' 验证 sudoers 文件语法..."
+    if sudo visudo -c -f "$SUDOERS_FILE"; then
+        echo "✅ 语法验证通过，配置完成。"
+    else
+        echo "❌ 严重错误: sudoers 文件语法无效！" >&2
+        echo "   为了系统安全，将自动移除刚刚创建的无效配置文件。" >&2
+        sudo rm -f "$SUDOERS_FILE"
+        exit 1
     fi
-    mv "$candidate" "$SUDOERS_FILE"
-    if ! visudo -c; then
-        if [[ -f "$backup" ]]; then mv "$backup" "$SUDOERS_FILE"; else rm -f "$SUDOERS_FILE"; fi
-        return 1
-    fi
-    if [[ -f "$backup" ]]; then mv "$backup" "${SUDOERS_FILE}.bak.$(date +%s)"; fi
 
     echo ""
     echo "🎉 成功！用户 '$CALLING_USER' 现在可以免密使用 sudo。"
@@ -88,7 +69,6 @@ enable_nopasswd() {
 
 # --- 移除免密 sudo 的函数 ---
 disable_nopasswd() {
-    check_owned_rule || return "$?"
     if [ ! -f "$SUDOERS_FILE" ]; then
         echo "ℹ️  未找到为用户 '$CALLING_USER' 配置的免密文件 ($SUDOERS_FILE)。"
         echo "   无需执行任何操作。"
@@ -104,11 +84,11 @@ disable_nopasswd() {
     fi
 
     echo "  -> 正在移除 sudoers 配置文件: $SUDOERS_FILE"
-    rm -f "$SUDOERS_FILE"
+    sudo rm -f "$SUDOERS_FILE"
 
     echo ""
     echo "✅ 成功！用户 '$CALLING_USER' 的免密 sudo 配置已被移除。"
-    echo "   本工具规则已移除；是否仍可免密取决于其他 sudoers 规则。"
+    echo "   从现在开始，执行 sudo 将需要输入密码。"
 }
 
 # --- 主逻辑：交互式菜单 ---

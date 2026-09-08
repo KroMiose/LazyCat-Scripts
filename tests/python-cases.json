@@ -6,6 +6,7 @@
     "test_binary_architecture.BinaryArchitecture.test_actual_headers_and_unsupported_formats",
     "test_binary_architecture.BinaryArchitecture.test_native_intel_missing_capability_and_translated_arm",
     "test_ca_entrypoint.CAEntrypoint.test_custom_location_is_persisted_without_rekey",
+    "test_ca_entrypoint.CAEntrypoint.test_location_rollback_and_concurrent_edit_preserve_ca_keys",
     "test_ca_entrypoint.CAEntrypoint.test_old_new_custom_location_survives_new_process",
     "test_candidate_installer.CandidateInstaller.test_checksum_version_and_existing_candidate_preserved",
     "test_candidate_installer.CandidateInstaller.test_download_policy",

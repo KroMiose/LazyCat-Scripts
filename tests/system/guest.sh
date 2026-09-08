@@ -55,26 +55,59 @@ printf 'observer-packages\n' > /tmp/lazycat-phase
 # declared test-driver prerequisite bounded, independent of product installers.
 timeout 180 apt-get -o Acquire::Languages=none -o Acquire::Retries=0 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Acquire::IndexTargets::deb-src::Sources::DefaultEnabled=false update
 timeout 600 apt-get -o Acquire::Languages=none -o Acquire::Retries=0 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y openssh-server sudo curl openssl zsh python3 git ca-certificates dbus-user-session
-printf 'node-lifecycle\n' > /tmp/lazycat-phase
+printf 'ca-lifecycle\n' > /tmp/lazycat-phase
 useradd -m -s /bin/bash fixture
 mkdir -p /run/sshd
-ssh-keygen -q -t ed25519 -N '' -f /tmp/ca
+bash ssh/ca/lazycat-ssh-ca.sh init --dir /tmp --name ca
+sha256sum /tmp/ca /tmp/ca.pub /root/.lazycat/ssh-ca-location > /tmp/ca-initial.sha256
+bash ssh/ca/lazycat-ssh-ca.sh show > /tmp/ca-shown.pub
+cmp /tmp/ca.pub /tmp/ca-shown.pub
+if bash ssh/ca/lazycat-ssh-ca.sh init --dir /tmp --name ca; then echo 'existing CA was initialized again';exit 1;fi
+sha256sum -c /tmp/ca-initial.sha256
 ssh-keygen -q -t ed25519 -N '' -f /tmp/client
+printf 'node-lifecycle\n' > /tmp/lazycat-phase
 cp /etc/ssh/sshd_config /tmp/sshd-original
 bash ssh/node/lazycat-ssh-node.sh "$(cat /tmp/ca.pub)"
 cp /etc/ssh/sshd_config /tmp/sshd-first
 bash ssh/node/lazycat-ssh-node.sh "$(cat /tmp/ca.pub)"
 cmp /tmp/sshd-first /etc/ssh/sshd_config
-ssh-keygen -q -s /tmp/ca -I fixture -n root -V -1m:+30m /tmp/client.pub
+# Sign through the actual CA menu, then observe a new server connection.
+printf '2\n/tmp/client.pub\nfixture\n30m\nroot\n4\n' | bash ssh/ca/lazycat-ssh-ca.sh
 printf '127.0.0.1 ' > /tmp/known_hosts
 cat /etc/ssh/ssh_host_ed25519_key.pub >> /tmp/known_hosts
 ssh -F /dev/null -i /tmp/client -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=/tmp/known_hosts root@127.0.0.1 true
 mv /tmp/client-cert.pub /tmp/client-cert.saved
 if ssh -F /dev/null -i /tmp/client -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=/tmp/known_hosts root@127.0.0.1 true; then echo 'Unsigned key accepted'; exit 1; fi
+# Independent invalid credentials, never installed as the trusted CA.
+ssh-keygen -q -t ed25519 -N '' -f /tmp/untrusted-ca
+ssh-keygen -q -s /tmp/untrusted-ca -I rejected-ca -n root -V -1m:+30m /tmp/client.pub
+if ssh -F /dev/null -i /tmp/client -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=/tmp/known_hosts root@127.0.0.1 true; then echo 'Untrusted CA accepted';exit 1;fi
+ssh-keygen -q -s /tmp/ca -I rejected-expired -n root -V -2h:-1h /tmp/client.pub
+if ssh -F /dev/null -i /tmp/client -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=/tmp/known_hosts root@127.0.0.1 true; then echo 'Expired certificate accepted';exit 1;fi
+rm /tmp/client-cert.pub
+sha256sum -c /tmp/ca-initial.sha256
+echo 'PASS actual CA init/show/repeat refusal/signing and real SSH untrusted/expired/unsigned rejection'
 printf '1\nyes\n' | SUDO_USER=fixture bash linux/setup_sudo_nopasswd.sh
 runuser -u fixture -- sudo -n true
+cp -p /etc/sudoers.d/99-nopasswd-fixture /tmp/sudo-owned
+printf '1\nyes\n' | SUDO_USER=fixture bash linux/setup_sudo_nopasswd.sh
+cmp /etc/sudoers.d/99-nopasswd-fixture /tmp/sudo-owned
+printf '# manual administrator note\n' >> /etc/sudoers.d/99-nopasswd-fixture
+cp -p /etc/sudoers.d/99-nopasswd-fixture /tmp/sudo-manual
+# Original full entrypoint removes the administrator's edited resource.
+printf '2\ny\n' | SUDO_USER=fixture bash tests/fixtures/legacy/linux/setup_sudo_nopasswd.sh
+[[ ! -e /etc/sudoers.d/99-nopasswd-fixture ]]
+if runuser -u fixture -- sudo -n true; then echo 'original removal unexpectedly kept permission';exit 1;fi
+cp -p /tmp/sudo-manual /etc/sudoers.d/99-nopasswd-fixture
+for choice in 1 2; do
+    if printf '%s\nyes\n' "$choice" | SUDO_USER=fixture bash linux/setup_sudo_nopasswd.sh; then echo 'edited sudo rule accepted for replacement/removal';exit 1;fi
+    cmp /etc/sudoers.d/99-nopasswd-fixture /tmp/sudo-manual
+    runuser -u fixture -- sudo -n true
+done
+cp -p /tmp/sudo-owned /etc/sudoers.d/99-nopasswd-fixture
 printf '2\ny\n' | SUDO_USER=fixture bash linux/setup_sudo_nopasswd.sh
 if runuser -u fixture -- sudo -n true; then echo 'sudo permission not revoked'; exit 1; fi
+echo 'PASS sudo actual grant/repeat, old edited-rule removal, new conflict preservation and explicit revoke'
 mkdir -p /tmp/http-fixture
 printf fixture > /tmp/http-fixture/index.html
 python3 -m http.server 18080 --bind 127.0.0.1 --directory /tmp/http-fixture >/tmp/http.log 2>&1 &

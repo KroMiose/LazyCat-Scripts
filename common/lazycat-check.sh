@@ -201,7 +201,7 @@ if [[ "${1:-}" == rollback ]]; then
 fi
 [[ $# == 0 || ( $# == 1 && "$1" == --json ) ]] || { echo '用法：lazycat-check.sh [--json] | rollback <操作目录> | recover-lock <目标文件绝对路径>' >&2; exit 2; }
 shopt -s nullglob
-scan_dirs=("$HOME" "$HOME/.ssh" "$HOME/.ssh/lazycat-hosts" "${XDG_CONFIG_HOME:-$HOME/.config}")
+scan_dirs=("$HOME" "$HOME/.lazycat" "$HOME/.ssh" "$HOME/.ssh/lazycat-hosts" "${XDG_CONFIG_HOME:-$HOME/.config}")
 if [[ "$EUID" == 0 ]]; then scan_dirs+=(/etc/squid /etc/systemd/system/docker.service.d); fi
 operations=()
 for scan_dir in "${scan_dirs[@]}"; do

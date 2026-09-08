@@ -7,7 +7,8 @@
     "linux/setup_squid_proxy.sh",
     "ssh/lib/common.sh",
     "linux/setup_python_env.sh",
-    "ssh/ca/lazycat-ssh-ca.sh"
+    "ssh/ca/lazycat-ssh-ca.sh",
+    "linux/setup_sudo_nopasswd.sh"
   ],
   "purpose": "Read-only regression fixtures. Never execute installers on the host."
 }
