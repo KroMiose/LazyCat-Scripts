@@ -115,3 +115,49 @@ rm "$cert"
 mv "${cert}.saved" "$cert"
 sha256sum -c /tmp/legacy-preserved.sha256
 echo 'PASS actual old/new legacy entrypoint, default CA path, valid new session, failure preservation and rerun'
+
+# One fetched inventory, valid configuration first, unavailable signer second.
+# Declare the new alias's host trust in the fixture; product sync must not enroll it.
+ssh-keyscan -t ed25519 127.0.0.1 2>/dev/null | awk '{$1="fixture-target";print}' >> "$home/.ssh/known_hosts"
+sha256sum "$key" "${key}.pub" "$home/.ssh/known_hosts" "$cert" > /tmp/legacy-sync-preserved.sha256
+cp -p "$home/.ssh/config" /tmp/legacy-sync-config.before
+cat > /tmp/legacy-inventory/inventory.yaml <<'YAML'
+version: 1
+ca:
+  ssh_host: fixture-ca
+  principals: root
+  validity: 12h
+hosts:
+  fixture-target:
+    host: 127.0.0.1
+    user: root
+    port: 22
+YAML
+mv "$ca" "${ca}.fixture-unavailable"
+for implementation in old new; do
+    entry=ssh/client/lazycat-ssh.sh
+    [[ "$implementation" != old ]] || entry=tests/fixtures/legacy-sync-before.sh
+    install -o legacy-fixture -g legacy-fixture -m 755 "$entry" "$home/.local/bin/lazycat-ssh"
+    requests_before=$(grep -c 'GET /inventory.yaml' /tmp/legacy-http.log)
+    status=0
+    runuser -u legacy-fixture -- env -i HOME="$home" USER=legacy-fixture PATH=/work:/usr/bin:/bin bash "$home/.local/bin/lazycat-ssh" sync > "/tmp/legacy-sync-$implementation.log" 2>&1 || status=$?
+    cat "/tmp/legacy-sync-$implementation.log"
+    [[ "$status" != 0 ]]
+    sha256sum -c /tmp/legacy-sync-preserved.sha256
+    if [[ "$implementation" == old ]]; then
+        cmp /tmp/legacy-sync-config.before "$home/.ssh/config"
+        [[ ! -e "$home/.ssh/config.d/lazycat.conf" ]]
+        echo 'EXPECTED OLD DEFECT: unavailable CA prevents valid legacy SSH configuration update'
+    else
+        [[ "$status" == 1 ]]
+        [[ $(( $(grep -c 'GET /inventory.yaml' /tmp/legacy-http.log) - requests_before )) == 1 ]]
+        grep -F '配置已同步，但证书续签失败' /tmp/legacy-sync-new.log
+        runuser -u legacy-fixture -- ssh -F "$home/.ssh/config" -G fixture-target > /tmp/legacy-sync-effective
+        grep -qx 'hostname 127.0.0.1' /tmp/legacy-sync-effective
+        runuser -u legacy-fixture -- ssh -F "$home/.ssh/config" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no fixture-target true
+    fi
+done
+mv "${ca}.fixture-unavailable" "$ca"
+legacy
+runuser -u legacy-fixture -- ssh -F "$home/.ssh/config" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no fixture-target true
+echo 'PASS legacy config commits independently, one inventory fetch, preserved old certificate login and recovered renewal'

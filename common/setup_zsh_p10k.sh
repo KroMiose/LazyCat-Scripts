@@ -252,6 +252,12 @@ fi
 
 # --- 依赖处理 ---
 if [[ "$MODE" == "install" ]]; then
+    if [[ -e "$HOME/.oh-my-zsh" || -L "$HOME/.oh-my-zsh" ]]; then
+        [[ -d "$HOME/.oh-my-zsh" && -s "$HOME/.oh-my-zsh/oh-my-zsh.sh" && -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]] || {
+            echo 'Oh My Zsh 目录存在但加载文件缺失或为空；请先修复，不覆盖现有组件或修改 Shell 配置。' >&2
+            exit 1
+        }
+    fi
     ensure_dependencies
 fi
 
@@ -305,6 +311,10 @@ if [ ! -d "$HOME/.oh-my-zsh" ]; then
 else
     echo "✅ Oh My Zsh 已经安装。"
 fi
+[[ -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" && -s "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]] || {
+    echo 'Oh My Zsh 安装器未生成有效加载文件；安装未完成，未写入 Shell 配置。' >&2
+    exit 1
+}
 
 # 定义 Zsh 插件和主题的自定义目录
 ZSH_CUSTOM="$HOME/.oh-my-zsh/custom"
@@ -414,4 +424,4 @@ if [[ "$confirm_p10k" =~ ^[Yy]$ ]]; then
 fi
 echo "========================================================================"
 
-exit 0 
+exit 0

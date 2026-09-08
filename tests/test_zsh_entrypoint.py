@@ -3,7 +3,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from lib.support import ROOT, environment
+from lib.support import ROOT, environment, snapshot
 
 class ZshEntrypoint(unittest.TestCase):
     def test_existing_plugins_repeat_and_cleanup(self):
@@ -92,3 +92,17 @@ class ZshEntrypoint(unittest.TestCase):
                 env=environment(home), capture_output=True, timeout=10)
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(rc.read_text(),content)
+
+    def test_partial_omz_does_not_report_success_or_edit_shell(self):
+        for state in ('missing-loader','empty-loader'):
+            with self.subTest(state=state), tempfile.TemporaryDirectory() as directory:
+                home=Path(directory);omz=home/'.oh-my-zsh'
+                for name in ('themes/powerlevel10k','plugins/zsh-autosuggestions','plugins/zsh-syntax-highlighting'):
+                    (omz/'custom'/name).mkdir(parents=True)
+                if state=='empty-loader':(omz/'oh-my-zsh.sh').touch()
+                (home/'.zshrc').write_text('# user preferences\nplugins=(custom)\n')
+                before=snapshot(home)
+                result=subprocess.run(['/bin/bash',str(ROOT/'common/setup_zsh_p10k.sh'),'--yes'],
+                    env=environment(home),cwd=home,capture_output=True,text=True,timeout=15)
+                self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
+                self.assertEqual(snapshot(home),before)

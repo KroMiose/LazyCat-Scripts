@@ -70,3 +70,5 @@ bash common/lazycat-check.sh recover-lock /absolute/.bashrc
 Squid 新记录使用其自身的 `setup_squid_proxy.sh --recover <操作目录>` 恢复两份文件及原服务状态，具体限制见 [Linux 工具说明](../linux/README.md)。恢复涉及真实服务操作；旧格式记录不推测缺失的原状态。
 
 CA 新版初始化记录可由 CA 自身的 `recover-init <候选目录>` 完成原密钥对，不由通用单文件 rollback 操作密钥。命令会读取候选密钥进行关联校验；默认 `lazycat-check` 仍只读阶段记录，不读取私钥。
+
+Zsh 安装遇到已有 Oh My Zsh 目录但加载文件缺失或为空时，返回失败并保留原目录及 Shell 配置，不将目录存在视为安装完成。新安装也检查加载文件确实生成；这项检查不能代替完整插件和主题功能验证。

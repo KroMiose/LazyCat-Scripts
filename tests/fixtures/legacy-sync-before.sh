@@ -623,12 +623,8 @@ lc_ca_fetch_and_sign_cert() (
   trap 'rm -f -- "$tmp_yaml" "$cert_candidate"; if [[ -n "$remote_dir" ]]; then "${ssh_base[@]}" "rm -rf \"${remote_dir}\"" || printf "%s\n" "远端临时目录清理失败：$remote_dir" >&2; fi' EXIT
   tmp_yaml="$(mktemp)" || return 1
 
-  if [[ $# == 1 ]]; then
-    cp "$1" "$tmp_yaml" || return 1
-  else
-    lc_log "⏳ 正在拉取配置（用于读取 CA 参数）..."
-    curl -fsSL "$RAW_URL" -o "$tmp_yaml" || return 1
-  fi
+  lc_log "⏳ 正在拉取配置（用于读取 CA 参数）..."
+  curl -fsSL "$RAW_URL" -o "$tmp_yaml" || return 1
   [[ "$(yq -r '.version // ""' "$tmp_yaml")" == 1 ]] || lc_die '仅支持 YAML version: 1，未请求签发。'
 
   local ca_ssh_host ca_key_path ca_principals ca_validity
@@ -781,10 +777,6 @@ lc_sync_from_raw_url() (
   local ca_host
   ca_host="$(yq -r '.ca.ssh_host // .ca.sshHost // .ca.host // ""' "$tmp_yaml")"
   if [[ -n "$ca_host" ]] && [[ "$ca_host" != "null" ]]; then
-    lc_validate_ca_ssh_host "$ca_host"
-    lc_validate_remote_path "$(yq -r '.ca.ca_key_path // .ca.caKeyPath // "~/.lazycat/ssh-ca/lazycat-ssh-ca"' "$tmp_yaml")"
-    lc_validate_principals "$(yq -r '.ca.principals // "root"' "$tmp_yaml")"
-    lc_validate_validity "$(yq -r '.ca.validity // "12h"' "$tmp_yaml")"
     ca_enabled="1"
     lc_log "🔐 检测到 CA 配置，将启用证书模式（短有效期推荐安装后台自动续期）。"
   fi
@@ -958,10 +950,7 @@ lc_sync_from_raw_url() (
 
   # Validate all inventory fields before requesting credentials or modifying
   # user directories. Existing SSH directory permissions belong to the user.
-  [[ ! -L "$SSH_DIR" && ! -L "$SSH_CONFIG_D" && ! -L "$SSH_CONFIG" && ! -L "$LAZYCAT_CONF" ]] || lc_die 'SSH 配置路径是符号链接，需要先审阅。'
-  if [[ "$ca_enabled" == 1 ]]; then
-    [[ ! -L "$CA_KEY_PATH" && ! -L "$CA_PUB_PATH" && ! -L "$CA_CERT_PATH" ]] || lc_die '证书或密钥路径是符号链接，未修改。'
-  fi
+  if [[ "$ca_enabled" == 1 ]]; then lc_ca_fetch_and_sign_cert; fi
   (umask 077; mkdir -p "$SSH_DIR" "$SSH_CONFIG_D")
   umask 077
   mv "$out" "${LAZYCAT_CONF}.tmp"
@@ -993,19 +982,6 @@ lc_sync_from_raw_url() (
   lc_log "  - 写入: ${LAZYCAT_CONF}"
   lc_log "  - 更新: ${SSH_CONFIG}（Include 标记块）"
   lc_log ""
-  if [[ "$ca_enabled" == 1 ]]; then
-    # Keep errexit effective inside renewal; a conditional function call would
-    # disable it throughout the signing body. Reuse the same fetched inventory.
-    local renewal_result
-    set +e
-    (set -e; lc_ca_fetch_and_sign_cert "$tmp_yaml")
-    renewal_result=$?
-    set -e
-    if [[ "$renewal_result" != 0 ]]; then
-      lc_log '配置已同步，但证书续签失败；旧证书保留，请检查后单独重试 renew-certs。'
-      return 1
-    fi
-  fi
 )
 
 lc_show_current() {
