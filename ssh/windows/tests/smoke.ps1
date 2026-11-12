@@ -118,3 +118,7 @@ try {
 } finally {
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 }
+
+# The last native command deliberately tests a rejected login. Return the
+# test result rather than that ssh process's expected nonzero exit code.
+exit 0
