@@ -552,11 +552,13 @@
   bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/client/lazycat-ssh.sh)"
   ```
 
-- **🚀 被访问端一键执行（Node，需 sudo）：**
+- **🚀 Linux / macOS 被访问端（Node，需 sudo）：**
 
   ```bash
   sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/node/lazycat-ssh-node.sh)"
   ```
+
+- **Windows 被访问端：** 在管理员 PowerShell 中用 `setup-openssh.ps1` 安装 OpenSSH，再用 `lazycat-ssh-node.ps1` 配置 CA 证书登录。参见 [Windows Node 指南](./ssh/README.md#windows-node)。
 
 - **⚠️ CA 管理端：** 建议在可信环境运行（会在本机生成并保存 CA 私钥）。
 

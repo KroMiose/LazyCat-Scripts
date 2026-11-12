@@ -1,0 +1,25 @@
+name: LazyCat SSH Windows
+
+on:
+  pull_request:
+    paths: ['ssh/windows/**', '.github/workflows/lazycat-ssh-windows.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, windows-11-arm]
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Exercise native sshd with LazyCat user certificates
+        shell: powershell
+        run: ./ssh/windows/tests/smoke.ps1

@@ -12,12 +12,12 @@ LazyCat SSH 是一套轻量级的 SSH 基础设施管理工具，旨在通过 **
 
 ## 核心组件
 
-本套件包含三个独立脚本，分别对应三种角色：
+本套件按三种角色提供命令：
 
 | 脚本              | 路径         | 角色           | 部署位置            | 功能                            |
 | :---------------- | :----------- | :------------- | :------------------ | :------------------------------ |
 | **CA 管理端**     | `ssh/ca`     | **证书颁发者** | 管理员本地 / 堡垒机 | 生成 CA 根密钥，签发用户证书    |
-| **Node 被控端**   | `ssh/node`   | **被访问资源** | 生产/测试服务器     | 配置 sshd 信任 CA，允许持证登录 |
+| **Node 被控端**   | `ssh/node`、`ssh/windows` | **被访问资源** | 服务器、Windows 设备 | 配置 sshd 信任 CA，允许持证登录 |
 | **Client 控制端** | `ssh/client` | **访问发起者** | 开发者电脑          | 同步服务器配置，申请/续期证书   |
 
 ---
@@ -56,6 +56,43 @@ sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/ca/la
    ```
 
    _该操作会自动修改 `/etc/ssh/sshd_config` 添加 `TrustedUserCAKeys`。Linux 会尝试重载 sshd；macOS 的 sshd 由 launchd 按需启动，新连接会自动读取最新配置，无需手动重载。_
+
+#### Windows Node
+
+使用 64 位 Windows PowerShell 5.1，以管理员身份在设备本机运行下列命令。使用 Windows 自带的 OpenSSH Server。安装和接入可以分开做；接入会重启 `sshd`，所以有现存 SSH 会话时请在本机操作。若 PowerShell 禁止运行本地脚本，确认仓库来源后，可以在当前窗口运行 `Set-ExecutionPolicy -Scope Process RemoteSigned`；组织策略优先。
+
+**1. 安装并启动 OpenSSH。** 进入仓库的 [`ssh/windows`](./windows) 目录：
+
+```powershell
+# 把端口、来源和网络配置文件换成你实际使用的值。
+.\setup-openssh.ps1 -Port 2222 -AllowedRemoteAddress '192.168.50.10/32','10.40.0.0/24' -FirewallProfile Private
+```
+
+- `-Port` 可省略：沿用已有端口，新装使用 OpenSSH 默认端口 22。
+- `-AllowedRemoteAddress` 是发起连接的设备地址，可传多个 IP 或 CIDR 网段，也可以用 `LocalSubnet`。经跳板连接时，通常应填跳板机的地址。若防火墙由组织统一管理，用 `-NoFirewall`，并请管理员配置入站规则。
+- `-FirewallProfile` 默认为 `Domain,Private`；需要其他配置文件时显式指定。脚本管理入站规则时，会停用 Windows 自带的 `OpenSSH-Server-In-TCP` 规则，并用指定范围的规则替代。其他可能同时放行 SSH 的规则需要按报错提示处理。
+- 新装默认关闭密码登录。命令完成后会显示监听端口和 SSH **主机公钥指纹**。保存指纹，供控制端首次连接时核对。
+- 可用 `./setup-openssh.ps1 -Status` 查看服务、监听和防火墙状态。
+
+**2. 接入 LazyCat。** 准备一个已启用的本地标准用户，以及 CA 管理端生成的 **CA 公钥**文件（`.pub`）。下例的地址是 Windows 设备在该线路上可被控制端访问的地址：
+
+```powershell
+.\lazycat-ssh-node.ps1 -User lazycat -Alias win-dev-01 -Address win-dev-01.example.net -CaPublicKeyFile .\lazycat-ssh-ca.pub
+```
+
+- `-User` 由你指定，并须与证书中的登录主体（principal）一致。脚本仅对该账号启用 LazyCat 证书登录，并关闭该账号的普通公钥和密码登录；不会为其授予管理员权限。若另有 SSH CA、`Include` 或自定义多因子认证配置，脚本会拒绝自动接管。
+- `-Route` 可选 `Lan`（默认）、`Wan`、`Tun`；需要跳板时可传 `-Via <跳板别名>`。默认读取唯一的实际监听端口；有端口映射或多个监听端口时，用 `-Port` 指定写入 Gist 的连接端口。
+- 把脚本输出的条目合入 Gist 的 `hosts`，并确认签发给控制端的证书包含该账号。若试点所有签发者都有权访问，可在现有 `ca.principals` 中追加账号，保留原来的值。现有签发流程由客户端提交 `principals`，Gist 本身不能按成员控制签发权限。
+- 在现有 macOS/Linux 控制端同步配置和证书，执行 `ssh win-dev-01 whoami`，首次连接时核对主机指纹。
+
+```powershell
+.\lazycat-ssh-node.ps1 -Status
+.\lazycat-ssh-node.ps1 -Remove
+```
+
+`-Remove` 恢复该账号原来的 SSH 配置，保留 OpenSSH Server 和防火墙配置。CA 公钥文件会保留供备份配置使用；如需让别名从控制端消失，还要删除 Gist 条目并重新同步。
+
+仓库的 [Windows 验收工作流](../.github/workflows/lazycat-ssh-windows.yml) 在 GitHub 托管的 Windows 运行器上测试这两个命令，不需要在开发机安装 Windows。
 
 ---
 
@@ -199,4 +236,4 @@ A: `principals` 是 SSH 证书中的**权限白名单**。它指定了持有该�
   这防止了用户持有证书后随意登录任何高权限账号。
 
 **Q: 支持 Windows 吗？**
-A: 目前仅支持 Linux 和 macOS (Bash)。
+A: Windows 可以作为 [被控端](#windows-node)。CA 管理端和控制端脚本仍运行在 Linux 或 macOS。

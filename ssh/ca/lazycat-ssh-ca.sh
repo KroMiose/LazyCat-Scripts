@@ -166,6 +166,9 @@ lc_show_node_setup_hint() {
   lc_log ""
   cat "$(ca_pub_path)"
   lc_log ""
+  lc_log "Windows Node：仅将 CA 公钥文件复制到设备：$(ca_pub_path)"
+  lc_log "在管理员 PowerShell 中进入仓库的 ssh/windows 目录，按 ssh/README.md 运行 setup-openssh.ps1 和 lazycat-ssh-node.ps1。"
+  lc_log ""
 }
 
 main_menu() {
