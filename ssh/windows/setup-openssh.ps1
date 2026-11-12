@@ -334,7 +334,10 @@ function Get-OverlappingFirewallRules([int]$TargetPort, [string]$SshdPath) {
             }
         }
         if (-not $portMatch) { continue }
-        $program = [string](($rule | Get-NetFirewallApplicationFilter).Program)
+        $application = $rule | Get-NetFirewallApplicationFilter
+        # Packaged-app rules can report Program=Any but do not apply to sshd.
+        if ($application.Package -and $application.Package -ine 'Any') { continue }
+        $program = [string]$application.Program
         $service = [string](($rule | Get-NetFirewallServiceFilter).Service)
         $programMatch = -not $program -or $program -ieq 'Any' -or
             [Environment]::ExpandEnvironmentVariables($program) -ieq $SshdPath
