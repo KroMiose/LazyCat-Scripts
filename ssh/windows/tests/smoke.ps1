@@ -104,9 +104,14 @@ try {
         $appRule = Get-NetFirewallRule -PolicyStore ActiveStore -Name '*-In-Allow-ServerCapability' -ErrorAction SilentlyContinue |
             Select-Object -First 1
         if ($appRule) {
-            $appRule | Format-List Name, Owner, PolicyStoreSourceType, EnforcementStatus | Out-Host
+            $appRule | Format-List Name, Owner, Profile, PolicyStoreSource, PolicyStoreSourceType, EnforcementStatus | Out-Host
             $appRule | Get-NetFirewallApplicationFilter | Format-List Program, Package | Out-Host
             $appRule | Get-NetFirewallSecurityFilter | Format-List LocalUser, RemoteUser, RemoteMachine | Out-Host
+            $policy = 'HKLM:\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy'
+            foreach ($key in @(Get-ChildItem -LiteralPath $policy -Recurse -ErrorAction SilentlyContinue)) {
+                $value = $key.GetValue($appRule.Name)
+                if ($value) { Write-Host "$($key.Name): $value" }
+            }
         }
     }
     Get-WinEvent -LogName 'OpenSSH/Operational' -MaxEvents 15 -ErrorAction SilentlyContinue |
