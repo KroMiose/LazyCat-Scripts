@@ -100,20 +100,6 @@ try {
     Assert-Denied $targetUser
     Write-Host 'Windows SSH setup, certificate enrollment, account scope and removal passed.'
 } catch {
-    if ($_ -like '*Other enabled inbound allow rule(s) overlap sshd*') {
-        $appRule = Get-NetFirewallRule -PolicyStore ActiveStore -Name '*-In-Allow-ServerCapability' -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-        if ($appRule) {
-            $appRule | Format-List Name, Owner, Profile, PolicyStoreSource, PolicyStoreSourceType, EnforcementStatus | Out-Host
-            $appRule | Get-NetFirewallApplicationFilter | Format-List Program, Package | Out-Host
-            $appRule | Get-NetFirewallSecurityFilter | Format-List LocalUser, RemoteUser, RemoteMachine | Out-Host
-            $policy = 'HKLM:\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy'
-            foreach ($key in @(Get-ChildItem -LiteralPath $policy -Recurse -ErrorAction SilentlyContinue)) {
-                $value = $key.GetValue($appRule.Name)
-                if ($value) { Write-Host "$($key.Name): $value" }
-            }
-        }
-    }
     Get-WinEvent -LogName 'OpenSSH/Operational' -MaxEvents 15 -ErrorAction SilentlyContinue |
         Format-Table -Wrap -Property TimeCreated, Id, Message
     throw

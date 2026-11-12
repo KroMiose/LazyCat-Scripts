@@ -319,6 +319,8 @@ function Set-RestrictedOpenSshAcl([string]$Path, [switch]$Directory) {
 
 function Get-OverlappingFirewallRules([int]$TargetPort, [string]$SshdPath) {
     $conflicts = New-Object 'System.Collections.Generic.List[string]'
+    $localPolicy = 'HKLM:\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules'
+    $localRules = Get-Item -LiteralPath $localPolicy -ErrorAction SilentlyContinue
     $rules = @(Get-NetFirewallRule -PolicyStore ActiveStore -Enabled True -Direction Inbound -Action Allow)
     foreach ($rule in $rules) {
         if ($rule.Name -eq $managedRuleName) { continue }
@@ -337,6 +339,12 @@ function Get-OverlappingFirewallRules([int]$TargetPort, [string]$SshdPath) {
         $application = $rule | Get-NetFirewallApplicationFilter
         # Packaged-app rules can report Program=Any but do not apply to sshd.
         if ($application.Package -and $application.Package -ine 'Any') { continue }
+        # Some local rules store only a package family name (PFN), which
+        # NetSecurity omits from the application filter. Only consult the
+        # local registry for rules that actually originate in that store.
+        if ($localRules -and $rule.PolicyStoreSourceType -eq 'Local' -and
+            $rule.PolicyStoreSource -eq 'PersistentStore' -and
+            ([string]$localRules.GetValue($rule.Name) -match '(?:^|\|)PFN=[^|]+\|')) { continue }
         $program = [string]$application.Program
         $service = [string](($rule | Get-NetFirewallServiceFilter).Service)
         $programMatch = -not $program -or $program -ieq 'Any' -or
