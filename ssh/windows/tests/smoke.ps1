@@ -46,6 +46,15 @@ try {
     foreach ($name in @($targetUser, $otherUser)) {
         $null = New-LocalUser -Name $name -Password $password
     }
+    # The Server image only allows administrators by default. Admit both test
+    # users through a dedicated SSH group so the negative test exercises CA
+    # scoping rather than the runner image's group allowlist.
+    $testGroup = 'lazycat-ci-ssh'
+    $null = New-LocalGroup -Name $testGroup
+    Add-LocalGroupMember -Name $testGroup -Member @(Get-LocalUser -Name $targetUser, $otherUser)
+    $installedConfig = [IO.File]::ReadAllText($config)
+    [IO.File]::WriteAllText($config, "AllowGroups $testGroup`r`n" + $installedConfig)
+    $beforeJoin = Get-FileHash -LiteralPath $config
     foreach ($name in @('ca', 'wrong-ca', 'client')) {
         $null = Invoke-TestNative $keygen @('-q', '-t', 'ed25519', '-f', (Join-Path $temp $name), '-N', '""')
     }
@@ -99,7 +108,7 @@ try {
 
     Set-TestCertificate 'ca' $targetUser
     $null = & $node -Remove -Confirm:$false
-    if ((Get-FileHash -LiteralPath $config).Hash -ne $afterSetup.Hash) { throw 'Removal did not restore the pre-enrollment configuration.' }
+    if ((Get-FileHash -LiteralPath $config).Hash -ne $beforeJoin.Hash) { throw 'Removal did not restore the pre-enrollment configuration.' }
     Assert-Denied $targetUser
     Write-Host 'Windows SSH setup, certificate enrollment, account scope and removal passed.'
 } catch {

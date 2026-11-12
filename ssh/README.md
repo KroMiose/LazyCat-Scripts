@@ -82,6 +82,7 @@ sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/ca/la
 
 - `-User` 由你指定，并须与证书中的登录主体（principal）一致。脚本仅对该账号启用 LazyCat 证书登录，并关闭该账号的普通公钥和密码登录；不会为其授予管理员权限。若另有 SSH CA、`Include` 或自定义多因子认证配置，脚本会拒绝自动接管。
 - `-Route` 可选 `Lan`（默认）、`Wan`、`Tun`；需要跳板时可传 `-Via <跳板别名>`。默认读取唯一的实际监听端口；有端口映射或多个监听端口时，用 `-Port` 指定写入 Gist 的连接端口。
+- 原有的 `AllowUsers`、`AllowGroups` 等登录限制仍然生效。若服务器已配置这些限制，先确认指定账号符合现有规则。
 - 把脚本输出的条目合入 Gist 的 `hosts`，并确认签发给控制端的证书包含该账号。若试点所有签发者都有权访问，可在现有 `ca.principals` 中追加账号，保留原来的值。现有签发流程由客户端提交 `principals`，Gist 本身不能按成员控制签发权限。
 - 在现有 macOS/Linux 控制端同步配置和证书，执行 `ssh win-dev-01 whoami`，首次连接时核对主机指纹。
 
