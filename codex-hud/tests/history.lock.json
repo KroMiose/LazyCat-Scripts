@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "version": "codex-hud-v0.1.1",
+  "base_url": "https://github.com/KroMiose/LazyCat-Scripts/releases/download/codex-hud-v0.1.1/",
+  "assets": {
+    "codex-hud-darwin-amd64": "62ef45ddfde161536650281da47b21cb4562391d43381e111f63bca2a6e300c5",
+    "codex-hud-darwin-arm64": "87e346d3b9912d7b62c7dc31fcb298dc3d308340472220e470697fd556c39a72",
+    "codex-hud-linux-amd64": "1b315430936ed230ec32c66deb7b537cd223c0af92f5a7b032fceaae9f64f80b",
+    "codex-hud-linux-arm64": "94df8ccbcf6da5b17dba015db4e9c84b64787f8de17ecdf7acff0df8c363d7ca"
+  }
+}

@@ -412,3 +412,75 @@ func TestPermissionFallbackAndStopDisabled(t *testing.T) {
 		t.Fatal("stop=false ignored")
 	}
 }
+
+func TestSlowConcurrentStopWaitsForSharedResult(t *testing.T) {
+	var requests atomic.Int32
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requests.Add(1) == 1 {
+			close(entered)
+		}
+		<-release
+		fmt.Fprint(w, `{"code":200}`)
+	}))
+	defer server.Close()
+	a := testApp(t)
+	fixtureConfig(t, a, server.URL)
+	results := make(chan error, 2)
+	invoke := func() {
+		copy := *a
+		hookInput(&copy, "Stop", "slow", "same-turn", "完成")
+		_, e := copy.hook("stop")
+		results <- e
+	}
+	go invoke()
+	<-entered
+	go invoke()
+	// Deliberately exceed the old 350ms lock wait; this is a delay injection,
+	// not a service readiness assumption.
+	timer := time.NewTimer(600 * time.Millisecond)
+	<-timer.C
+	close(release)
+	for i := 0; i < 2; i++ {
+		if e := <-results; e != nil {
+			t.Fatal(e)
+		}
+	}
+	if requests.Load() != 1 {
+		t.Fatal("duplicate delivery", requests.Load())
+	}
+}
+
+func TestUnknownDeliveryDoesNotAutomaticallyRetry(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"code":`)
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	a := testApp(t)
+	fixtureConfig(t, a, server.URL)
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	a.ctx = ctx
+	hookInput(a, "Stop", "uncertain", "turn", "完成")
+	started := time.Now()
+	if _, e := a.hook("stop"); e == nil {
+		t.Fatal("timeout reported success")
+	}
+	if time.Since(started) > time.Second {
+		t.Fatal("request exceeded parent budget")
+	}
+	a.ctx = context.Background()
+	hookInput(a, "Stop", "uncertain", "turn", "完成")
+	if _, e := a.hook("stop"); e != nil {
+		t.Fatal(e)
+	}
+	if requests.Load() != 1 {
+		t.Fatal("unknown delivery was retried", requests.Load())
+	}
+}

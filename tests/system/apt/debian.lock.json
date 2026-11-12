@@ -1,0 +1,392 @@
+{
+  "format_version": 1,
+  "image_digest": "2bc4bad1dafce08937f04760d86fb735a35ca862c322a2c0018e86124bbac0d24fc276047559b11e31b51caf73a5d295e3259a0aef69506af6ec62ae0a71ab81",
+  "scope": "authenticated apt resolution, host downloads verified by SHA-256; review before CI adoption",
+  "packages": [
+    {
+      "filename": "perl-modules-5.36_5.36.0-7+deb12u3_all.deb",
+      "url": "https://deb.debian.org/debian/pool/main/p/perl/perl-modules-5.36_5.36.0-7%2bdeb12u3_all.deb",
+      "size": 2815332,
+      "sha256": "3d237ccb1ea32727b6573d43c67d78337aa928a81148d36cef54b369a07c240a",
+      "control": "Package: perl-modules-5.36\nSource: perl\nVersion: 5.36.0-7+deb12u3\nInstalled-Size: 17817\nMaintainer: Niko Tyni <ntyni@debian.org>\nArchitecture: all\nReplaces: libansicolor-perl (<< 5.01), libarchive-tar-perl (<< 2.40), libattribute-handlers-perl (<< 1.02), libautodie-perl (<< 2.34), libcpan-meta-perl (<< 2.150010), libcpan-meta-requirements-perl (<< 2.140), libcpan-meta-yaml-perl (<< 0.018), libdigest-perl (<< 1.20), libexperimental-perl (<< 0.028), libextutils-cbuilder-perl (<< 0.280236), libextutils-command-perl (<< 7.64), libextutils-install-perl (<< 2.20), libextutils-parsexs-perl (<< 3.450000), libfile-spec-perl (<< 3.8400), libhttp-tiny-perl (<< 0.080), libi18n-langtags-perl (<< 0.45), libio-zlib-perl (<< 1.11), libjson-pp-perl (<< 4.07000), liblocale-maketext-perl (<< 1.31), liblocale-maketext-simple-perl (<< 0.21.01), libmath-bigint-perl (<< 1.999830), libmath-complex-perl (<< 1.5902), libmodule-corelist-perl (<< 5.20220520), libmodule-load-conditional-perl (<< 0.74), libmodule-load-perl (<< 0.36), libmodule-metadata-perl (<< 1.000037), libnet-perl (<< 1:3.14), libnet-ping-perl (<< 2.74), libparams-check-perl (<< 0.38), libparent-perl (<< 0.238), libparse-cpan-meta-perl (<< 2.150010), libperl-ostype-perl (<< 1.010), libpod-escapes-perl (<< 1.07), libpod-simple-perl (<< 3.43), libtest-harness-perl (<< 3.44), libtest-simple-perl (<< 1.302190), libtest-tester-perl (<< 1.302190), libtest-use-ok-perl (<< 1.302190), libtext-balanced-perl (<< 2.04), libthread-queue-perl (<< 3.14), libtime-local-perl (<< 1.3000), libunicode-collate-perl (<< 1.31), libversion-perl (<< 1:0.9929), perl-base (<< 5.22.0~), perl-modules, podlators-perl (<< 4.14)\nProvides: perl-modules\nDepends: perl-base (>= 5.36.0-1)\nPre-Depends: dpkg (>= 1.17.17)\nRecommends: perl (>= 5.36.0-1)\nConflicts: perl-modules (<< 5.22.0~)\nBreaks: libansicolor-perl (<< 5.01), libarchive-tar-perl (<< 2.40), libattribute-handlers-perl (<< 1.02), libautodie-perl (<< 2.34), libcpan-meta-perl (<< 2.150010), libcpan-meta-requirements-perl (<< 2.140), libcpan-meta-yaml-perl (<< 0.018), libdigest-perl (<< 1.20), libexperimental-perl (<< 0.028), libextutils-cbuilder-perl (<< 0.280236), libextutils-command-perl (<< 7.64), libextutils-install-perl (<< 2.20), libextutils-parsexs-perl (<< 3.450000), libfile-spec-perl (<< 3.8400), libhttp-tiny-perl (<< 0.080), libi18n-langtags-perl (<< 0.45), libio-zlib-perl (<< 1.11), libjson-pp-perl (<< 4.07000), liblocale-maketext-perl (<< 1.31), liblocale-maketext-simple-perl (<< 0.21.01), libmath-bigint-perl (<< 1.999830), libmath-complex-perl (<< 1.5902), libmodule-corelist-perl (<< 5.20220520), libmodule-load-conditional-perl (<< 0.74), libmodule-load-perl (<< 0.36), libmodule-metadata-perl (<< 1.000037), libnet-perl (<< 1:3.14), libnet-ping-perl (<< 2.74), libparams-check-perl (<< 0.38), libparent-perl (<< 0.238), libparse-cpan-meta-perl (<< 2.150010), libperl-ostype-perl (<< 1.010), libpod-escapes-perl (<< 1.07), libpod-simple-perl (<< 3.43), libtest-harness-perl (<< 3.44), libtest-simple-perl (<< 1.302190), libtest-tester-perl (<< 1.302190), libtest-use-ok-perl (<< 1.302190), libtext-balanced-perl (<< 2.04), libthread-queue-perl (<< 3.14), libtime-local-perl (<< 1.3000), libunicode-collate-perl (<< 1.31), libversion-perl (<< 1:0.9929), maildirsync (<< 1.2-2.1), perl (<< 5.36.0~), podlators-perl (<< 4.14)\nDescription: Core Perl modules\nDescription-md5: ab17cfb8b1e97734a43782844ffb8c81\nMulti-Arch: foreign\nHomepage: http://dev.perl.org/perl5/\nTag: role::shared-lib\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "libgdbm-compat4_1.23-3_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/g/gdbm/libgdbm-compat4_1.23-3_amd64.deb",
+      "size": 48156,
+      "sha256": "4af36a590b68d415a78d9238b932b6a4579f515ec8a8016597498acff5b515a4",
+      "control": "Package: libgdbm-compat4\nSource: gdbm\nVersion: 1.23-3\nInstalled-Size: 70\nMaintainer: Nicolas Mora <babelouest@debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.33), libgdbm6 (>= 1.16)\nDescription: GNU dbm database routines (legacy support runtime version) \nDescription-md5: e041f7347ee540d2afa27ad04295de1b\nMulti-Arch: same\nHomepage: https://gnu.org/software/gdbm\nTag: role::shared-lib\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "libperl5.36_5.36.0-7+deb12u3_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/p/perl/libperl5.36_5.36.0-7%2bdeb12u3_amd64.deb",
+      "size": 4195924,
+      "sha256": "591903643119c7e1735011369287976eccab1d79b1d2f210760e2138d0a3aa46",
+      "control": "Package: libperl5.36\nSource: perl\nVersion: 5.36.0-7+deb12u3\nInstalled-Size: 28864\nMaintainer: Niko Tyni <ntyni@debian.org>\nArchitecture: amd64\nReplaces: libarchive-tar-perl (<= 1.38-2), libcompress-raw-bzip2-perl (<< 2.103), libcompress-raw-zlib-perl (<< 2.105), libcompress-zlib-perl (<< 2.106), libdigest-md5-perl (<< 2.58), libdigest-sha-perl (<< 6.02), libencode-perl (<< 3.17), libio-compress-base-perl (<< 2.106), libio-compress-bzip2-perl (<< 2.106), libio-compress-perl (<< 2.106), libio-compress-zlib-perl (<< 2.106), libmime-base64-perl (<< 3.16), libmodule-corelist-perl (<< 2.14-2), libstorable-perl (<< 3.26), libsys-syslog-perl (<< 0.36), libthreads-perl (<< 2.27), libthreads-shared-perl (<< 1.64), libtime-hires-perl (<< 1.9770), libtime-piece-perl (<< 1.3401), perl (<< 5.22.0~), perl-base (<< 5.22.0~)\nDepends: libbz2-1.0, libc6 (>= 2.35), libcrypt1 (>= 1:4.1.0), libdb5.3, libgdbm-compat4 (>= 1.18-3), libgdbm6 (>= 1.21), zlib1g (>= 1:1.2.2.3), perl-modules-5.36 (>= 5.36.0-7+deb12u3)\nSuggests: sensible-utils\nBreaks: libcompress-raw-bzip2-perl (<< 2.103), libcompress-raw-zlib-perl (<< 2.105), libcompress-zlib-perl (<< 2.106), libdigest-md5-perl (<< 2.58), libdigest-sha-perl (<< 6.02), libencode-perl (<< 3.17), libfilter-perl (<< 1.60), libio-compress-base-perl (<< 2.106), libio-compress-bzip2-perl (<< 2.106), libio-compress-perl (<< 2.106), libio-compress-zlib-perl (<< 2.106), libmime-base64-perl (<< 3.16), libstorable-perl (<< 3.26), libsys-syslog-perl (<< 0.36), libthreads-perl (<< 2.27), libthreads-shared-perl (<< 1.64), libtime-hires-perl (<< 1.9770), libtime-piece-perl (<< 1.3401)\nDescription: shared Perl library\nDescription-md5: 9f2b8bcf7a6d0534303f5c1c5a29866d\nMulti-Arch: same\nHomepage: http://dev.perl.org/perl5/\nTag: role::shared-lib\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "perl_5.36.0-7+deb12u3_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/p/perl/perl_5.36.0-7%2bdeb12u3_amd64.deb",
+      "size": 238900,
+      "sha256": "afa50ec7d9b1a407cd0187dae033644ef13578d4f3792435e0c41b962ffec0c4",
+      "control": "Package: perl\nVersion: 5.36.0-7+deb12u3\nInstalled-Size: 670\nMaintainer: Niko Tyni <ntyni@debian.org>\nArchitecture: amd64\nReplaces: perl-base (<< 5.36.0-2), perl-modules (<< 5.22.0~)\nProvides: libansicolor-perl (= 5.01), libarchive-tar-perl (= 2.40), libattribute-handlers-perl (= 1.02), libautodie-perl (= 2.34), libcompress-raw-bzip2-perl (= 2.103), libcompress-raw-zlib-perl (= 2.105), libcompress-zlib-perl (= 2.106), libcpan-meta-perl (= 2.150010), libcpan-meta-requirements-perl (= 2.140), libcpan-meta-yaml-perl (= 0.018), libdigest-md5-perl (= 2.58), libdigest-perl (= 1.20), libdigest-sha-perl (= 6.02), libencode-perl (= 3.17), libexperimental-perl (= 0.028), libextutils-cbuilder-perl (= 0.280236), libextutils-command-perl (= 7.64), libextutils-install-perl (= 2.20), libextutils-parsexs-perl (= 3.450000), libfile-spec-perl (= 3.8400), libhttp-tiny-perl (= 0.080), libi18n-langtags-perl (= 0.45), libio-compress-base-perl (= 2.106), libio-compress-bzip2-perl (= 2.106), libio-compress-perl (= 2.106), libio-compress-zlib-perl (= 2.106), libio-zlib-perl (= 1.11), libjson-pp-perl (= 4.07000), liblocale-maketext-perl (= 1.31), liblocale-maketext-simple-perl (= 0.21.01), libmath-bigint-perl (= 1.999830), libmath-complex-perl (= 1.5902), libmime-base64-perl (= 3.16), libmodule-corelist-perl (= 5.20220520), libmodule-load-conditional-perl (= 0.74), libmodule-load-perl (= 0.36), libmodule-metadata-perl (= 1.000037), libnet-perl (= 1:3.14), libnet-ping-perl (= 2.74), libparams-check-perl (= 0.38), libparent-perl (= 0.238), libparse-cpan-meta-perl (= 2.150010), libperl-ostype-perl (= 1.010), libpod-escapes-perl (= 1.07), libpod-simple-perl (= 3.43), libstorable-perl (= 3.26), libsys-syslog-perl (= 0.36), libtest-harness-perl (= 3.44), libtest-simple-perl (= 1.302190), libtest-tester-perl (= 1.302190), libtest-use-ok-perl (= 1.302190), libtext-balanced-perl (= 2.04), libthread-queue-perl (= 3.14), libthreads-perl (= 2.27), libthreads-shared-perl (= 1.64), libtime-hires-perl (= 1.9770), libtime-local-perl (= 1.3000), libtime-piece-perl (= 1.3401), libunicode-collate-perl (= 1.31), libversion-perl (= 1:0.9929), libversion-requirements-perl, podlators-perl (= 4.14)\nDepends: perl-base (= 5.36.0-7+deb12u3), perl-modules-5.36 (>= 5.36.0-7+deb12u3), libperl5.36 (= 5.36.0-7+deb12u3)\nPre-Depends: dpkg (>= 1.17.17)\nRecommends: netbase\nSuggests: perl-doc, libterm-readline-gnu-perl | libterm-readline-perl-perl, make, libtap-harness-archive-perl\nConflicts: libjson-pp-perl (<< 2.27200-2)\nBreaks: apt-show-versions (<< 0.22.10), libdist-inkt-perl (<< 0.024-5), libmarc-charset-perl (<< 1.35-3), libperl-dev (<< 5.24.0~), perl-doc (<< 5.36.0-1), perl-modules-5.22, perl-modules-5.24, perl-modules-5.26 (<< 5.26.2-5)\nDescription: Larry Wall's Practical Extraction and Report Language\nDescription-md5: 603cb1e5fe66da8106c364f4e9b84082\nMulti-Arch: allowed\nHomepage: http://dev.perl.org/perl5/\nBuild-Essential: yes\nTag: devel::interpreter, devel::lang:perl, devel::library, implemented-in::c,\n implemented-in::perl, interface::commandline, role::devel-lib,\n role::metapackage, role::program\nSection: perl\nPriority: standard\n"
+    },
+    {
+      "filename": "runc_1.1.5+ds1-1+deb12u1_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/r/runc/runc_1.1.5%2bds1-1%2bdeb12u1_amd64.deb",
+      "size": 2709960,
+      "sha256": "a00351f8c0318de0b424ecf5cd0fdb69880a89f3511cae4f6fff7de3e57881c5",
+      "control": "Package: runc\nVersion: 1.1.5+ds1-1+deb12u1\nInstalled-Size: 8633\nMaintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.34), libseccomp2 (>= 2.5.0)\nRecommends: criu\nDescription: Open Container Project - runtime\nDescription-md5: a681cc11f1d5cbf09bfaf6eed3f0ea95\nHomepage: https://github.com/opencontainers/runc\nBuilt-Using: go-md2man-v2 (= 2.0.2+ds1-1), golang-1.19 (= 1.19.8-2), golang-blackfriday-v2 (= 2.1.0-1), golang-dbus (= 5.1.0-1), golang-github-checkpoint-restore-go-criu (= 5.3.0-2), golang-github-cilium-ebpf (= 0.9.1-1), golang-github-containerd-console (= 1.0.3-1), golang-github-coreos-go-systemd (= 22.3.2-1), golang-github-cyphar-filepath-securejoin (= 0.2.3-1), golang-github-docker-go-units (= 0.4.0-4), golang-github-moby-sys (= 0.0~git20220606.416188a-1), golang-github-mrunalp-fileutils (= 0.5.0-2), golang-github-opencontainers-selinux (= 1.10.0+ds1-1), golang-github-opencontainers-specs (= 1.0.2.118.g5cfc4c3-1), golang-github-urfave-cli (= 1.22.9-2), golang-github-vishvananda-netlink (= 1.1.0.125.gf243826-4), golang-github-vishvananda-netns (= 0.0~git20211101.5004558-1), golang-gocapability-dev (= 0.0+git20200815.42c35b4-2), golang-golang-x-sys (= 0.3.0-1), golang-google-protobuf (= 1.28.1-3), golang-logrus (= 1.9.0-1)\nSection: devel\nPriority: optional\n"
+    },
+    {
+      "filename": "containerd_1.6.20~ds1-1+deb12u3_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/c/containerd/containerd_1.6.20%7eds1-1%2bdeb12u3_amd64.deb",
+      "size": 25903404,
+      "sha256": "8669d264eeb0fcdb4a0b1ba436ab88ec5dafde4a66e1278ec279d830db4c2216",
+      "control": "Package: containerd\nVersion: 1.6.20~ds1-1+deb12u3\nInstalled-Size: 98393\nMaintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>\nArchitecture: amd64\nDepends: runc (>= 0.1.0~), libc6 (>= 2.34)\nSuggests: containernetworking-plugins\nBreaks: docker.io (<< 1.12)\nDescription: open and reliable container runtime\nDescription-md5: 4bc30f4adbe6943e8488d804ccad7e89\nHomepage: https://containerd.io/\nBuilt-Using: continuity (= 0.3.0-1), go-md2man-v2 (= 2.0.2+ds1-1), golang-1.19 (= 1.19.8-2), golang-blackfriday-v2 (= 2.1.0-1), golang-dbus (= 5.1.0-1), golang-fsnotify (= 1.6.0-2), golang-github-appc-cni (= 1.1.2-1), golang-github-beorn7-perks (= 1.0.1-1), golang-github-blang-semver (= 4.0.0-1), golang-github-cespare-xxhash (= 2.1.1-2), golang-github-cilium-ebpf (= 0.9.1-1), golang-github-containerd-btrfs (= 1.0.0-1), golang-github-containerd-cgroups (= 1.0.4-1), golang-github-containerd-console (= 1.0.3-1), golang-github-containerd-fifo (= 1.1.0-1), golang-github-containerd-go-cni (= 1.1.7-2), golang-github-containerd-go-runc (= 1.0.0-1), golang-github-containerd-typeurl (= 1.0.2-1), golang-github-containernetworking-plugins (= 1.1.1+ds1-3), golang-github-containers-ocicrypt (= 1.0.3-1), golang-github-coreos-bbolt (= 1.3.6-2), golang-github-coreos-go-systemd (= 22.3.2-1), golang-github-davecgh-go-spew (= 1.1.1-3), golang-github-docker-go-events (= 0.0~git20190806.e31b211-4), golang-github-docker-go-metrics (= 0.0.1-2), golang-github-docker-go-units (= 0.4.0-4), golang-github-docker-spdystream (= 0.2.0-1), golang-github-emicklei-go-restful (= 3.10.2-1), golang-github-fullsailor-pkcs7 (= 0.0~git20210826.33d0574-2), golang-github-go-logr-logr (= 1.2.3-1), golang-github-gogo-googleapis (= 1.4.0-2), golang-github-golang-protobuf-1-3 (= 1.3.5-4), golang-github-google-go-cmp (= 0.5.9-1), golang-github-google-gofuzz (= 1.2.0-1), golang-github-google-uuid (= 1.3.0-1), golang-github-grpc-ecosystem-go-grpc-prometheus (= 1.2.0+git20191002.6af20e3-3), golang-github-hashicorp-errwrap (= 1.1.0-1), golang-github-hashicorp-go-multierror (= 1.1.1-2), golang-github-imdario-mergo (= 0.3.12-1), golang-github-intel-goresctrl (= 0.3.0-2), golang-github-json-iterator-go (= 1.1.12-1), golang-github-klauspost-compress (= 1.15.12+ds1-3), golang-github-moby-locker (= 1.0.1-3), golang-github-moby-sys (= 0.0~git20220606.416188a-1), golang-github-modern-go-concurrent (= 1.0.3-1.1), golang-github-modern-go-reflect2 (= 1.0.2-2), golang-github-opencontainers-go-digest (= 1.0.0-2), golang-github-opencontainers-image-spec (= 1.1.0~rc2-3), golang-github-opencontainers-selinux (= 1.10.0+ds1-1), golang-github-opencontainers-specs (= 1.0.2.118.g5cfc4c3-1), golang-github-pelletier-go-toml (= 1.9.4-1), golang-github-pkg-errors (= 0.9.1-2), golang-github-prometheus-client-golang (= 1.14.0-3), golang-github-prometheus-client-model (= 0.3.0-3), golang-github-prometheus-common (= 0.39.0-2), golang-github-prometheus-procfs (= 0.8.0-3), golang-github-spf13-pflag (= 1.0.6~git20210604-d5e0c0615ace-1), golang-github-urfave-cli (= 1.22.9-2), golang-github-vishvananda-netlink (= 1.1.0.125.gf243826-4), golang-github-vishvananda-netns (= 0.0~git20211101.5004558-1), golang-go-patricia (= 2.3.1-1), golang-go-zfs (= 3.0.0-1), golang-go.crypto (= 1:0.4.0-1), golang-gogoprotobuf (= 1.3.2-3), golang-gogottrpc (= 1.1.1-1), golang-golang-x-net (= 1:0.7.0+dfsg-1), golang-golang-x-oauth2 (= 0.3.0-1), golang-golang-x-sync (= 0.1.0-1), golang-golang-x-sys (= 0.3.0-1), golang-golang-x-term (= 0.3.0-1), golang-golang-x-text (= 0.7.0-1), golang-golang-x-time (= 0.3.0-1), golang-google-genproto (= 0.0~git20200413.b5235f6-3), golang-google-grpc (= 1.33.3-2), golang-google-protobuf (= 1.28.1-3), golang-gopkg-inf.v0 (= 0.9.1-2), golang-gopkg-square-go-jose.v2 (= 2.6.0-2), golang-k8s-klog (= 2.80.1-2), golang-k8s-sigs-structured-merge-diff (= 4.1.2+ds1-2), golang-k8s-sigs-yaml (= 1.3.0-1), golang-logrus (= 1.9.0-1), golang-opentelemetry-otel (= 1.1.0-2), golang-protobuf-extensions (= 1.0.1-3), golang-yaml.v2 (= 2.4.0-4), gotest.tools (= 3.0.3-1), runc (= 1.1.5+ds1-1+deb12u1)\nTag: admin::virtualization, implemented-in::TODO, implemented-in::python,\n role::program, suite::openstack, system::cloud, system::virtual\nSection: admin\nPriority: optional\n"
+    },
+    {
+      "filename": "tini_0.19.0-1+b3_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/t/tini/tini_0.19.0-1%2bb3_amd64.deb",
+      "size": 267204,
+      "sha256": "7d1947665fa40e55f218fefad773dc6de66458d0b39eaa292cdcadfc7c996632",
+      "control": "Package: tini\nSource: tini (0.19.0-1)\nVersion: 0.19.0-1+b3\nInstalled-Size: 731\nMaintainer: ChangZhuo Chen (\u9673\u660c\u502c) <czchen@debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.34)\nDescription: tiny but valid init for containers\nDescription-md5: 357ed699f389f83b2e63df42023fdadd\nHomepage: https://github.com/krallin/tini\nSection: utils\nPriority: optional\n"
+    },
+    {
+      "filename": "docker.io_20.10.24+dfsg1-1+deb12u1+b6_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/d/docker.io/docker.io_20.10.24%2bdfsg1-1%2bdeb12u1%2bb6_amd64.deb",
+      "size": 36256664,
+      "sha256": "daf8ff8f7aa53e8533d38e386fcc2a11e8f3891210776fb78a84b98feb4eea0e",
+      "control": "Package: docker.io\nSource: docker.io (20.10.24+dfsg1-1+deb12u1)\nVersion: 20.10.24+dfsg1-1+deb12u1+b6\nInstalled-Size: 147576\nMaintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.34), libdevmapper1.02.1 (>= 2:1.02.97), libsystemd0, adduser, containerd (>= 1.4~), iptables, lsb-base, runc (>= 1.0.0~rc8~), tini\nPre-Depends: init-system-helpers (>= 1.54~)\nRecommends: apparmor, ca-certificates, cgroupfs-mount, git, needrestart (>= 3.1~), xz-utils\nSuggests: docker-doc, aufs-tools, btrfs-progs, debootstrap, e2fsprogs, rinse, rootlesskit, xfsprogs, zfs-fuse | zfsutils-linux\nConflicts: docker-ce, docker-ce-cli, docker-ce-rootless-extras\nDescription: Linux container runtime\nDescription-md5: 05dc9eba68f3bf418e6a0cf29d555878\nHomepage: https://mobyproject.org\nBuilt-Using: containerd (= 1.6.20~ds1-1+deb12u3), continuity (= 0.3.0-1), docker-libkv (= 0.2.1-3), docker-registry (= 2.8.2+ds1-1), etcd (= 3.4.23-4), glibc (= 2.36-9+deb12u14), go-md2man-v2 (= 2.0.2+ds1-1), golang-1.19 (= 1.19.8-2), golang-blackfriday-v2 (= 2.1.0-1), golang-dbus (= 5.1.0-1), golang-fsnotify (= 1.6.0-2), golang-github-armon-circbuf (= 0.0~git20190214.5111143-1), golang-github-armon-go-metrics (= 0.3.4-1), golang-github-aws-aws-sdk-go (= 1.44.133-1), golang-github-beorn7-perks (= 1.0.1-1), golang-github-bsphere-le-go (= 0.0~git20170215.0.7a984a8-1.1), golang-github-cespare-xxhash (= 2.1.1-2), golang-github-cilium-ebpf (= 0.9.1-1), golang-github-cloudflare-cfssl (= 1.2.0+git20160825.89.7fb22c8-3.1), golang-github-containerd-cgroups (= 1.0.4-1), golang-github-containerd-console (= 1.0.3-1), golang-github-containerd-fifo (= 1.1.0-1), golang-github-containerd-go-runc (= 1.0.0-1), golang-github-containerd-typeurl (= 1.0.2-1), golang-github-coreos-bbolt (= 1.3.6-2), golang-github-coreos-go-systemd (= 22.3.2-1), golang-github-coreos-pkg (= 4-3), golang-github-coreos-semver (= 0.3.0-1), golang-github-cyphar-filepath-securejoin (= 0.2.3-1), golang-github-davecgh-go-spew (= 1.1.1-3), golang-github-deckarep-golang-set (= 1.5-2), golang-github-docker-docker-credential-helpers (= 0.6.4+ds1-1), golang-github-docker-go (= 0.0~git20160303.0.d30aec9-3.1), golang-github-docker-go-connections (= 0.4.0-4), golang-github-docker-go-events (= 0.0~git20190806.e31b211-4), golang-github-docker-go-metrics (= 0.0.1-2), golang-github-docker-go-units (= 0.4.0-4), golang-github-docker-libtrust (= 0.0~git20150526.0.9cbd2a1-3.1), golang-github-dustin-go-humanize (= 1.0.0-3), golang-github-fernet-fernet-go (= 0.0~git20180830.9eac43b-2), golang-github-fluent-fluent-logger-golang (= 1.9.0-1), golang-github-fvbommel-sortorder (= 1.0.2-3), golang-github-gofrs-flock (= 0.8.1-1), golang-github-gogo-googleapis (= 1.4.0-2), golang-github-golang-groupcache (= 0.0~git20200121.8c9f03a-2), golang-github-golang-protobuf-1-3 (= 1.3.5-4), golang-github-google-btree (= 1.0.0-1), golang-github-google-certificate-transparency (= 0.0~git20160709.0.0f6e3d1~ds1-3), golang-github-google-go-cmp (= 0.5.9-1), golang-github-google-gofuzz (= 1.2.0-1), golang-github-google-shlex (= 0.0~git20191202.e7afc7f-1), golang-github-google-uuid (= 1.3.0-1), golang-github-googleapis-gax-go (= 2.0.5-4), golang-github-googleapis-gnostic (= 0.2.0-4), golang-github-gorilla-mux (= 1.8.0-1), golang-github-graylog2-go-gelf (= 0.0+git20191017.1550ee6-1), golang-github-grpc-ecosystem-go-grpc-middleware (= 1.3.0-1), golang-github-grpc-ecosystem-go-grpc-prometheus (= 1.2.0+git20191002.6af20e3-3), golang-github-grpc-ecosystem-grpc-opentracing (= 0.0~git20180507.8e809c8-2), golang-github-hashicorp-errwrap (= 1.1.0-1), golang-github-hashicorp-go-immutable-radix (= 1.3.1-3), golang-github-hashicorp-go-memdb (= 1.2.1-1), golang-github-hashicorp-go-msgpack (= 0.5.5-1), golang-github-hashicorp-go-multierror (= 1.1.1-2), golang-github-hashicorp-go-sockaddr (= 1.0.2-2), golang-github-hashicorp-golang-lru (= 0.5.4-2), golang-github-hashicorp-memberlist (= 0.2.2-2), golang-github-hashicorp-serf (= 0.9.4~ds1-1), golang-github-imdario-mergo (= 0.3.12-1), golang-github-ishidawataru-sctp (= 0.0+git20210707.9a39160-1), golang-github-jmespath-go-jmespath (= 0.4.0-2), golang-github-json-iterator-go (= 1.1.12-1), golang-github-klauspost-compress (= 1.15.12+ds1-3), golang-github-miekg-dns (= 1.1.50-2), golang-github-mitchellh-hashstructure (= 1.1.0-1), golang-github-mitchellh-mapstructure (= 1.5.0-2), golang-github-moby-locker (= 1.0.1-3), golang-github-moby-sys (= 0.0~git20220606.416188a-1), golang-github-moby-term (= 0.0~git20221120.abb1982-1), golang-github-modern-go-concurrent (= 1.0.3-1.1), golang-github-modern-go-reflect2 (= 1.0.2-2), golang-github-morikuni-aec (= 1.0.0-3), golang-github-opencontainers-go-digest (= 1.0.0-2), golang-github-opencontainers-image-spec (= 1.1.0~rc2-3), golang-github-opencontainers-selinux (= 1.10.0+ds1-1), golang-github-opencontainers-specs (= 1.0.2.118.g5cfc4c3-1), golang-github-opentracing-contrib-go-stdlib (= 1.0.0-2), golang-github-opentracing-opentracing-go (= 1.2.0-2), golang-github-pelletier-go-toml (= 1.9.4-1), golang-github-philhofer-fwd (= 1.1.1-1), golang-github-pkg-errors (= 0.9.1-2), golang-github-pmezard-go-difflib (= 1.0.0-3), golang-github-prometheus-client-golang (= 1.14.0-3), golang-github-prometheus-client-model (= 0.3.0-3), golang-github-prometheus-common (= 0.39.0-2), golang-github-prometheus-procfs (= 0.8.0-3), golang-github-racksec-srslog (= 0.0~git20180709.a4725f0-2), golang-github-rcrowley-go-metrics (= 0.0~git20180125.8732c61-3), golang-github-samuel-go-zookeeper (= 0.0~git20180130.c4fab1a-1), golang-github-spf13-cobra (= 1.6.1-1), golang-github-spf13-pflag (= 1.0.6~git20210604-d5e0c0615ace-1), golang-github-tinylib-msgp (= 1.1.6-1), golang-github-tonistiigi-units (= 0.0~git20180711.6950e57-2), golang-github-urfave-cli (= 1.22.9-2), golang-github-vbatts-tar-split (= 0.11.2+ds1-1), golang-github-vishvananda-netlink (= 1.1.0.125.gf243826-4), golang-github-vishvananda-netns (= 0.0~git20211101.5004558-1), golang-github-xeipuuv-gojsonpointer (= 0.0~git20190905.02993c4-3), golang-github-xeipuuv-gojsonreference (= 0.0~git20180127.bd5ef7b-3), golang-github-xeipuuv-gojsonschema (= 1.2.0-3), golang-go-patricia (= 2.3.1-1), golang-go-zfs (= 3.0.0-1), golang-go.crypto (= 1:0.4.0-1), golang-go.opencensus (= 0.24.0-1), golang-gocapability-dev (= 0.0+git20200815.42c35b4-2), golang-gogoprotobuf (= 1.3.2-3), golang-gogottrpc (= 1.1.1-1), golang-golang-x-net (= 1:0.7.0+dfsg-1), golang-golang-x-oauth2 (= 0.3.0-1), golang-golang-x-sync (= 0.1.0-1), golang-golang-x-sys (= 0.3.0-1), golang-golang-x-term (= 0.3.0-1), golang-golang-x-text (= 0.7.0-1), golang-golang-x-time (= 0.3.0-1), golang-google-api (= 0.61.0-1), golang-google-cloud (= 0.56.0-3), golang-google-genproto (= 0.0~git20200413.b5235f6-3), golang-google-grpc (= 1.33.3-2), golang-google-protobuf (= 1.28.1-3), golang-gopkg-inf.v0 (= 0.9.1-2), golang-gopkg-yaml.v3 (= 3.0.1-3), golang-k8s-sigs-yaml (= 1.3.0-1), golang-logrus (= 1.9.0-1), golang-protobuf-extensions (= 1.0.1-3), golang-testify (= 1.8.1-1), golang-toml (= 1.2.0-2), golang-yaml.v2 (= 2.4.0-4), gotest.tools (= 3.0.3-1), notary (= 0.7.0+ds1-2), runc (= 1.1.5+ds1-1+deb12u1)\nSection: admin\nPriority: optional\n"
+    },
+    {
+      "filename": "openssh-server_1:9.2p1-2+deb12u10_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/o/openssh/openssh-server_9.2p1-2%2bdeb12u10_amd64.deb",
+      "size": 456584,
+      "sha256": "933cd92a2329f9bf26d22660a834ae18ebdbe8df9c6127e4d9fcb098dac9cf72",
+      "control": "Package: openssh-server\nSource: openssh\nVersion: 1:9.2p1-2+deb12u10\nInstalled-Size: 1930\nMaintainer: Debian OpenSSH Maintainers <debian-ssh@lists.debian.org>\nArchitecture: amd64\nReplaces: openssh-client (<< 1:7.9p1-8), ssh, ssh-krb5\nProvides: ssh-server\nDepends: adduser, libpam-modules, libpam-runtime, lsb-base, openssh-client (= 1:9.2p1-2+deb12u10), openssh-sftp-server, procps, ucf, debconf (>= 0.5) | debconf-2.0, runit-helper (>= 2.14.0~), libaudit1 (>= 1:2.2.1), libc6 (>= 2.36), libcom-err2 (>= 1.43.9), libcrypt1 (>= 1:4.1.0), libgssapi-krb5-2 (>= 1.17), libkrb5-3 (>= 1.13~alpha1+dfsg), libpam0g (>= 0.99.7.1), libselinux1 (>= 3.1~), libssl3 (>= 3.0.19), libsystemd0, libwrap0 (>= 7.6-4~), zlib1g (>= 1:1.1.4)\nPre-Depends: init-system-helpers (>= 1.54~)\nRecommends: default-logind | logind | libpam-systemd, ncurses-term, xauth\nSuggests: molly-guard, monkeysphere, ssh-askpass, ufw\nConflicts: sftp, ssh-socks, ssh2\nBreaks: runit (<< 2.1.2-51~)\nDescription: secure shell (SSH) server, for secure access from remote machines\nDescription-md5: 842cc998cae371b9d8106c1696373919\nMulti-Arch: foreign\nHomepage: https://www.openssh.com/\nTag: admin::login, implemented-in::c, interface::daemon, network::server,\n protocol::ssh, role::program, security::authentication,\n security::cryptography, use::login, use::transmission\nSection: net\nPriority: optional\n"
+    },
+    {
+      "filename": "python3_3.11.2-1+b1_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/p/python3-defaults/python3_3.11.2-1%2bb1_amd64.deb",
+      "size": 26300,
+      "sha256": "33f6dafbd1a6902d9063172ec7dbd4b2225e12009e0d7ec5c933a72c2f5f3b74",
+      "control": "Package: python3\nSource: python3-defaults (3.11.2-1)\nVersion: 3.11.2-1+b1\nInstalled-Size: 81\nMaintainer: Matthias Klose <doko@debian.org>\nArchitecture: amd64\nReplaces: python3-minimal (<< 3.1.2-2)\nProvides: python3-profiler, python3-supported-max (= 3.11), python3-supported-min (= 3.11)\nDepends: python3.11 (>= 3.11.2-1~), libpython3-stdlib (= 3.11.2-1+b1)\nPre-Depends: python3-minimal (= 3.11.2-1+b1)\nSuggests: python3-doc (>= 3.11.2-1+b1), python3-tk (>= 3.11.2-1~), python3-venv (>= 3.11.2-1+b1)\nDescription: interactive high-level object-oriented language (default python3 version)\nDescription-md5: 7e57783fdb3703b27f408a029b7b786f\nMulti-Arch: allowed\nHomepage: https://www.python.org/\nTag: devel::interpreter, devel::lang:python, devel::library,\n implemented-in::c, implemented-in::python, role::devel-lib,\n role::program, role::shared-lib\nSection: python\nPriority: optional\n"
+    },
+    {
+      "filename": "libecap3_1.0.1-3.4_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/libe/libecap/libecap3_1.0.1-3.4_amd64.deb",
+      "size": 17292,
+      "sha256": "692dffa85170ec2bc91a035bf7af219fca6aae1010703b931600d2d25dd23402",
+      "control": "Package: libecap3\nSource: libecap\nVersion: 1.0.1-3.4\nInstalled-Size: 69\nMaintainer: Luigi Gangitano <luigi@debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.32), libgcc-s1 (>= 3.0), libstdc++6 (>= 5.2), sgml-base (>= 1.28)\nDescription: eCAP library\nDescription-md5: 9f1455007fb909c55f6b50ea29d233b2\nMulti-Arch: same\nHomepage: https://www.e-cap.org\nTag: role::shared-lib\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "libltdl7_2.4.7-7~deb12u1_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/libt/libtool/libltdl7_2.4.7-7%7edeb12u1_amd64.deb",
+      "size": 393000,
+      "sha256": "8070b550321d4bd1c298f52f75374898d39112b709026d2ea5362ef1277b775a",
+      "control": "Package: libltdl7\nSource: libtool\nVersion: 2.4.7-7~deb12u1\nInstalled-Size: 421\nMaintainer: Alastair McKinstry <mckinstry@debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.34)\nDescription: System independent dlopen wrapper for GNU libtool\nDescription-md5: 52e45b791bdc69939d2238401cd6f7fe\nMulti-Arch: same\nHomepage: https://www.gnu.org/software/libtool/\nTag: role::shared-lib\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "libtdb1_1.4.8-2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/t/tdb/libtdb1_1.4.8-2_amd64.deb",
+      "size": 44528,
+      "sha256": "8732969f56ad8f3bdc4e789602682f7c067f9ccd03dfd622118df817c52437d0",
+      "control": "Package: libtdb1\nSource: tdb\nVersion: 1.4.8-2\nInstalled-Size: 131\nMaintainer: Debian Samba Maintainers <pkg-samba-maint@lists.alioth.debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.34)\nDescription: Trivial Database - shared library\nDescription-md5: 0f3fcc8a1c8e6b3b4c956fdf394636a6\nMulti-Arch: same\nHomepage: https://tdb.samba.org/\nTag: role::shared-lib\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "logrotate_3.21.0-1_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/l/logrotate/logrotate_3.21.0-1_amd64.deb",
+      "size": 62108,
+      "sha256": "4e6acd31f55af85b2f12bd61a636c84e19fc1d0f419540b71bbe8aba6985aa32",
+      "control": "Package: logrotate\nVersion: 3.21.0-1\nInstalled-Size: 160\nMaintainer: Christian G\u00f6ttsche <cgzones@googlemail.com>\nArchitecture: amd64\nDepends: cron | anacron | cron-daemon | systemd-sysv, libacl1 (>= 2.2.23), libc6 (>= 2.34), libpopt0 (>= 1.14), libselinux1 (>= 3.1~)\nSuggests: bsd-mailx | mailx\nDescription: Log rotation utility\nDescription-md5: bb73169bb75b2b8a2fda1453d214416d\nMulti-Arch: foreign\nHomepage: https://github.com/logrotate/logrotate\nTag: admin::automation, admin::logging, implemented-in::c,\n interface::commandline, role::program, scope::utility,\n use::compressing, works-with::logfile\nSection: admin\nPriority: important\n"
+    },
+    {
+      "filename": "squid-langpack_20220130-1_all.deb",
+      "url": "https://deb.debian.org/debian/pool/main/s/squid-langpack/squid-langpack_20220130-1_all.deb",
+      "size": 168784,
+      "sha256": "7ad0ab0521f569c00b60df3f18f7ab368f9c601fcf57758b69d20d25d3e1bdb5",
+      "control": "Package: squid-langpack\nVersion: 20220130-1\nInstalled-Size: 4361\nMaintainer: Luigi Gangitano <luigi@debian.org>\nArchitecture: all\nDescription: Localized error pages for Squid\nDescription-md5: 04e20b604c7b0479aa6f6600450b1def\nMulti-Arch: foreign\nHomepage: http://www.squid-cache.org\nTag: role::app-data, role::program, use::proxying\nSection: localization\nPriority: optional\n"
+    },
+    {
+      "filename": "squid-common_5.7-2+deb12u6_all.deb",
+      "url": "https://deb.debian.org/debian-security/pool/updates/main/s/squid/squid-common_5.7-2%2bdeb12u6_all.deb",
+      "size": 315212,
+      "sha256": "6d390ae350a3a90fda792a0fd8e026e14a05f9f3485535925e693a2cdcc60f38",
+      "control": "Package: squid-common\nSource: squid\nVersion: 5.7-2+deb12u6\nInstalled-Size: 475\nMaintainer: Luigi Gangitano <luigi@debian.org>\nArchitecture: all\nDepends: squid-langpack (>= 20110214-1)\nDescription: Full featured Web Proxy cache (HTTP proxy) - common files\nDescription-md5: 43efb35ce395950e104ddfef1cb50d1c\nHomepage: http://www.squid-cache.org\nMulti-Arch: foreign\nSection: web\nPriority: optional\n"
+    },
+    {
+      "filename": "libdbi-perl_1.643-4+deb12u2_amd64.deb",
+      "url": "https://deb.debian.org/debian-security/pool/updates/main/libd/libdbi-perl/libdbi-perl_1.643-4%2bdeb12u2_amd64.deb",
+      "size": 773560,
+      "sha256": "cbab230258af9b0c74052bd50885c9a13e46489a71852ddca8750b47e381e46c",
+      "control": "Package: libdbi-perl\nVersion: 1.643-4+deb12u2\nInstalled-Size: 2154\nMaintainer: Debian Perl Group <pkg-perl-maintainers@lists.alioth.debian.org>\nArchitecture: amd64\nProvides: dh-sequence-perl-dbi, perl-dbdabi-94\nDepends: perl (>= 5.36.0-7+deb12u3), perlapi-5.36.0, libc6 (>= 2.4)\nSuggests: libclone-perl, libmldbm-perl, libnet-daemon-perl, libsql-statement-perl\nBreaks: libdbd-anydata-perl (<< 0.11+)\nDescription: Perl Database Interface (DBI)\nDescription-md5: aa070f52bfbf0d9e220aa40da4b4ced1\nHomepage: https://dbi.perl.org/\nMulti-Arch: same\nSection: perl\nPriority: optional\n"
+    },
+    {
+      "filename": "squid_5.7-2+deb12u6_amd64.deb",
+      "url": "https://deb.debian.org/debian-security/pool/updates/main/s/squid/squid_5.7-2%2bdeb12u6_amd64.deb",
+      "size": 2664232,
+      "sha256": "ec4f5fe7904c2339feae51f85a8c2132b14a03668fd28df39d91e53febbd2c08",
+      "control": "Package: squid\nVersion: 5.7-2+deb12u6\nInstalled-Size: 8463\nMaintainer: Luigi Gangitano <luigi@debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.34), libcap2 (>= 1:2.10), libcom-err2 (>= 1.43.9), libcrypt1 (>= 1:4.1.0), libecap3 (>= 1.0.1), libgcc-s1 (>= 3.4), libgnutls30 (>= 3.7.5), libgssapi-krb5-2 (>= 1.17), libkrb5-3 (>= 1.10+dfsg~), libldap-2.5-0 (>= 2.5.4), libltdl7 (>= 2.4.7), libnetfilter-conntrack3 (>= 1.0.1), libnettle8, libpam0g (>= 0.99.7.1), libsasl2-2 (>= 2.1.28+dfsg), libstdc++6 (>= 11), libsystemd0, libtdb1 (>= 1.2.7+git20101214), netbase, logrotate (>= 3.5.4-1), squid-common (>= 5.7-2+deb12u6), lsb-base, libdbi-perl\nSuggests: squidclient, squid-cgi, squid-purge, resolvconf (>= 0.40), smbclient, ufw, winbind, apparmor\nConflicts: squid-openssl\nDescription: Full featured Web Proxy cache (HTTP proxy GnuTLS flavour)\nDescription-md5: b87c39c34d2257909d3430ecc70c8bfb\nHomepage: http://www.squid-cache.org\nPre-Depends: init-system-helpers (>= 1.54~), adduser\nRecommends: libcap2-bin, ca-certificates\nSection: web\nPriority: optional\n"
+    },
+    {
+      "filename": "sudo_1.9.13p3-1+deb12u4_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/s/sudo/sudo_1.9.13p3-1%2bdeb12u4_amd64.deb",
+      "size": 1890344,
+      "sha256": "ea9987f92630be504998516e1ed9c821c483131d0576ff35a09d6e7f8deff10f",
+      "control": "Package: sudo\nVersion: 1.9.13p3-1+deb12u4\nInstalled-Size: 6055\nMaintainer: Sudo Maintainers <sudo@packages.debian.org>\nArchitecture: amd64\nReplaces: sudo-ldap\nDepends: libaudit1 (>= 1:2.2.1), libc6 (>= 2.34), libpam0g (>= 0.99.7.1), libselinux1 (>= 3.1~), zlib1g (>= 1:1.2.0.2), libpam-modules\nPre-Depends: init-system-helpers (>= 1.54~)\nConflicts: sudo-ldap\nDescription: Provide limited super user privileges to specific users\nDescription-md5: acd82d558698567df941afe9b1ac35df\nHomepage: https://www.sudo.ws/\nTag: admin::login, admin::user-management, implemented-in::c,\n interface::commandline, role::program, scope::utility,\n security::authentication, use::login\nSection: admin\nPriority: optional\n"
+    },
+    {
+      "filename": "ca-certificates_20250419~deb12u1_all.deb",
+      "url": "https://deb.debian.org/debian-security/pool/updates/main/c/ca-certificates/ca-certificates_20250419%7edeb12u1_all.deb",
+      "size": 161988,
+      "sha256": "62b08a77d985d4253894b1f69aebda5925034ca4e294add364167fad8cb64a44",
+      "control": "Package: ca-certificates\nVersion: 20250419~deb12u1\nInstalled-Size: 390\nMaintainer: Julien Cristau <jcristau@debian.org>\nArchitecture: all\nDepends: openssl (>= 1.1.1), debconf (>= 0.5) | debconf-2.0\nBreaks: ca-certificates-java (<< 20121112+nmu1)\nDescription: Common CA certificates\nDescription-md5: e867d2a359bea1800b5bff209fc65bd1\nEnhances: openssl\nMulti-Arch: foreign\nSection: misc\nPriority: standard\n"
+    },
+    {
+      "filename": "libapr1_1.7.2-3+deb12u1_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/a/apr/libapr1_1.7.2-3%2bdeb12u1_amd64.deb",
+      "size": 102116,
+      "sha256": "4d4c2cbf2cd9652063b8a72fb8a5e434d4cde097454157e4428f036136a4be3e",
+      "control": "Package: libapr1\nSource: apr\nVersion: 1.7.2-3+deb12u1\nInstalled-Size: 288\nMaintainer: Debian Apache Maintainers <debian-apache@lists.debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.34), libuuid1 (>= 2.16)\nConflicts: libapr1.0\nDescription: Apache Portable Runtime Library\nDescription-md5: daaca3900e2bd4d38f204bf1b0ef044a\nMulti-Arch: same\nHomepage: https://apr.apache.org/\nTag: role::shared-lib\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "libaprutil1_1.6.3-1+deb12u1_amd64.deb",
+      "url": "https://deb.debian.org/debian-security/pool/updates/main/a/apr-util/libaprutil1_1.6.3-1%2bdeb12u1_amd64.deb",
+      "size": 89048,
+      "sha256": "7415e4ca945533d855e7eb4b0b6c93b89a0edd88a32a55aca98dca86312a2e40",
+      "control": "Package: libaprutil1\nSource: apr-util\nVersion: 1.6.3-1+deb12u1\nInstalled-Size: 284\nMaintainer: Debian Apache Maintainers <debian-apache@lists.debian.org>\nArchitecture: amd64\nDepends: libapr1 (>= 1.6.2), libc6 (>= 2.25), libcrypt1 (>= 1:4.1.0), libdb5.3, libexpat1 (>= 2.0.1), libgdbm6 (>= 1.16), libssl3 (>= 3.0.0)\nDescription: Apache Portable Runtime Utility Library\nDescription-md5: e0d4198f7ab8d2d00a12d0e044194068\nHomepage: https://apr.apache.org/\nMulti-Arch: same\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "apache2-utils_2.4.68-1~deb12u1_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/a/apache2/apache2-utils_2.4.68-1%7edeb12u1_amd64.deb",
+      "size": 218672,
+      "sha256": "d665b7aa7e3a8a18774cc24ab4546cd76941b6ff8ac5f263d7b46f2030c07b48",
+      "control": "Package: apache2-utils\nSource: apache2\nVersion: 2.4.68-1~deb12u1\nInstalled-Size: 448\nMaintainer: Debian Apache Maintainers <debian-apache@lists.debian.org>\nArchitecture: amd64\nDepends: libapr1 (>= 1.4.8-2~), libaprutil1 (>= 1.5.0), libc6 (>= 2.34), libcrypt1 (>= 1:4.1.0), libssl3 (>= 3.0.0)\nDescription: Apache HTTP Server (utility programs for web servers)\nDescription-md5: f1e2440381fa90571f125990da6a52fc\nMulti-Arch: foreign\nHomepage: https://httpd.apache.org/\nTag: admin::configuring, devel::lang:perl, devel::library, implemented-in::c,\n implemented-in::perl, interface::commandline, network::service,\n protocol::http, protocol::ipv6, role::devel-lib, role::program,\n scope::utility, security::authentication, suite::apache,\n works-with-format::html, works-with::text\nSection: httpd\nPriority: optional\n"
+    },
+    {
+      "filename": "binutils-common_2.40-2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/b/binutils/binutils-common_2.40-2_amd64.deb",
+      "size": 2486664,
+      "sha256": "ab314134f43a0891a48f69a9bc33d825da748fa5e0ba2bebb7a5c491b026f1a0",
+      "control": "Package: binutils-common\nSource: binutils\nVersion: 2.40-2\nInstalled-Size: 15021\nMaintainer: Matthias Klose <doko@debian.org>\nArchitecture: amd64\nReplaces: binutils (<< 2.38.50.20220527-2), binutils-multiarch (<< 2.38.50.20220527-2)\nBreaks: binutils (<< 2.38.50.20220527-2), binutils-multiarch (<< 2.38.50.20220527-2)\nDescription: Common files for the GNU assembler, linker and binary utilities\nDescription-md5: 4ccec6ceb2c180320ed503f61b81ec4b\nMulti-Arch: same\nHomepage: https://www.gnu.org/software/binutils/\nSection: devel\nPriority: optional\n"
+    },
+    {
+      "filename": "libbinutils_2.40-2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/b/binutils/libbinutils_2.40-2_amd64.deb",
+      "size": 572104,
+      "sha256": "fcf55b99e5f8a78f3c8ce9b6957f1024f394cf20c196b100d308a57e43547710",
+      "control": "Package: libbinutils\nSource: binutils\nVersion: 2.40-2\nInstalled-Size: 2469\nMaintainer: Matthias Klose <doko@debian.org>\nArchitecture: amd64\nReplaces: binutils (<< 2.29-6)\nDepends: libc6 (>= 2.34), libzstd1 (>= 1.5.2), zlib1g (>= 1:1.2.0), binutils-common (= 2.40-2)\nBreaks: binutils (<< 2.29-6)\nDescription: GNU binary utilities (private shared library)\nDescription-md5: 4b87c5b499514b3b039e5d7ef54f2682\nMulti-Arch: same\nHomepage: https://www.gnu.org/software/binutils/\nSection: devel\nPriority: optional\n"
+    },
+    {
+      "filename": "libctf-nobfd0_2.40-2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/b/binutils/libctf-nobfd0_2.40-2_amd64.deb",
+      "size": 153384,
+      "sha256": "ef1dfcf22de41ea90ebd3d505447ccccd999e96b85aa777a1d7d981dc3b347aa",
+      "control": "Package: libctf-nobfd0\nSource: binutils\nVersion: 2.40-2\nInstalled-Size: 301\nMaintainer: Matthias Klose <doko@debian.org>\nArchitecture: amd64\nReplaces: libbinutils (<< 2.33.50.20191128-1~)\nDepends: libc6 (>= 2.14), zlib1g (>= 1:1.2.0)\nBreaks: libbinutils (<< 2.33.50.20191128-1~)\nDescription: Compact C Type Format library (runtime, no BFD dependency)\nDescription-md5: d6c110768780803ec3b63b3cfd3fefa3\nMulti-Arch: same\nHomepage: https://www.gnu.org/software/binutils/\nSection: devel\nPriority: optional\n"
+    },
+    {
+      "filename": "libctf0_2.40-2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/b/binutils/libctf0_2.40-2_amd64.deb",
+      "size": 89796,
+      "sha256": "3fb7b6f326be3fae4a87a3d33b9269bd06c1e4346a24bd737f265067e3b7427f",
+      "control": "Package: libctf0\nSource: binutils\nVersion: 2.40-2\nInstalled-Size: 232\nMaintainer: Matthias Klose <doko@debian.org>\nArchitecture: amd64\nDepends: libbinutils (= 2.40-2), libc6 (>= 2.33), zlib1g (>= 1:1.2.0)\nDescription: Compact C Type Format library (runtime, BFD dependency)\nDescription-md5: 72ceed17da4170356ec78923ed0461d3\nMulti-Arch: same\nHomepage: https://www.gnu.org/software/binutils/\nSection: devel\nPriority: optional\n"
+    },
+    {
+      "filename": "libgprofng0_2.40-2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/b/binutils/libgprofng0_2.40-2_amd64.deb",
+      "size": 812120,
+      "sha256": "a3c4092d84f19d13caf90f3c96eec53db8819f0e3a5247434944d71ed75fa53d",
+      "control": "Package: libgprofng0\nSource: binutils\nVersion: 2.40-2\nInstalled-Size: 3958\nMaintainer: Matthias Klose <doko@debian.org>\nArchitecture: amd64\nDepends: libbinutils (= 2.40-2), libc6 (>= 2.34), libgcc-s1 (>= 3.3.1), libstdc++6 (>= 5.2), zlib1g (>= 1:1.1.4)\nDescription: GNU Next Generation profiler (runtime library)\nDescription-md5: f46052f9dacaacc2ef39ad7058167163\nMulti-Arch: same\nHomepage: https://www.gnu.org/software/binutils/\nSection: devel\nPriority: optional\n"
+    },
+    {
+      "filename": "libjansson4_2.14-2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/j/jansson/libjansson4_2.14-2_amd64.deb",
+      "size": 40788,
+      "sha256": "3fc9742f9f1a37bcb9931df6074b4d1483419ef832ad5349f47323e75fc27864",
+      "control": "Package: libjansson4\nSource: jansson\nVersion: 2.14-2\nInstalled-Size: 101\nMaintainer: Alessandro Ghedini <ghedo@debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.14)\nDescription: C library for encoding, decoding and manipulating JSON data\nDescription-md5: 6fbadadaacb1a0fbc591227b867abcdf\nMulti-Arch: same\nHomepage: http://www.digip.org/jansson/\nTag: role::shared-lib\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "binutils-x86-64-linux-gnu_2.40-2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/b/binutils/binutils-x86-64-linux-gnu_2.40-2_amd64.deb",
+      "size": 2245848,
+      "sha256": "2d7ea8a570d768224d7f2424abbe6f373d2154865a1fa7f56c80d43ecf492521",
+      "control": "Package: binutils-x86-64-linux-gnu\nSource: binutils\nVersion: 2.40-2\nInstalled-Size: 11428\nMaintainer: Matthias Klose <doko@debian.org>\nArchitecture: amd64\nReplaces: binutils (<< 2.29-6), binutils-dev (<< 2.38.50.20220609-2)\nDepends: binutils-common (= 2.40-2), libbinutils (= 2.40-2), libc6 (>= 2.36), libctf-nobfd0 (>= 2.36), libctf0 (>= 2.36), libgcc-s1 (>= 4.2), libgprofng0 (>= 2.40-2), libjansson4 (>= 2.14), libstdc++6 (>= 5), libzstd1 (>= 1.5.2), zlib1g (>= 1:1.1.4)\nSuggests: binutils-doc (= 2.40-2)\nBreaks: binutils (<< 2.29-6), binutils-dev (<< 2.38.50.20220609-2)\nDescription: GNU binary utilities, for x86-64-linux-gnu target\nDescription-md5: 7656652c296f89ae4e4e73a71d3c84f9\nMulti-Arch: allowed\nHomepage: https://www.gnu.org/software/binutils/\nSection: devel\nPriority: extra\n"
+    },
+    {
+      "filename": "binutils_2.40-2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/b/binutils/binutils_2.40-2_amd64.deb",
+      "size": 64980,
+      "sha256": "83c3e20b53e1fbd84d764c3ba27d26a0376e361ae5d7fb37120196934dd87424",
+      "control": "Package: binutils\nVersion: 2.40-2\nInstalled-Size: 109\nMaintainer: Matthias Klose <doko@debian.org>\nArchitecture: amd64\nProvides: binutils-gold, elf-binutils\nDepends: binutils-common (= 2.40-2), libbinutils (= 2.40-2), binutils-x86-64-linux-gnu (= 2.40-2)\nSuggests: binutils-doc (>= 2.40-2)\nConflicts: binutils-mingw-w64-i686 (<< 2.23.52.20130612-1+3), binutils-mingw-w64-x86-64 (<< 2.23.52.20130612-1+3), binutils-multiarch (<< 2.27-8), modutils (<< 2.4.19-1)\nDescription: GNU assembler, linker and binary utilities\nDescription-md5: fde49b4cfeaad346a6e094f973da28d7\nHomepage: https://www.gnu.org/software/binutils/\nBuild-Essential: yes\nTag: devel::machinecode, implemented-in::c, interface::commandline,\n role::program, scope::utility, suite::gnu\nSection: devel\nPriority: optional\n"
+    },
+    {
+      "filename": "cgroupfs-mount_1.4_all.deb",
+      "url": "https://deb.debian.org/debian/pool/main/c/cgroupfs-mount/cgroupfs-mount_1.4_all.deb",
+      "size": 6276,
+      "sha256": "6895e943a9c735b3ca600e6a5ad5d8e781e7b27cd0b09d780999abbb2c0a5738",
+      "control": "Package: cgroupfs-mount\nVersion: 1.4\nInstalled-Size: 32\nMaintainer: Tianon Gravi <tianon@debian.org>\nArchitecture: all\nDepends: lsb-base (>= 3.0-6)\nDescription: Light-weight package to set up cgroupfs mounts\nDescription-md5: cafc79634fd490cec4ad189f157c90f9\nMulti-Arch: foreign\nHomepage: https://github.com/tianon/cgroupfs-mount\nSection: admin\nPriority: optional\n"
+    },
+    {
+      "filename": "libprotobuf32_3.21.12-3+deb12u1_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/p/protobuf/libprotobuf32_3.21.12-3%2bdeb12u1_amd64.deb",
+      "size": 931592,
+      "sha256": "e9e4e8cf0d2c48e2e3c17308e2093b3856f470b77e0022b7d906fb1b3551f213",
+      "control": "Package: libprotobuf32\nSource: protobuf\nVersion: 3.21.12-3+deb12u1\nInstalled-Size: 3337\nMaintainer: Laszlo Boszormenyi (GCS) <gcs@debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.34), libgcc-s1 (>= 3.0), libstdc++6 (>= 11), zlib1g (>= 1:1.1.4)\nBreaks: cura-engine (<< 1:3.3.0-2.1+b1), libarcus3 (<< 3.3.0-2)\nDescription: protocol buffers C++ library\nDescription-md5: c69f5af146ab9bc64e44b912e5af457e\nMulti-Arch: same\nHomepage: https://github.com/google/protobuf/\nTag: role::shared-lib\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "python3-protobuf_3.21.12-3+deb12u1_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/p/protobuf/python3-protobuf_3.21.12-3%2bdeb12u1_amd64.deb",
+      "size": 245796,
+      "sha256": "72bf1fadf5c026f60bf39ef6d150f4f37d5253f79ee79c22b9ed7bf13401c63d",
+      "control": "Package: python3-protobuf\nSource: protobuf\nVersion: 3.21.12-3+deb12u1\nInstalled-Size: 1097\nMaintainer: Laszlo Boszormenyi (GCS) <gcs@debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.34), libgcc-s1 (>= 3.0), libprotobuf32 (>= 3.21.12), libstdc++6 (>= 11), python3 (<< 3.12), python3 (>= 3.11~), python3:any\nDescription: Python 3 bindings for protocol buffers\nDescription-md5: ba8b2ff5479f775cf8451dd587d3fee9\nHomepage: https://github.com/google/protobuf/\nSection: python\nPriority: optional\n"
+    },
+    {
+      "filename": "libnet1_1.1.6+dfsg-3.2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/libn/libnet/libnet1_1.1.6%2bdfsg-3.2_amd64.deb",
+      "size": 60328,
+      "sha256": "9e0677a92de3df272e3a87a4e1591a71cb8c03fdea2bac68908ac4177066bb7f",
+      "control": "Package: libnet1\nSource: libnet\nVersion: 1.1.6+dfsg-3.2\nInstalled-Size: 153\nMaintainer: Stefanos Harhalakis <v13@v13.gr>\nArchitecture: amd64\nDepends: libc6 (>= 2.14), sgml-base (>= 1.28)\nDescription: library for the construction and handling of network packets\nDescription-md5: 6962156fdb23e2f413d3bdde50843766\nMulti-Arch: same\nHomepage: http://libnet-dev.sourceforge.net/\nTag: role::shared-lib\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "libnftables1_1.0.6-2+deb12u2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/n/nftables/libnftables1_1.0.6-2%2bdeb12u2_amd64.deb",
+      "size": 299116,
+      "sha256": "3a8223f9bfba99d97bf25296ac83de307ab036e1df63e5965f88809266851947",
+      "control": "Package: libnftables1\nSource: nftables\nVersion: 1.0.6-2+deb12u2\nInstalled-Size: 920\nMaintainer: Debian Netfilter Packaging Team <pkg-netfilter-team@lists.alioth.debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.34), libgmp10 (>= 2:6.2.1+dfsg1), libjansson4 (>= 2.14), libmnl0 (>= 1.0.3-4~), libnftnl11 (>= 1.2.2), libxtables12 (>= 1.6.0+snapshot20161117)\nDescription: Netfilter nftables high level userspace API library\nDescription-md5: a0142ceed355e6d73013884cbcfb0491\nMulti-Arch: same\nHomepage: https://www.netfilter.org/\nTag: role::shared-lib\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "libnl-3-200_3.7.0-0.2+b1_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/libn/libnl3/libnl-3-200_3.7.0-0.2%2bb1_amd64.deb",
+      "size": 63124,
+      "sha256": "d1fc3e9eb8e79b4c96b0a64c3d8c9e068ae2f665cab71bd19f417ffd0453a890",
+      "control": "Package: libnl-3-200\nSource: libnl3 (3.7.0-0.2)\nVersion: 3.7.0-0.2+b1\nInstalled-Size: 182\nMaintainer: Heiko Stuebner <mmind@debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.34)\nDescription: library for dealing with netlink sockets\nDescription-md5: de8043b32007ad94dc3b94b81389b53d\nMulti-Arch: same\nHomepage: http://www.infradead.org/~tgr/libnl/\nTag: role::shared-lib\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "criu_3.17.1-2+deb12u2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/c/criu/criu_3.17.1-2%2bdeb12u2_amd64.deb",
+      "size": 665668,
+      "sha256": "1e43b81e85a4a752475276ada28fe2ab11e7dc88a6adfeeb9bca38a693d369d4",
+      "control": "Package: criu\nVersion: 3.17.1-2+deb12u2\nInstalled-Size: 2558\nMaintainer: Salvatore Bonaccorso <carnil@debian.org>\nArchitecture: amd64\nDepends: python3-protobuf, python3:any, libbsd0 (>= 0.6.0), libc6 (>= 2.34), libgnutls30 (>= 3.7.5), libnet1 (>= 1.1.2.1), libnftables1 (>= 1.0.2), libnl-3-200 (>= 3.2.7), libprotobuf-c1 (>= 1.0.1)\nRecommends: iproute2\nDescription: checkpoint and restore in userspace\nDescription-md5: dcc6aaf58f7da6d941f297ecafe2104a\nHomepage: https://www.criu.org/\nSection: admin\nPriority: optional\n"
+    },
+    {
+      "filename": "curl_7.88.1-10+deb12u15_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/c/curl/curl_7.88.1-10%2bdeb12u15_amd64.deb",
+      "size": 315764,
+      "sha256": "0dd9b6bf7a0bd11af2d68a52ec44c2a223fa7c11f9104c36ce1047e1137d4a8f",
+      "control": "Package: curl\nVersion: 7.88.1-10+deb12u15\nInstalled-Size: 489\nMaintainer: Alessandro Ghedini <ghedo@debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.34), libcurl4 (= 7.88.1-10+deb12u15), zlib1g (>= 1:1.1.4)\nDescription: command line tool for transferring data with URL syntax\nDescription-md5: f83293d10df083ae6f7bb7d01642913c\nMulti-Arch: foreign\nHomepage: https://curl.se/\nTag: implemented-in::c, interface::commandline, network::client,\n protocol::ftp, protocol::gopher, protocol::http, protocol::imap,\n protocol::ipv6, protocol::kerberos, protocol::ldap, protocol::pop3,\n protocol::sftp, protocol::smtp, protocol::ssh, protocol::ssl,\n protocol::telnet, protocol::tftp, role::program, scope::utility,\n use::downloading, use::synchronizing, use::transmission,\n works-with::file, works-with::mail\nSection: web\nPriority: optional\n"
+    },
+    {
+      "filename": "dbus-user-session_1.14.10-1~deb12u1_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/d/dbus/dbus-user-session_1.14.10-1%7edeb12u1_amd64.deb",
+      "size": 78136,
+      "sha256": "4c3aaad251f876214fadb5580dd5f4925f73838832135e6d1dab981eb963be6b",
+      "control": "Package: dbus-user-session\nSource: dbus\nVersion: 1.14.10-1~deb12u1\nInstalled-Size: 111\nMaintainer: Utopia Maintenance Team <pkg-utopia-maintainers@lists.alioth.debian.org>\nArchitecture: amd64\nProvides: dbus-session-bus, default-dbus-session-bus\nDepends: dbus-daemon (= 1.14.10-1~deb12u1) | dbus-broker, dbus-session-bus-common (>= 1.14.10-1~deb12u1), libpam-systemd, systemd\nRecommends: systemd-sysv\nDescription: simple interprocess messaging system (systemd --user integration)\nDescription-md5: be4453093922af92deac14b4e8458a83\nMulti-Arch: foreign\nHomepage: https://dbus.freedesktop.org/\nTag: admin::login, devel::rpc, implemented-in::c, role::plugin,\n role::program, works-with::software:running\nSection: admin\nPriority: optional\n"
+    },
+    {
+      "filename": "liberror-perl_0.17029-2_all.deb",
+      "url": "https://deb.debian.org/debian/pool/main/libe/liberror-perl/liberror-perl_0.17029-2_all.deb",
+      "size": 29032,
+      "sha256": "5a466348531b9c38c8e5ccb18c231f27a98b9fdab61b37ea22592553de5d2ced",
+      "control": "Package: liberror-perl\nVersion: 0.17029-2\nInstalled-Size: 73\nMaintainer: Debian Perl Group <pkg-perl-maintainers@lists.alioth.debian.org>\nArchitecture: all\nDepends: perl:any\nDescription: Perl module for error/exception handling in an OO-ish way\nDescription-md5: 7c2a471a2833eff06851f0e4e06c4e8c\nMulti-Arch: foreign\nHomepage: https://metacpan.org/release/Error\nTag: devel::debugger, devel::lang:perl, devel::library, implemented-in::perl,\n role::devel-lib\nSection: perl\nPriority: optional\n"
+    },
+    {
+      "filename": "git-man_1:2.39.5-0+deb12u3_all.deb",
+      "url": "https://deb.debian.org/debian/pool/main/g/git/git-man_2.39.5-0%2bdeb12u3_all.deb",
+      "size": 2053236,
+      "sha256": "904dbd8dbc3db34c6780fb0abfe35816d4a90a490126ef0a055a77a0c5dcab82",
+      "control": "Package: git-man\nSource: git\nVersion: 1:2.39.5-0+deb12u3\nInstalled-Size: 2107\nMaintainer: Jonathan Nieder <jrnieder@gmail.com>\nArchitecture: all\nDescription: fast, scalable, distributed revision control system (manual pages)\nDescription-md5: 0c79f507738c0cb72351c8ae551ee47d\nMulti-Arch: foreign\nHomepage: https://git-scm.com/\nTag: devel::doc, interface::commandline, role::documentation, role::program,\n scope::utility, works-with-format::man, works-with::software:source,\n works-with::text, works-with::vcs\nSection: doc\nPriority: optional\n"
+    },
+    {
+      "filename": "git_1:2.39.5-0+deb12u3_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/g/git/git_2.39.5-0%2bdeb12u3_amd64.deb",
+      "size": 7264380,
+      "sha256": "637a85ddd6247fab13bdd0592f2f39aff04ce4dbf0655d3ab553ac359a38ce6f",
+      "control": "Package: git\nVersion: 1:2.39.5-0+deb12u3\nInstalled-Size: 44890\nMaintainer: Jonathan Nieder <jrnieder@gmail.com>\nArchitecture: amd64\nProvides: git-completion, git-core\nDepends: libc6 (>= 2.34), libcurl3-gnutls (>= 7.56.1), libexpat1 (>= 2.0.1), libpcre2-8-0 (>= 10.34), zlib1g (>= 1:1.2.2), perl, liberror-perl, git-man (>> 1:2.39.5), git-man (<< 1:2.39.5-.)\nRecommends: ca-certificates, patch, less, ssh-client\nSuggests: gettext-base, git-daemon-run | git-daemon-sysvinit, git-doc, git-email, git-gui, gitk, gitweb, git-cvs, git-mediawiki, git-svn\nBreaks: bash-completion (<< 1:1.90-1), cogito (<= 0.18.2+), dgit (<< 5.1~), git-buildpackage (<< 0.6.5), git-el (<< 1:2.32.0~rc2-1~), gitosis (<< 0.2+20090917-7), gitpkg (<< 0.15), guilt (<< 0.33), openssh-client (<< 1:6.8), stgit (<< 0.15), stgit-contrib (<< 0.15)\nDescription: fast, scalable, distributed revision control system\nDescription-md5: c1f968556452a190fe359bffd151c012\nMulti-Arch: foreign\nHomepage: https://git-scm.com/\nTag: devel::lang:perl, devel::library, devel::rcs, implemented-in::c,\n implemented-in::perl, implemented-in::shell, interface::text-mode,\n network::client, network::server, protocol::ssh, protocol::tcp,\n role::devel-lib, role::program, works-with::file,\n works-with::software:source, works-with::vcs\nSection: vcs\nPriority: optional\n"
+    },
+    {
+      "filename": "libintl-perl_1.33-1_all.deb",
+      "url": "https://deb.debian.org/debian/pool/main/libi/libintl-perl/libintl-perl_1.33-1_all.deb",
+      "size": 719968,
+      "sha256": "1d3d7e5ff3063c5a89c3c164f56f52b99b3fd4d7658d04ba7f8f2338d3f9eb4f",
+      "control": "Package: libintl-perl\nVersion: 1.33-1\nInstalled-Size: 4324\nMaintainer: Debian Perl Group <pkg-perl-maintainers@lists.alioth.debian.org>\nArchitecture: all\nDepends: perl:any\nRecommends: libintl-xs-perl\nDescription: Uniforum message translations system compatible i18n library\nDescription-md5: 094d9efec11965e17ecdcc0ba27ea83e\nMulti-Arch: foreign\nHomepage: https://metacpan.org/release/libintl-perl\nTag: devel::i18n, devel::lang:perl, devel::library, implemented-in::perl\nSection: perl\nPriority: optional\n"
+    },
+    {
+      "filename": "libintl-xs-perl_1.33-1_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/libi/libintl-perl/libintl-xs-perl_1.33-1_amd64.deb",
+      "size": 15560,
+      "sha256": "721046498ccdc177e5544f059253171ae5b01a3d09873f69d3fc99134e96ff7a",
+      "control": "Package: libintl-xs-perl\nSource: libintl-perl\nVersion: 1.33-1\nInstalled-Size: 57\nMaintainer: Debian Perl Group <pkg-perl-maintainers@lists.alioth.debian.org>\nArchitecture: amd64\nDepends: perl (>= 5.36.0-6), perlapi-5.36.0, libc6 (>= 2.3), libintl-perl (= 1.33-1)\nDescription: XS Uniforum message translations system compatible i18n library\nDescription-md5: 104eaee6ae062514544e6bc2df070fef\nHomepage: https://metacpan.org/release/libintl-perl\nTag: devel::i18n, devel::lang:perl, devel::library, implemented-in::c,\n implemented-in::perl, role::devel-lib\nSection: perl\nPriority: optional\n"
+    },
+    {
+      "filename": "libmodule-find-perl_0.16-2_all.deb",
+      "url": "https://deb.debian.org/debian/pool/main/libm/libmodule-find-perl/libmodule-find-perl_0.16-2_all.deb",
+      "size": 10620,
+      "sha256": "d64e61edc1b467d48a3a236f719ea2e8fd1734fde570ac2e14dea4eda0a66571",
+      "control": "Package: libmodule-find-perl\nVersion: 0.16-2\nInstalled-Size: 30\nMaintainer: Debian Perl Group <pkg-perl-maintainers@lists.alioth.debian.org>\nArchitecture: all\nDepends: perl:any\nDescription: module to find and use installed Perl modules\nDescription-md5: cc5e109724f5af65cc95c1183bb933a6\nMulti-Arch: foreign\nHomepage: https://metacpan.org/release/Module-List\nTag: role::shared-lib\nSection: perl\nPriority: optional\n"
+    },
+    {
+      "filename": "libpcre3_2:8.39-15_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/p/pcre3/libpcre3_8.39-15_amd64.deb",
+      "size": 340864,
+      "sha256": "993ea623ce5b42d67f653f2faaa7ef15e7c9d72bfcb93e22a1eaff7aa3532303",
+      "control": "Package: libpcre3\nSource: pcre3\nVersion: 2:8.39-15\nInstalled-Size: 680\nMaintainer: Matthew Vernon <matthew@debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.34)\nConflicts: libpcre3-dev (<= 4.3-3)\nBreaks: approx (<< 4.4-1~), cduce (<< 0.5.3-2~), cmigrep (<< 1.5-7~), galax (<< 1.1-7~), libpcre-ocaml (<< 6.0.1~), liquidsoap (<< 0.9.2-3~), ocsigen (<< 1.3.3-1~)\nDescription: Old Perl 5 Compatible Regular Expression Library - runtime files\nDescription-md5: 554ac784f7314cb2c59649814e330d34\nMulti-Arch: same\nTag: role::shared-lib\nSection: libs\nPriority: optional\n"
+    },
+    {
+      "filename": "libproc-processtable-perl_0.634-1+b2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/libp/libproc-processtable-perl/libproc-processtable-perl_0.634-1%2bb2_amd64.deb",
+      "size": 43096,
+      "sha256": "3deceeb5f00a0becc0c1ef1e8c6a137cffae113ea6b7ac5ce2ab0ae793144b83",
+      "control": "Package: libproc-processtable-perl\nSource: libproc-processtable-perl (0.634-1)\nVersion: 0.634-1+b2\nInstalled-Size: 115\nMaintainer: Debian Perl Group <pkg-perl-maintainers@lists.alioth.debian.org>\nArchitecture: amd64\nDepends: perl (>= 5.36.0-4), perlapi-5.36.0, libc6 (>= 2.34)\nDescription: Perl library for accessing process table information\nDescription-md5: 654ab30ad3c0a7649b3da3d10df757b7\nMulti-Arch: same\nHomepage: https://metacpan.org/release/Proc-ProcessTable\nTag: devel::lang:perl, devel::library, implemented-in::c,\n implemented-in::perl, role::devel-lib, role::program, use::monitor,\n works-with::software:running\nSection: perl\nPriority: optional\n"
+    },
+    {
+      "filename": "libsort-naturally-perl_1.03-4_all.deb",
+      "url": "https://deb.debian.org/debian/pool/main/libs/libsort-naturally-perl/libsort-naturally-perl_1.03-4_all.deb",
+      "size": 13076,
+      "sha256": "243057b16f21fdf9f9dd3fc50ea2b7104e189b7cf35c5334606efd1941e2210e",
+      "control": "Package: libsort-naturally-perl\nVersion: 1.03-4\nInstalled-Size: 41\nMaintainer: Debian Perl Group <pkg-perl-maintainers@lists.alioth.debian.org>\nArchitecture: all\nDepends: perl:any\nDescription: Sort naturally - sort lexically except for numerical parts\nDescription-md5: 917f4833330031a413159666672a3a3a\nMulti-Arch: foreign\nHomepage: https://metacpan.org/release/Sort-Naturally\nTag: devel::lang:perl, devel::library, implemented-in::perl, role::program,\n use::organizing\nSection: perl\nPriority: optional\n"
+    },
+    {
+      "filename": "libterm-readkey-perl_2.38-2+b1_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/libt/libterm-readkey-perl/libterm-readkey-perl_2.38-2%2bb1_amd64.deb",
+      "size": 24456,
+      "sha256": "28e9c44a54af8323123f99a4cdf8c83fbca162fe5d494d8c420ddc9d9d2910c2",
+      "control": "Package: libterm-readkey-perl\nSource: libterm-readkey-perl (2.38-2)\nVersion: 2.38-2+b1\nInstalled-Size: 73\nMaintainer: Debian Perl Group <pkg-perl-maintainers@lists.alioth.debian.org>\nArchitecture: amd64\nDepends: perl (>= 5.36.0-4), perlapi-5.36.0, libc6 (>= 2.28)\nDescription: perl module for simple terminal control\nDescription-md5: a763f4d7fa9fbc16eb1fb4e5fabadfa9\nHomepage: https://metacpan.org/release/TermReadKey\nTag: devel::lang:perl, devel::library, implemented-in::c,\n implemented-in::perl, interface::text-mode, role::devel-lib,\n role::program\nSection: perl\nPriority: optional\n"
+    },
+    {
+      "filename": "needrestart_3.6-4+deb12u3_all.deb",
+      "url": "https://deb.debian.org/debian/pool/main/n/needrestart/needrestart_3.6-4%2bdeb12u3_all.deb",
+      "size": 60496,
+      "sha256": "3cdeccf188630cd8fecfd71c3a8866bc7f9f439866b6fa04c8ccaeff23b82f05",
+      "control": "Package: needrestart\nVersion: 3.6-4+deb12u3\nInstalled-Size: 295\nMaintainer: Patrick Matth\u00e4i <pmatthaei@debian.org>\nArchitecture: all\nDepends: perl:any, dpkg (>= 1.16.0), gettext-base, libintl-perl, libproc-processtable-perl, libsort-naturally-perl, libterm-readkey-perl, libmodule-find-perl, binutils, xz-utils\nRecommends: libpam-systemd | sysvinit-core, systemd | libimvirt-perl\nSuggests: needrestart-session | libnotify-bin, iucode-tool\nEnhances: intel-microcode\nDescription: check which daemons need to be restarted after library upgrades\nDescription-md5: a26ee5dd9ec37fe484bee4f1ce585d87\nHomepage: https://github.com/liske/needrestart\nSection: admin\nPriority: optional\n"
+    },
+    {
+      "filename": "openssl_3.0.20-1~deb12u2_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/o/openssl/openssl_3.0.20-1%7edeb12u2_amd64.deb",
+      "size": 1438712,
+      "sha256": "4d218561dc838de081de97f54584c4a29e77e26c7ed9fe3440d776d8e6071bf9",
+      "control": "Package: openssl\nVersion: 3.0.20-1~deb12u2\nInstalled-Size: 2310\nMaintainer: Debian OpenSSL Team <pkg-openssl-devel@alioth-lists.debian.net>\nArchitecture: amd64\nDepends: libc6 (>= 2.34), libssl3 (>= 3.0.9)\nSuggests: ca-certificates\nDescription: Secure Sockets Layer toolkit - cryptographic utility\nDescription-md5: 9b6de2bb6e1d9016aeb0f00bcf6617bd\nMulti-Arch: foreign\nHomepage: https://www.openssl.org/\nTag: implemented-in::c, interface::commandline, protocol::ssl, role::program,\n scope::utility, security::cryptography, security::integrity,\n use::checking\nSection: utils\nPriority: optional\n"
+    },
+    {
+      "filename": "patch_2.7.6-7_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/p/patch/patch_2.7.6-7_amd64.deb",
+      "size": 127848,
+      "sha256": "8c6d49b771530dbe26d7bd060582dc7d2b4eeb603a20789debc1ef4bbbc4ef67",
+      "control": "Package: patch\nVersion: 2.7.6-7\nInstalled-Size: 248\nMaintainer: Laszlo Boszormenyi (GCS) <gcs@debian.org>\nArchitecture: amd64\nDepends: libc6 (>= 2.17)\nSuggests: ed, diffutils-doc\nDescription: Apply a diff file to an original\nDescription-md5: d56076980d5ce0f54f9dd685e6ca0ce7\nMulti-Arch: foreign\nHomepage: https://savannah.gnu.org/projects/patch/\nBuild-Essential: yes\nTag: devel::rcs, implemented-in::c, interface::commandline, role::program,\n scope::utility, suite::gnu, use::editing, use::synchronizing,\n works-with-format::TODO, works-with-format::diff,\n works-with-format::plaintext, works-with::file,\n works-with::software:source, works-with::text\nSection: vcs\nPriority: optional\n"
+    },
+    {
+      "filename": "zsh-common_5.9-4_all.deb",
+      "url": "https://deb.debian.org/debian/pool/main/z/zsh/zsh-common_5.9-4_all.deb",
+      "size": 4147272,
+      "sha256": "4f263aa88910f750965b1a83dcbca1355b2cf509acffe96cc2d856333909a7b5",
+      "control": "Package: zsh-common\nSource: zsh\nVersion: 5.9-4\nInstalled-Size: 16422\nMaintainer: Debian Zsh Maintainers <pkg-zsh-devel@lists.alioth.debian.org>\nArchitecture: all\nReplaces: zsh (<= 5.0.2-1), zsh-doc (<= 5.8-7~)\nRecommends: zsh\nSuggests: zsh-doc\nBreaks: zsh-doc (<= 5.8-7~)\nDescription: architecture independent files for Zsh\nDescription-md5: 8aac20ad1d93f2ea018a327bcfd5912f\nMulti-Arch: foreign\nHomepage: https://www.zsh.org/\nTag: implemented-in::shell, role::app-data, role::program\nSection: shells\nPriority: optional\n"
+    },
+    {
+      "filename": "zsh_5.9-4+b15_amd64.deb",
+      "url": "https://deb.debian.org/debian/pool/main/z/zsh/zsh_5.9-4%2bb15_amd64.deb",
+      "size": 907512,
+      "sha256": "8362cc8bbb530d393950522dc8a9df5a860a61227d62ff669a7524056e6289a8",
+      "control": "Package: zsh\nSource: zsh (5.9-4)\nVersion: 5.9-4+b15\nInstalled-Size: 2461\nMaintainer: Debian Zsh Maintainers <pkg-zsh-devel@lists.alioth.debian.org>\nArchitecture: amd64\nDepends: zsh-common (= 5.9-4), libc6 (>= 2.34), libcap2 (>= 1:2.10), libtinfo6 (>= 6), debianutils (>= 5.3-1~)\nRecommends: libc6 (>= 2.35), libgdbm6 (>= 1.16), libncursesw6 (>= 6), libpcre3\nSuggests: zsh-doc\nDescription: shell with lots of features\nDescription-md5: a129d6b2d23d2d5d3a6b822d3f8f856d\nHomepage: https://www.zsh.org/\nTag: devel::interpreter, implemented-in::c, interface::shell,\n network::client, protocol::ftp, role::program, scope::utility\nSection: shells\nPriority: optional\n"
+    }
+  ]
+}

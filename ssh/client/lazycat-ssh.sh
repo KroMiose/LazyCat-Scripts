@@ -5,9 +5,9 @@
 # 功    能: 控制端 SSH 管理入口：通过 Secret Gist（只读）同步标准 YAML，
 #           生成并维护 ~/.ssh/config.d/lazycat.conf，同时对 ~/.ssh/config 写入
 #           可移除的 Include 标记块。支持多套配置（多 Gist / 同 Gist 多文件）。
-# 适用系统: Linux & macOS（Bash >= 4）
-# 使用方法: 1) 首次一键执行（安装到 ~/.local/bin/lazycat-ssh）
-#              bash -c \"$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/client/lazycat-ssh.sh)\"\n#           2) 之后直接运行：lazycat-ssh
+# 目标平台: Linux / macOS；验证范围与系统 Bash 版本见 docs/TESTING.md。
+# 仓库安装入口: bash ssh/client/lazycat-ssh.sh install；日常运行 lazycat-ssh。
+# 下载样例与迁移限制见 ssh/README.md；不要在日常命令中隐式安装。
 # ==============================================================================
 
 set -euo pipefail
@@ -18,6 +18,12 @@ __lc_bootstrap_die() {
   exit 1
 }
 
+# Reject before sourcing adjacent/cache code or making a bootstrap request.
+# The client has always required a normal user; the check must protect bootstrap too.
+if [[ "$EUID" -eq 0 ]]; then
+  __lc_bootstrap_die "请不要使用 sudo 运行控制端脚本（它会修改当前用户的 ~/.ssh）。"
+fi
+
 LAZYCAT_SSH_HOME_DEFAULT="${XDG_DATA_HOME:-$HOME/.local/share}/lazycat-ssh"
 LAZYCAT_SSH_HOME="${LAZYCAT_SSH_HOME:-$LAZYCAT_SSH_HOME_DEFAULT}"
 
@@ -27,6 +33,7 @@ LAZYCAT_SSH_BIN_DIR="${LAZYCAT_SSH_BIN_DIR:-$LAZYCAT_SSH_BIN_DIR_DEFAULT}"
 REMOTE_BASE_URL="${LAZYCAT_SSH_REMOTE_BASE_URL:-https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh}"
 REMOTE_CLIENT_URL="${REMOTE_BASE_URL}/client/lazycat-ssh.sh"
 REMOTE_LIB_URL="${REMOTE_BASE_URL}/lib/common.sh"
+LAZYCAT_SSH_BOOTSTRAP_COMMAND="${1:-}"
 
 __lc_source_common() {
   local local_candidate=""
@@ -50,7 +57,12 @@ __lc_source_common() {
     return 0
   fi
 
-  # 允许 curl|bash：临时下载 common.sh
+  # A missing installation is not permission for daily commands to download
+  # executable code. Bundled release entries already contain the library.
+  if [[ "$LAZYCAT_SSH_BOOTSTRAP_COMMAND" != install ]]; then
+    __lc_bootstrap_die "安装不完整：缺少 common.sh；请使用完整归档，或显式执行 install 修复。"
+  fi
+  # Explicit installation may bootstrap the library for a standalone entry.
   if ! command -v curl >/dev/null 2>&1; then
     __lc_bootstrap_die "无法找到 common.sh，且系统未安装 curl。请先安装 curl 后重试。"
   fi
@@ -205,13 +217,56 @@ lc_meta_write() {
   chmod 600 "$META_PATH"
 }
 
-lc_meta_load() {
-  if [[ ! -f "$META_PATH" ]]; then
-    return 1
+# Decode the data forms emitted by Bash printf %q; never evaluate shell code.
+lc_meta_decode() {
+  local input="$1" output="" ch next escape decoded digits ansi=0
+  if [[ "$input" == "''" ]]; then LC_META_VALUE="";return 0;fi
+  if [[ "${input:0:2}" == "\$'" && "${input: -1}" == "'" ]]; then
+    ansi=1;input="${input:2:${#input}-3}"
   fi
-  # shellcheck source=/dev/null
-  source "$META_PATH"
-  return 0
+  while [[ -n "$input" ]]; do
+    ch="${input:0:1}";input="${input:1}"
+    if [[ "$ch" == '\' ]]; then
+      [[ -n "$input" ]] || return 1
+      next="${input:0:1}";input="${input:1}"
+      if [[ "$ansi" == 0 ]]; then output+="$next";continue;fi
+      case "$next" in
+        "'") output+="'" ;;
+        '\') output+='\' ;;
+        a|b|e|E|f|n|r|t|v) printf -v decoded '%b' "\\$next";output+="$decoded" ;;
+        [0-7])
+          digits="$next"
+          while [[ ${#digits} -lt 3 && "${input:0:1}" == [0-7] ]]; do digits+="${input:0:1}";input="${input:1}";done
+          [[ "$digits" != 0 && "$digits" != 00 && "$digits" != 000 ]] || return 1
+          printf -v decoded '%b' "\\0$digits";output+="$decoded" ;;
+        *) return 1 ;;
+      esac
+    else
+      if [[ "$ansi" == 0 ]]; then
+        case "$ch" in [[:space:]]|'$'|'`'|'"'|"'"|'('|')'|';'|'&'|'|'|'<'|'>') return 1 ;; esac
+      elif [[ "$ch" == "'" ]]; then return 1
+      fi
+      output+="$ch"
+    fi
+  done
+  [[ "$output" != *[[:cntrl:]]* ]] || return 1
+  LC_META_VALUE="$output"
+}
+
+lc_meta_load() {
+  [[ -f "$META_PATH" && ! -L "$META_PATH" ]] || return 1
+  local line key value seen="|" gist="" raw="" filename=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -n "$line" ]] || continue
+    [[ "$line" == *=* ]] || { lc_log "meta.env 不是受支持的数据格式，未执行其中内容。";return 1; }
+    key="${line%%=*}";value="${line#*=}"
+    case "$key" in GIST_URL|RAW_URL|FILE_NAME) ;; *) return 1 ;; esac
+    [[ "$seen" != *"|$key|"* ]] || return 1
+    seen+="$key|"
+    lc_meta_decode "$value" || { lc_log "meta.env 数据格式需要检查，未执行其中内容。";return 1; }
+    case "$key" in GIST_URL) gist="$LC_META_VALUE" ;; RAW_URL) raw="$LC_META_VALUE" ;; FILE_NAME) filename="$LC_META_VALUE" ;; esac
+  done < "$META_PATH"
+  GIST_URL="$gist";RAW_URL="$raw";FILE_NAME="$filename"
 }
 
 lc_gist_open_guide() {
@@ -417,6 +472,17 @@ lc_append_ssh_host_block() {
   local identity="$7"
   local ca_enabled="$8"
 
+  local value
+  for value in "$host_alias" "$host_name" "$user" "$port" "$via" "$identity"; do
+    [[ "$value" != *$'\n'* && "$value" != *$'\r'* ]] || lc_die "SSH 字段必须为单行文本。"
+  done
+  [[ "$host_alias" =~ ^[A-Za-z0-9._-]+$ && "$host_name" =~ ^[A-Za-z0-9._:%-]+$ ]] || lc_die "SSH 别名或主机名无效。"
+  [[ -z "$port" ]] || { [[ "$port" =~ ^[0-9]{1,5}$ ]] && (( 10#$port > 0 && 10#$port <= 65535 )); } || lc_die "SSH 端口无效。"
+  [[ "$identity" != *'"'* && "$identity" != *'\'* ]] || lc_die "IdentityFile 路径包含不支持的字符。"
+  case "$generated_aliases" in
+    *$'\n'"$host_alias"$'\n'*) lc_die "生成的 SSH 别名冲突：${host_alias}，未修改配置。" ;;
+  esac
+  generated_aliases="${generated_aliases}${host_alias}"$'\n'
   {
     printf 'Host %s\n' "$host_alias"
     printf '    HostName %s\n' "$host_name"
@@ -426,9 +492,9 @@ lc_append_ssh_host_block() {
     [[ -n "$port" ]] && printf '    Port %s\n' "$port"
     [[ -n "$via" ]] && printf '    ProxyJump %s\n' "$via"
     if [[ -n "$identity" ]]; then
-      printf '    IdentityFile %s\n' "$identity"
+      printf '    IdentityFile "%s"\n' "$identity"
     elif [[ "$ca_enabled" == "1" ]]; then
-      printf '    IdentityFile %s\n' "$CA_KEY_PATH"
+      printf '    IdentityFile "%s"\n' "$CA_KEY_PATH"
       printf '    CertificateFile %s\n' "$CA_CERT_PATH"
     fi
     printf '    IdentitiesOnly yes\n'
@@ -537,22 +603,24 @@ lc_validate_remote_path() {
 
 lc_ensure_ca_keypair() {
   lc_need_cmd ssh-keygen
-  mkdir -p "$SSH_DIR"
-  chmod 700 "$SSH_DIR"
+  [[ ! -L "$SSH_DIR" && ! -L "$CA_KEY_PATH" && ! -L "$CA_PUB_PATH" && ! -L "$CA_CERT_PATH" ]] || lc_die "证书或密钥路径是符号链接，未修改。"
+  if [[ ! -d "$SSH_DIR" ]]; then
+    mkdir -p "$SSH_DIR" || return 1
+    chmod 700 "$SSH_DIR" || return 1
+  fi
 
   if [[ -f "$CA_KEY_PATH" ]] && [[ -f "$CA_PUB_PATH" ]]; then
-    chmod 600 "$CA_KEY_PATH" || true
-    chmod 644 "$CA_PUB_PATH" || true
     return 0
   fi
 
+  [[ ! -e "$CA_KEY_PATH" && ! -e "$CA_PUB_PATH" ]] || lc_die "密钥对不完整，请检查已有文件；不会覆盖或重新生成。"
   lc_log "🔑 未检测到控制端证书密钥，正在生成：${CA_KEY_PATH}"
   ssh-keygen -t ed25519 -f "$CA_KEY_PATH" -N "" -C "lazycat-ssh-ca-key-$(whoami)@$(hostname -s)"
   chmod 600 "$CA_KEY_PATH"
   chmod 644 "$CA_PUB_PATH"
 }
 
-lc_ca_fetch_and_sign_cert() {
+lc_ca_fetch_and_sign_cert() (
   # 读取 YAML 顶层 ca 配置，通过 SSH 在 CA 服务器上签发证书并拉回本机。
   lc_install_yq
   lc_need_cmd curl
@@ -561,12 +629,17 @@ lc_ca_fetch_and_sign_cert() {
   lc_meta_load || lc_die "尚未配置 Gist/RAW_URL，请先运行“Gist 引导与配置”。"
   [[ -n "${RAW_URL:-}" ]] || lc_die "meta.env 中缺少 RAW_URL，请重新配置。"
 
-  local tmp_yaml
-  tmp_yaml="$(mktemp)"
-  trap 'rm -f "$tmp_yaml"' RETURN
+  local tmp_yaml="" cert_candidate="" remote_dir=""
+  trap 'rm -f -- "$tmp_yaml" "$cert_candidate"; if [[ -n "$remote_dir" ]]; then "${ssh_base[@]}" "rm -rf \"${remote_dir}\"" || printf "%s\n" "远端临时目录清理失败：$remote_dir" >&2; fi' EXIT
+  tmp_yaml="$(mktemp)" || return 1
 
-  lc_log "⏳ 正在拉取配置（用于读取 CA 参数）..."
-  curl -fsSL "$RAW_URL" -o "$tmp_yaml"
+  if [[ $# == 1 ]]; then
+    cp "$1" "$tmp_yaml" || return 1
+  else
+    lc_log "⏳ 正在拉取配置（用于读取 CA 参数）..."
+    curl -fsSL "$RAW_URL" -o "$tmp_yaml" || return 1
+  fi
+  [[ "$(yq -r '.version // ""' "$tmp_yaml")" == 1 ]] || lc_die '仅支持 YAML version: 1，未请求签发。'
 
   local ca_ssh_host ca_key_path ca_principals ca_validity
   # 约定：用户必须先配置好 `ssh <sshHost>` 能直连 CA 服务器
@@ -577,6 +650,13 @@ lc_ca_fetch_and_sign_cert() {
   # 默认路径：lazycat-ssh-ca 初始化后的默认位置（减少暴露细节）
   ca_key_path="$(yq -r '.ca.ca_key_path // .ca.caKeyPath // "~/.lazycat/ssh-ca/lazycat-ssh-ca"' "$tmp_yaml")"
   lc_validate_remote_path "$ca_key_path"
+  if [[ "$ca_key_path" == '~/'* ]]; then
+    local remote_home
+    remote_home="$(ssh -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o BatchMode=yes -o ConnectTimeout=10 "$ca_ssh_host" 'printf "%s" "$HOME"')"
+    [[ "$remote_home" == /* && "$remote_home" != *$'\n'* ]] || lc_die "远端家目录无效。"
+    ca_key_path="$remote_home/${ca_key_path:2}"
+    lc_validate_remote_path "$ca_key_path"
+  fi
 
   ca_principals="$(yq -r '.ca.principals // "root"' "$tmp_yaml")"
   ca_validity="$(yq -r '.ca.validity // "12h"' "$tmp_yaml")"
@@ -589,12 +669,11 @@ lc_ca_fetch_and_sign_cert() {
   # - StrictHostKeyChecking=yes：未知主机直接失败（请先手动 ssh 一次写入 known_hosts）
   # - BatchMode=yes：任何需要交互输入的场景直接失败
   # - ConnectTimeout：避免长时间卡住
-  local ssh_base=(ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=10)
+  local ssh_base=(ssh -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o BatchMode=yes -o ConnectTimeout=10)
   ssh_base+=( "${ca_ssh_host}" )
 
   lc_log "⏳ 正在向 CA 服务器请求签发证书（${ca_ssh_host}，有效期：${ca_validity}，principals：${ca_principals}）..."
 
-  local remote_dir
   remote_dir="$("${ssh_base[@]}" "mktemp -d")"
   if [[ -z "$remote_dir" ]]; then
     lc_die "在 CA 服务器上创建临时目录失败。"
@@ -607,16 +686,34 @@ lc_ca_fetch_and_sign_cert() {
 
   "${ssh_base[@]}" "ssh-keygen -s \"${ca_key_path}\" -I \"${cert_identity}\" -n \"${ca_principals}\" -V \"+${ca_validity}\" \"${remote_dir}/key.pub\""
 
-  "${ssh_base[@]}" "cat \"${remote_dir}/key-cert.pub\"" >"${CA_CERT_PATH}.tmp"
-  mv "${CA_CERT_PATH}.tmp" "$CA_CERT_PATH"
-  chmod 644 "$CA_CERT_PATH"
-
-  "${ssh_base[@]}" "rm -rf \"${remote_dir}\""
+  cert_candidate="$(mktemp "${CA_CERT_PATH}.XXXXXX")" || return 1
+  local cert_mode=644
+  if [[ -f "$CA_CERT_PATH" ]]; then
+    if [[ "$(uname -s)" == Darwin ]]; then
+      cert_mode="$(stat -f '%Lp' "$CA_CERT_PATH")" || return 1
+    else
+      cert_mode="$(stat -c '%a' "$CA_CERT_PATH")" || return 1
+    fi
+    cp -p "$CA_CERT_PATH" "$cert_candidate" || return 1
+  fi
+  chmod u+w "$cert_candidate" || return 1
+  "${ssh_base[@]}" "cat \"${remote_dir}/key-cert.pub\"" >"$cert_candidate" || return 1
+  local expected_key candidate_key
+  expected_key="$(ssh-keygen -lf "$CA_PUB_PATH" | awk '{print $2}')" || return 1
+  candidate_key="$(ssh-keygen -lf "$cert_candidate" | awk '{print $2}')" || return 1
+  [[ -n "$candidate_key" && "$candidate_key" == "$expected_key" ]] || lc_die "返回证书不属于当前公钥；旧证书保留。"
+  ssh-keygen -L -f "$cert_candidate" >/dev/null || return 1
+  "${ssh_base[@]}" "rm -rf \"${remote_dir}\"" || return 1
+  remote_dir=""
+  chmod "$cert_mode" "$cert_candidate" || return 1
+  mv "$cert_candidate" "$CA_CERT_PATH" || return 1
+  cert_candidate=""
 
   lc_log "✅ 证书已更新：${CA_CERT_PATH}"
-}
+)
 
-lc_sync_from_raw_url() {
+lc_sync_from_raw_url() (
+  trap 'rm -f -- "${tmp_yaml:-}" "${tmp_json:-}" "${out:-}" "${tmp_config:-}"' EXIT
   lc_install_yq
   lc_need_cmd curl
 
@@ -660,7 +757,6 @@ lc_sync_from_raw_url() {
 
   local tmp_yaml
   tmp_yaml="$(mktemp)"
-  trap 'rm -f "${tmp_yaml:-}"' RETURN
 
   lc_log "⏳ 正在拉取配置..."
   curl -fsSL "$RAW_URL" -o "$tmp_yaml"
@@ -668,8 +764,8 @@ lc_sync_from_raw_url() {
   # schema 校验
   local version
   version="$(yq -r '.version // ""' "$tmp_yaml")"
-  if [[ -z "$version" ]] || [[ "$version" == "null" ]]; then
-    lc_die "YAML 缺少 version 字段。"
+  if [[ "$version" != 1 ]]; then
+    lc_die "仅支持 YAML version: 1。"
   fi
   local hosts_type
   hosts_type="$(yq -r '.hosts | tag' "$tmp_yaml")"
@@ -695,15 +791,15 @@ lc_sync_from_raw_url() {
   local ca_host
   ca_host="$(yq -r '.ca.ssh_host // .ca.sshHost // .ca.host // ""' "$tmp_yaml")"
   if [[ -n "$ca_host" ]] && [[ "$ca_host" != "null" ]]; then
+    lc_validate_ca_ssh_host "$ca_host"
+    lc_validate_remote_path "$(yq -r '.ca.ca_key_path // .ca.caKeyPath // "~/.lazycat/ssh-ca/lazycat-ssh-ca"' "$tmp_yaml")"
+    lc_validate_principals "$(yq -r '.ca.principals // "root"' "$tmp_yaml")"
+    lc_validate_validity "$(yq -r '.ca.validity // "12h"' "$tmp_yaml")"
     ca_enabled="1"
     lc_log "🔐 检测到 CA 配置，将启用证书模式（短有效期推荐安装后台自动续期）。"
-    lc_ca_fetch_and_sign_cert
   fi
 
-  mkdir -p "$SSH_DIR" "$SSH_CONFIG_D"
-  chmod 700 "$SSH_DIR"
-
-  local out
+  local out generated_aliases=$'\n'
   out="$(mktemp)"
 
   {
@@ -870,6 +966,15 @@ lc_sync_from_raw_url() {
     done
   done <<<"$aliases"
 
+  # Validate all inventory fields before requesting credentials or modifying
+  # user directories. Existing SSH directory permissions belong to the user.
+  [[ ! -L "$SSH_DIR" && ! -L "$SSH_CONFIG_D" && ! -L "$SSH_CONFIG" && ! -L "$LAZYCAT_CONF" ]] || lc_die 'SSH 配置路径是符号链接，需要先审阅。'
+  [[ ! -e "$LAZYCAT_CONF" || -f "$LAZYCAT_CONF" ]] || lc_die '生成配置目标不是普通文件，未修改。'
+  if [[ "$ca_enabled" == 1 ]]; then
+    [[ ! -L "$CA_KEY_PATH" && ! -L "$CA_PUB_PATH" && ! -L "$CA_CERT_PATH" ]] || lc_die '证书或密钥路径是符号链接，未修改。'
+  fi
+  lc_validate_marked_block "$SSH_CONFIG" "$LC_MARK_BEGIN_SSH_CONFIG" "$LC_MARK_END_SSH_CONFIG"
+  (umask 077; mkdir -p "$SSH_DIR" "$SSH_CONFIG_D")
   umask 077
   mv "$out" "${LAZYCAT_CONF}.tmp"
   mv "${LAZYCAT_CONF}.tmp" "$LAZYCAT_CONF"
@@ -900,7 +1005,20 @@ lc_sync_from_raw_url() {
   lc_log "  - 写入: ${LAZYCAT_CONF}"
   lc_log "  - 更新: ${SSH_CONFIG}（Include 标记块）"
   lc_log ""
-}
+  if [[ "$ca_enabled" == 1 ]]; then
+    # Keep errexit effective inside renewal; a conditional function call would
+    # disable it throughout the signing body. Reuse the same fetched inventory.
+    local renewal_result
+    set +e
+    (set -e; lc_ca_fetch_and_sign_cert "$tmp_yaml")
+    renewal_result=$?
+    set -e
+    if [[ "$renewal_result" != 0 ]]; then
+      lc_log '配置已同步，但证书续签失败；旧证书保留，请检查后单独重试 renew-certs。'
+      return 1
+    fi
+  fi
+)
 
 lc_show_current() {
   if [[ -f "$LAZYCAT_CONF" ]]; then
@@ -1226,17 +1344,17 @@ main_menu() {
 
 main() {
   lc_require_not_root
-  lc_self_install_if_needed
+  if [[ "${1:-}" == check-source ]]; then lc_meta_load || lc_die "配置源数据无效或不存在";lc_log "配置源数据格式有效（未联网）";return;fi
   # 子命令：用于定时任务/脚本化
   case "${1:-}" in
+    install) [[ $# == 1 ]] || lc_die 'install 不接受参数'; lc_install_yq --install; lc_self_install_if_needed ;;
     sync) lc_sync_from_raw_url ;;
     renew-certs) lc_renew_certs ;;
     install-renew) lc_install_renew_timer ;;
     uninstall-renew) lc_uninstall_renew_timer ;;
     "" ) main_menu ;;
-    * ) lc_die "未知命令：$1（可用：sync / renew-certs / install-renew / uninstall-renew）" ;;
+    * ) lc_die "未知命令：$1（可用：install / sync / renew-certs / install-renew / uninstall-renew）" ;;
   esac
 }
 
 main "$@"
-

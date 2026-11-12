@@ -1,0 +1,6 @@
+{
+  "commit": "83939a8",
+  "path": "linux/setup_docker_proxy.sh",
+  "sha256": "b4d8f3d293c8d809064d8b9b295166c197c60d7ed91a03c1614e4096456143fd",
+  "scope": "automatic Docker proxy recovery loses xattrs and overwrites later metadata edits"
+}

@@ -19,7 +19,7 @@ def main():
     source = pathlib.Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix="hud lifecycle ") as directory:
         root = pathlib.Path(directory)
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("BARK_", "CODEX_", "XDG_"))}
+        env = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "C"}
         env.update(HOME=str(root), CODEX_HOME=str(root / "codex home"),
                    XDG_CONFIG_HOME=str(root / "config"), XDG_CACHE_HOME=str(root / "cache"))
         binary = root / "bin with space" / "codex-hud"

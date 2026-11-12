@@ -1,0 +1,6 @@
+{
+  "commit": "83939a8",
+  "path": "common/add_ssh_config.sh",
+  "sha256": "a00744f1c68303cda47b7a19f53dbf5b4386e7319e33e96bd6f7d7a6d2f70e09",
+  "scope": "Host automatic failure rollback drops Linux xattrs and overwrites later attribute edits"
+}

@@ -1,0 +1,23 @@
+{
+  "ubuntu": {
+    "url": "https://cloud-images.ubuntu.com/releases/noble/release-20260826/ubuntu-24.04-server-cloudimg-amd64.img",
+    "digest": "d0fe84bb5f80853425fa6be28e2c106f30104c3cfe8611933f2e65c9b63f0e30",
+    "algorithm": "sha256",
+    "format": "qcow2",
+    "gzip": false
+  },
+  "debian": {
+    "url": "https://cloud.debian.org/images/cloud/bookworm/20260907-2594/debian-12-genericcloud-amd64-20260907-2594.qcow2",
+    "digest": "2bc4bad1dafce08937f04760d86fb735a35ca862c322a2c0018e86124bbac0d24fc276047559b11e31b51caf73a5d295e3259a0aef69506af6ec62ae0a71ab81",
+    "algorithm": "sha512",
+    "format": "qcow2",
+    "gzip": false
+  },
+  "openwrt": {
+    "url": "https://downloads.openwrt.org/releases/24.10.3/targets/x86/64/openwrt-24.10.3-x86-64-generic-ext4-combined.img.gz",
+    "digest": "cc621a8a8a2b780d3c8f47ce3ecb2ba59e4a0cff1ebeb8d096d7c7e0202799c7",
+    "algorithm": "sha256",
+    "format": "raw",
+    "gzip": true
+  }
+}

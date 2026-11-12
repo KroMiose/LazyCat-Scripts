@@ -1,0 +1,14 @@
+{
+  "commit": "c8e2955ebf9feb003ef9ddcc86b49ece6be6dfa8",
+  "files": [
+    "common/setup_proxy_config.sh",
+    "common/setup_zsh_p10k.sh",
+    "common/add_ssh_config.sh",
+    "linux/setup_squid_proxy.sh",
+    "ssh/lib/common.sh",
+    "linux/setup_python_env.sh",
+    "ssh/ca/lazycat-ssh-ca.sh",
+    "linux/setup_sudo_nopasswd.sh"
+  ],
+  "purpose": "Read-only regression fixtures. Never execute installers on the host."
+}
