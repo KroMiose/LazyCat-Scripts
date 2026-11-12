@@ -1,132 +1,253 @@
-#!/bin/bash
-
-# ==============================================================================
-# 脚本名称: setup_en_dirs.sh
-# 功    能: 在保持系统语言为中文的情况下，将用户家目录下的标准文件夹
-#           （如"下载"、"音乐"等）从中文名改为英文名。
-# 适用系统: 基于 Debian 的系统 (Ubuntu, Debian, etc.)
-# 使用方法: sudo bash setup_en_dirs.sh
-# ==============================================================================
-
-# --- 安全检查: 必须以 root 或 sudo 权限运行 ---
-if [ "$(id -u)" -ne 0 ]; then
-    echo "错误: 请使用 'sudo' 来运行此脚本。" >&2
-    exit 1
-fi
-
-# --- 获取真正调用脚本的用户名 ---
-# 如果使用 sudo, $USER 可能是 root, 所以用 $SUDO_USER
-if [ -n "$SUDO_USER" ]; then
-    REAL_USER="$SUDO_USER"
-else
-    echo "错误: 无法确定普通用户身份。请使用 'sudo -u <你的用户名> bash setup_en_dirs.sh' 或正常 sudo 运行。" >&2
-    exit 1
-fi
-
-# 获取用户家目录
-USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-
-if [ ! -d "$USER_HOME" ]; then
-    echo "错误: 无法找到用户 '$REAL_USER' 的家目录: $USER_HOME" >&2
-    exit 1
-fi
-
-echo "正在为用户 '$REAL_USER' 配置英文目录..."
-
-# --- 步骤 1: 备份旧的配置文件 ---
-CONFIG_FILE="$USER_HOME/.config/user-dirs.dirs"
-if [ -f "$CONFIG_FILE" ]; then
-    echo "备份旧的配置文件到 $CONFIG_FILE.bak"
-    # 必须以用户身份执行，否则备份文件的所有者会是 root
-    sudo -u "$REAL_USER" cp "$CONFIG_FILE" "$CONFIG_FILE.bak"
-fi
-
-# --- 步骤 2: 写入新的英文目录配置 ---
-echo "正在更新配置文件: $CONFIG_FILE"
-# 使用 sudo -u 来确保创建的文件属于目标用户
-sudo -u "$REAL_USER" bash -c "cat > '$CONFIG_FILE'" <<EOF
-# This file is written by xdg-user-dirs-update
-# If you want to change or add directories, just edit the line you're
-# interested in. All local changes will be preserved.
-# Format is XDG_xxx_DIR="\$HOME/yyy", where yyy is a shell-escaped
-# homedir-relative path, or a full path starting with /
-XDG_DESKTOP_DIR="\$HOME/Desktop"
-XDG_DOWNLOAD_DIR="\$HOME/Downloads"
-XDG_TEMPLATES_DIR="\$HOME/Templates"
-XDG_PUBLICSHARE_DIR="\$HOME/Public"
-XDG_DOCUMENTS_DIR="\$HOME/Documents"
-XDG_MUSIC_DIR="\$HOME/Music"
-XDG_PICTURES_DIR="\$HOME/Pictures"
-XDG_VIDEOS_DIR="\$HOME/Videos"
-EOF
-
-# --- 步骤 3: 禁止系统自动更新目录配置 ---
-# 这是防止系统在下次登录时把配置改回中文的关键步骤
-XDG_CONF_FILE="/etc/xdg/user-dirs.conf"
-if [ -f "$XDG_CONF_FILE" ]; then
-    echo "正在禁用 user-dirs 自动更新..."
-    # 使用 sed 将 enabled=True 改为 enabled=False
-    sed -i 's/enabled=True/enabled=False/g' "$XDG_CONF_FILE"
-else
-    echo "警告: 找不到 $XDG_CONF_FILE。可能无法禁用自动更新。"
-fi
-
-# --- 步骤 4: 强制更新并创建新目录 ---
-# 以用户身份运行 xdg-user-dirs-update 来根据新配置创建目录
-echo "正在创建新的英文目录..."
-sudo -u "$REAL_USER" xdg-user-dirs-update --force
-
-# --- 步骤 5: 迁移文件并删除旧目录 ---
-echo "开始迁移文件..."
-
-# 定义中英文目录对应关系
-declare -A DIRS_MAP
-DIRS_MAP=(
-    ["$USER_HOME/桌面"]="$USER_HOME/Desktop"
-    ["$USER_HOME/下载"]="$USER_HOME/Downloads"
-    ["$USER_HOME/模板"]="$USER_HOME/Templates"
-    ["$USER_HOME/公共"]="$USER_HOME/Public"
-    ["$USER_HOME/文档"]="$USER_HOME/Documents"
-    ["$USER_HOME/音乐"]="$USER_HOME/Music"
-    ["$USER_HOME/图片"]="$USER_HOME/Pictures"
-    ["$USER_HOME/视频"]="$USER_HOME/Videos"
+#!/usr/bin/env bash
+# User-scoped XDG migration. Default: review only. Never edits /etc/xdg.
+set -euo pipefail
+# lazycat-file-transaction:begin
+# Single-file candidate/backup protocol. Embedded into standalone release scripts.
+# Call lc_tx_begin, edit "$LC_TX_CANDIDATE", validate, then lc_tx_commit.
+lc_tx_copy() {
+    # GNU cp -p preserves modes/ACLs but silently drops user xattrs. Request
+    # xattr explicitly (rather than --preserve=all, which tolerates failures).
+    case "$(uname -s)" in
+        Linux) cp --preserve=mode,ownership,timestamps,xattr -- "$1" "$2" ;;
+        Darwin) cp -p "$1" "$2" ;;
+        *) echo '未验证的文件属性复制平台，未提交修改' >&2; return 1 ;;
+    esac
+}
+# inode plus nanosecond ctime detects metadata-only edits (including ACL/xattr)
+# without adding Python/getfattr as an installation dependency.
+lc_tx_revision() {
+    case "$(uname -s)" in
+        Linux) LC_ALL=C stat -c '%d:%i:%z' -- "$1" ;;
+        Darwin) LC_ALL=C stat -f '%d:%i:%Fc' "$1" ;;
+        *) return 1 ;;
+    esac
+}
+# Automatic failure recovery may only replace the exact revision we published.
+# Missing revision evidence is a conflict, not permission to discard user attrs.
+lc_tx_matches_committed() {
+    local target="$1" operation="$2"
+    [[ -f "$target" && ! -L "$target" && -f "$operation/after" && ! -L "$operation/after" &&
+       -f "$operation/committed-revision" && ! -L "$operation/committed-revision" ]] || return 3
+    [[ "$(lc_tx_revision "$target")" == "$(cat "$operation/committed-revision")" ]] &&
+        cmp -s "$target" "$operation/after" || return 3
+}
+lc_tx_check_revision() {
+    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    if [[ "$LC_TX_EXISTED" == 1 ]]; then
+        [[ -f "$LC_TX_TARGET" && "$(lc_tx_revision "$LC_TX_TARGET")" == "$LC_TX_REVISION" ]] || { echo '文件或属性被并发修改，已停止' >&2; return 3; }
+    else
+        [[ ! -e "$LC_TX_TARGET" && ! -L "$LC_TX_TARGET" ]] || { echo '目标被并发创建，已停止' >&2; return 3; }
+    fi
+}
+lc_tx_check_path() {
+    local parent="$1"
+    while [[ -n "$parent" && "$parent" != / ]]; do
+        if [[ -L "$parent" ]]; then
+            case "$parent" in
+                /var|/tmp|/etc) [[ "$(uname -s)" == Darwin && "$parent" != "$1" ]] || { echo '路径包含符号链接，需要先明确采纳' >&2; return 3; } ;;
+                *) echo '路径包含符号链接，需要先明确采纳' >&2; return 3 ;;
+            esac
+        fi
+        parent="${parent%/*}"
+    done
+}
+lc_tx_begin() {
+    LC_TX_TARGET="$1"
+    [[ "$LC_TX_TARGET" == /* && "$LC_TX_TARGET" != *$'\n'* && "$LC_TX_TARGET" != *$'\r'* ]] || { echo '事务目标必须是绝对单行路径' >&2; return 2; }
+    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    LC_TX_LOCK="${LC_TX_TARGET}.lazycat-lock"
+    LC_TX_LOCK_OWNED=0
+    [[ ! -e "${LC_TX_LOCK}.recovery" && ! -L "${LC_TX_LOCK}.recovery" ]] || { echo '锁恢复正在进行或中断，请检查恢复记录' >&2; return 3; }
+    (umask 077; mkdir "$LC_TX_LOCK") || { echo "操作锁已存在，请检查并发或中断状态：$LC_TX_LOCK" >&2; return 3; }
+    LC_TX_LOCK_OWNED=1
+    # Bash $$ identifies the original shell even inside a live subshell.
+    # exec makes the helper's parent the actual caller, including Bash 3.2.
+    LC_TX_OWNER_PID=$(exec /bin/sh -c 'printf "%s\n" "$PPID"')
+    [[ "$LC_TX_OWNER_PID" =~ ^[1-9][0-9]*$ ]] || return 3
+    printf '%s\n' "$LC_TX_OWNER_PID" > "$LC_TX_LOCK/pid"
+    printf 'actual-shell-v1\n' > "$LC_TX_LOCK/pid-format"
+    if [[ -e "${LC_TX_LOCK}.recovery" || -L "${LC_TX_LOCK}.recovery" ]]; then lc_tx_unlock; echo '锁恢复与新操作冲突，未写入目标' >&2; return 3; fi
+    LC_TX_OPERATION=$(mktemp -d "${LC_TX_TARGET}.lazycat-operation.XXXXXX")
+    chmod 700 "$LC_TX_OPERATION"
+    printf '%s\n' "$LC_TX_TARGET" > "$LC_TX_OPERATION/target"
+    LC_TX_EXISTED=0
+    if [[ -e "$LC_TX_TARGET" ]]; then
+        [[ -f "$LC_TX_TARGET" ]] || { lc_tx_unlock; echo '目标不是普通文件' >&2; return 3; }
+        LC_TX_EXISTED=1
+        LC_TX_REVISION=$(lc_tx_revision "$LC_TX_TARGET") || { lc_tx_unlock; return 1; }
+        LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')
+        printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
+        lc_tx_copy "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { lc_tx_unlock; return 1; }
+    else
+        (umask 077; : > "$LC_TX_OPERATION/before")
+    fi
+    lc_tx_check_revision || { lc_tx_unlock; return 3; }
+    LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_OPERATION/before" | awk '{print $1, $3, $4}')
+    printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
+    printf '%s\n' "$LC_TX_EXISTED" > "$LC_TX_OPERATION/existed"
+    lc_tx_copy "$LC_TX_OPERATION/before" "$LC_TX_OPERATION/after" || { lc_tx_unlock; return 1; }
+    LC_TX_CANDIDATE="$LC_TX_OPERATION/after"
+    printf 'prepared\n' > "$LC_TX_OPERATION/status"
+}
+# Explicit stale-lock recovery. A live/reused PID, incomplete lock or competing
+# recovery is a conflict. Keep the original lock as evidence; never delete it.
+lc_tx_recover_lock() (
+    set -e
+    local target="$1" lock guard pid archived process result
+    [[ "$target" == /* && "$target" != *$'\n'* && "$target" != *$'\r'* ]] || return 2
+    lc_tx_check_path "$target" || return 3
+    lock="${target}.lazycat-lock"
+    guard="${lock}.recovery"
+    [[ -d "$lock" && ! -L "$lock" && -f "$lock/pid" && ! -L "$lock/pid" ]] || { echo '锁缺失、损坏或为链接，需人工检查' >&2; return 3; }
+    [[ -f "$lock/pid-format" && ! -L "$lock/pid-format" && "$(cat "$lock/pid-format")" == actual-shell-v1 ]] || { echo '旧锁没有实际持锁进程证据，需人工检查，未移动' >&2; return 3; }
+    (umask 077; mkdir "$guard") || return 3
+    trap 'rmdir "$guard"' EXIT
+    IFS= read -r pid < "$lock/pid"
+    [[ "$pid" =~ ^[1-9][0-9]*$ ]] || { echo '锁的 PID 无效，未移动' >&2; return 3; }
+    # ps also sees processes which kill -0 cannot probe due to permissions.
+    result=0
+    process=$(LC_ALL=C ps -p "$pid" -o pid=) || result=$?
+    [[ "$result" == 1 && -z "$process" ]] || { echo '锁的进程仍存在或无法确认，未移动' >&2; return 3; }
+    archived=$(mktemp -d "${lock}.recovered.XXXXXX")
+    chmod 700 "$archived"
+    mv "$lock" "$archived/lock"
+    printf '已保存失效锁：%s\n目标与事务备份未修改；请检查后回滚或重新执行。\n' "$archived"
 )
-
-for old_dir in "${!DIRS_MAP[@]}"; do
-    new_dir=${DIRS_MAP[$old_dir]}
-    if [ -d "$old_dir" ]; then
-        echo "处理目录: $old_dir -> $new_dir"
-        # 确保目标目录存在
-        if [ ! -d "$new_dir" ]; then
-            sudo -u "$REAL_USER" mkdir -p "$new_dir"
-        fi
-        # 使用 mv -n (no-clobber) 安全地移动文件，避免覆盖
-        # 将旧目录中的所有内容（包括隐藏文件）移动到新目录
-        if [ -n "$(ls -A "$old_dir")" ]; then
-            echo "  -> 正在移动文件..."
-            sudo -u "$REAL_USER" mv -n "$old_dir"/* "$old_dir"/.* "$new_dir"/ 2>/dev/null
-        fi
-        # 删除空的旧目录
-        # 使用 rmdir, 如果目录非空则会失败，更安全
-        if sudo -u "$REAL_USER" rmdir "$old_dir" 2>/dev/null; then
-            echo "  -> 成功删除空的旧目录: $old_dir"
-        else
-            if [ -d "$old_dir" ]; then
-                echo "  -> 警告: 目录 $old_dir 迁移后非空，未删除。"
-            fi
-        fi
+lc_tx_unlock() {
+    [[ -n "${LC_TX_LOCK:-}" && "${LC_TX_LOCK_OWNED:-0}" == 1 ]] || return 0
+    [[ ! -L "$LC_TX_LOCK" && -f "$LC_TX_LOCK/pid" && ! -L "$LC_TX_LOCK/pid" &&
+       "$(cat "$LC_TX_LOCK/pid")" == "${LC_TX_OWNER_PID:-}" &&
+       "$(exec /bin/sh -c 'printf "%s\n" "$PPID"')" == "${LC_TX_OWNER_PID:-}" ]] || { echo '锁归属变化，未释放' >&2; return 3; }
+    rm -f "$LC_TX_LOCK/pid" "$LC_TX_LOCK/pid-format"
+    rmdir "$LC_TX_LOCK"
+    LC_TX_LOCK=''
+    LC_TX_LOCK_OWNED=0
+}
+lc_tx_commit() {
+    lc_tx_check_revision || return 3
+    if [[ "$LC_TX_EXISTED" == 1 ]]; then
+        [[ "$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] || { echo '文件权限或属主被并发修改' >&2; return 3; }
+        cmp -s "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { echo '检测到并发修改，已停止' >&2; return 3; }
+    else
+        [[ ! -e "$LC_TX_TARGET" ]] || { echo '目标被并发创建，已停止' >&2; return 3; }
+    fi
+    if [[ "$LC_TX_EXISTED" == 1 && "$(LC_ALL=C ls -ldn "$LC_TX_CANDIDATE" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] && cmp -s "$LC_TX_CANDIDATE" "$LC_TX_OPERATION/before"; then
+        rm -rf "$LC_TX_OPERATION"
+        lc_tx_unlock
+        return 0
+    fi
+    local staged
+    staged=$(mktemp "${LC_TX_TARGET}.lazycat-stage.XXXXXX")
+    lc_tx_copy "$LC_TX_CANDIDATE" "$staged" || { rm -f "$staged"; return 1; }
+    lc_tx_check_revision || { rm -f "$staged"; return 3; }
+    if ! mv "$staged" "$LC_TX_TARGET"; then rm -f "$staged"; return 1; fi
+    # A later metadata-only edit must also prevent destructive rollback. Record
+    # the published inode, not the candidate inode which rename may replace.
+    lc_tx_revision "$LC_TX_TARGET" > "$LC_TX_OPERATION/committed-revision" || return 1
+    printf 'committed\n' > "$LC_TX_OPERATION/status"
+    lc_tx_unlock
+    printf '操作记录与备份：%s\n' "$LC_TX_OPERATION"
+}
+lc_remove_block_candidate() {
+    local file="$1" begin="$2" end="$3" tmp
+    awk -v begin="$begin" -v end="$end" '
+        $0 == begin { if (inside || seen++) bad=1; inside=1 }
+        $0 == end { if (!inside) bad=1; inside=0 }
+        END { exit (bad || inside) ? 1 : 0 }
+    ' "$file" || { echo '托管标记损坏，未修改目标文件' >&2; return 3; }
+    tmp=$(mktemp "${file}.XXXXXX")
+    lc_tx_copy "$file" "$tmp" || { rm -f "$tmp"; return 1; }
+    awk -v begin="$begin" -v end="$end" '
+        $0 == begin { inside=1; next }
+        $0 == end { inside=0; next }
+        !inside { print }
+    ' "$file" > "$tmp"
+    mv "$tmp" "$file"
+}
+# lazycat-file-transaction:end
+if [[ "$EUID" == 0 ]]; then
+    [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != root && -f "${BASH_SOURCE[0]:-}" ]] || { echo '请以目标普通用户运行本地脚本' >&2; exit 2; }
+    exec sudo -H -u "$SUDO_USER" bash "${BASH_SOURCE[0]}" "$@"
+fi
+apply=0
+move_files=0
+for arg in "$@"; do
+    case "$arg" in --check) ;; --apply) apply=1 ;; --move-files) move_files=1 ;; *) echo '用法：[--check | --apply [--move-files]]' >&2; exit 2 ;; esac
+done
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}"
+config="$config_dir/user-dirs.dirs"
+[[ -f "$config" && ! -L "$config" && ! -L "$config_dir" ]] || { echo '缺少可直接编辑的用户 XDG 配置；未修改' >&2; exit 3; }
+keys=(DESKTOP DOWNLOAD TEMPLATES PUBLICSHARE DOCUMENTS MUSIC PICTURES VIDEOS)
+names=(Desktop Downloads Templates Public Documents Music Pictures Videos)
+sources=()
+targets=()
+for ((i=0;i<${#keys[@]};i++)); do
+    field="XDG_${keys[$i]}_DIR"
+    value=$(awk -v field="$field" 'index($0,field "=")==1 {count++;value=substr($0,length(field)+2)} END {if(count!=1) exit 1; print value}' "$config") || { echo "$field 缺失或重复" >&2; exit 3; }
+    [[ "$value" == \"*\" ]] || { echo "$field 不是受支持的数据格式" >&2; exit 3; }
+    value=${value#\"};value=${value%\"}
+    if [[ "$value" == '$HOME' || "$value" == '$HOME/'* ]]; then value="$HOME${value#\$HOME}"; fi
+    [[ "$value" == /* && "$value" != *['$`\"']* && "$value" != *$'\n'* ]] || { echo "$field 包含需人工审阅的表达式" >&2; exit 3; }
+    target="$HOME/${names[$i]}"
+    # XDG uses HOME to explicitly disable a user directory; preserve that choice.
+    [[ "$value" != "$HOME" ]] || target="$HOME"
+    sources+=("$value");targets+=("$target")
+    printf '%s: %s -> %s\n' "$field" "$value" "$target"
+    if [[ "$value" != "$target" ]]; then
+        [[ ! -L "$value" && ! -L "$target" && ! -e "$target" ]] || { echo '目标冲突或符号链接，全部迁移已停止' >&2; exit 3; }
+        if [[ -e "$value" && "$move_files" != 1 && "$apply" == 1 ]]; then echo '有原目录，应用需显式 --move-files；未搬迁或写配置' >&2; exit 3; fi
     fi
 done
-
-echo ""
-echo "========================================================"
-echo "      配置完成!"
-echo "--------------------------------------------------------"
-echo "  - 用户目录已配置为英文。"
-echo "  - 原中文目录下的文件已迁移到新目录。"
-echo "  - 系统不会在下次登录时自动改回中文目录。"
-echo ""
-echo "  >>> 请您注销并重新登录系统以使所有更改完全生效 <<<"
-echo "========================================================"
-
-exit 0
+[[ "$apply" == 1 ]] || { echo '只读检查完成。未搬迁文件，未修改任何配置。'; exit 0; }
+applied_sources=()
+applied_targets=()
+config_committed=0
+xdg_finish() {
+    local result=$? j
+    trap - EXIT
+    if [[ "$result" != 0 && "$config_committed" == 0 ]]; then
+        for ((j=${#applied_targets[@]}-1;j>=0;j--)); do
+            if [[ -n "${applied_sources[$j]}" ]]; then
+                if [[ ! -e "${applied_sources[$j]}" && ! -L "${applied_sources[$j]}" ]]; then
+                    mv -T -n "${applied_targets[$j]}" "${applied_sources[$j]}" || echo '目录恢复失败，保留操作记录' >&2
+                else
+                    echo '恢复位置出现新内容，未覆盖；请查看目录移动记录' >&2
+                fi
+            else
+                rmdir "${applied_targets[$j]}" || echo '新目录已有内容，已保留' >&2
+            fi
+        done
+    fi
+    lc_tx_unlock
+    exit "$result"
+}
+trap xdg_finish EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+lc_tx_begin "$config"
+# Produce settings without evaluating the original file as shell code.
+for ((i=0;i<${#keys[@]};i++)); do
+    field="XDG_${keys[$i]}_DIR";target="${targets[$i]}"
+    target=${target/#$HOME/\$HOME}
+    LC_FIELD="$field" LC_VALUE="$target" awk 'index($0,ENVIRON["LC_FIELD"] "=")==1 {print ENVIRON["LC_FIELD"] "=\"" ENVIRON["LC_VALUE"] "\"";next} {print}' "$LC_TX_CANDIDATE" > "$LC_TX_OPERATION/rewrite"
+    cat "$LC_TX_OPERATION/rewrite" > "$LC_TX_CANDIDATE"
+done
+# Moving directories is an explicitly separate, journalled operation. Refuse
+# cross-device moves, where mv could silently become copy/delete.
+for ((i=0;i<${#keys[@]};i++)); do
+    source="${sources[$i]}";target="${targets[$i]}"
+    [[ "$source" != "$target" ]] || continue
+    if [[ -d "$source" ]]; then
+        [[ "$(stat -c %d "$source")" == "$(stat -c %d "$HOME")" ]] || { echo '跨文件系统迁移需要单独处理；查看操作记录' >&2; exit 3; }
+        printf '%s\t%s\n' "$source" "$target" >> "$LC_TX_OPERATION/directory-moves"
+        mv -T -n "$source" "$target"
+        applied_sources+=("$source");applied_targets+=("$target")
+        [[ ! -e "$source" && -d "$target" ]] || { echo '目录移动未完成；查看操作记录，未写入新配置' >&2; exit 1; }
+    else
+        mkdir "$target"
+        applied_sources+=("");applied_targets+=("$target")
+    fi
+done
+lc_tx_commit
+config_committed=1
+echo '用户目录设置已提交；未修改系统级 XDG 设置。目录移动记录需单独审阅后回退。'

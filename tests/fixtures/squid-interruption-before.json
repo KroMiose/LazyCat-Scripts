@@ -1,0 +1,6 @@
+{
+  "commit": "6757acd",
+  "path": "linux/setup_squid_proxy.sh",
+  "sha256": "060b1bad0201c145e74562e0b62a5ac6bab8bf5b0ce8d9f73d1382b238e08894",
+  "scope": "historical partial-publication crash; execute only in disposable full-system guest"
+}

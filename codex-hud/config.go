@@ -278,6 +278,24 @@ func (a *app) configCommand(args []string) error {
 			return errors.New("用法：config set key [--stdin] | config set server <URL>")
 		}
 		switch args[1] {
+		case "stop", "enabled":
+			if len(args) != 3 || (args[2] != "on" && args[2] != "off") {
+				return errors.New("config set stop|enabled <on|off>")
+			}
+			return a.changeConfig(func(m map[string]any) error { table(m, "hud")[args[1]] = args[2] == "on"; return nil })
+		case "alias":
+			if len(args) != 4 || !filepath.IsAbs(args[2]) || strings.ContainsAny(args[3], "\r\n\x00") {
+				return errors.New("config set alias <绝对路径> <单行名称，空字符串删除>")
+			}
+			return a.changeConfig(func(m map[string]any) error {
+				projects := table(m, "projects")
+				if args[3] == "" {
+					delete(projects, filepath.Clean(args[2]))
+				} else {
+					projects[filepath.Clean(args[2])] = args[3]
+				}
+				return nil
+			})
 		case "key":
 			var key string
 			var err error
@@ -360,17 +378,10 @@ func (a *app) configMenu() error {
 			if e != nil {
 				return e
 			}
-			if err = a.changeConfig(func(m map[string]any) error {
-				t := table(m, "projects")
-				if s == "" {
-					delete(t, filepath.Clean(p))
-				} else {
-					t[filepath.Clean(p)] = s
-				}
-				return nil
-			}); err != nil {
+			if err = a.configCommand([]string{"set", "alias", p, s}); err != nil {
 				return err
 			}
+
 		case "4":
 			s, e := line("自动 Stop 通知 [on/off]：")
 			if e != nil {
@@ -379,7 +390,7 @@ func (a *app) configMenu() error {
 			if s != "on" && s != "off" {
 				return errors.New("请输入 on 或 off")
 			}
-			if err = a.changeConfig(func(m map[string]any) error { table(m, "hud")["stop"] = s == "on"; return nil }); err != nil {
+			if err = a.configCommand([]string{"set", "stop", s}); err != nil {
 				return err
 			}
 		default:
@@ -403,5 +414,8 @@ const configHelp = `config                         交互修改 Key、服务器�
 config show                    显示生效配置与来源，不显示 Key
 config set key [--stdin]        隐藏输入 Key，或从 stdin 读取
 config set server <URL>         修改 Bark 服务器
+config set stop <on|off>        自动 Stop 通知
+config set enabled <on|off>     启用或暂停
+config set alias <路径> <名称>  设置项目 alias；空名称删除
 config test                    显式发送测试通知
 BARK_KEY / BARK_SERVER 覆盖文件；[hud] title_width 控制标题宽度，body_max_bytes 控制正文 JSON 字节上限。旧 body_width 已停用。`

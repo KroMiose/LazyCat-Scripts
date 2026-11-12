@@ -1,0 +1,2 @@
+# Historical regression fixtures preserve exact upstream bytes, including whitespace.
+tests/fixtures/legacy/** whitespace=-blank-at-eol,-blank-at-eof

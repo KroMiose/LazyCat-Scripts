@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.lazycat.ssh.renew</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/fixture/.local/bin/lazycat-ssh</string>
+    <string>renew-certs</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/fixture/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>/Users/fixture</string>
+  </dict>
+  <key>StartInterval</key><integer>1800</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/Users/fixture/.lazycat/ssh/renew.log</string>
+  <key>StandardErrorPath</key><string>/Users/fixture/.lazycat/ssh/renew.err.log</string>
+</dict>
+</plist>

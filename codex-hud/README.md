@@ -1,5 +1,7 @@
 # codex-hud
 
+手动 `notify` 与自动 Stop 共用文本清理：移除 Markdown 标记并合并为单行，再按既有正文预算截断。通知时机仍由调用方决定；去重、格式和超时由程序处理。普通文字、Key、通知偏好和其他 Hooks 不因这项修改而更新。
+
 通过 Bark，把 Codex 的审批请求、工作结束和重要事项推送到 iPhone，也可由 RayNeo iO 转发到眼镜。通知自动缩短为单行，适合快速查看。
 
 支持 macOS 和 Linux，提供 Apple Silicon / ARM64、Intel / AMD64 独立程序，无需安装 Go、Python 或 Node。
@@ -142,3 +144,17 @@ python3 tests/installer.py /tmp/codex-hud-test
 ```
 
 测试使用隔离配置和本地服务。许可已嵌入程序，可运行 `codex-hud licenses` 查看。
+
+## 开发版新增接口（尚未发布到 stable）
+
+```sh
+codex-hud config set enabled on
+codex-hud config set stop off
+codex-hud config set alias /absolute/project 项目简称
+codex-hud repair --check
+codex-hud repair --adopt --apply
+```
+
+`repair --check` 只读检查已有安装。明确采纳后仅更新安装记录，保留 Bark Key、通知偏好、其他 Hooks，以及已识别的自定义规则和 Hook 超时。只接受明确命令组与唯一成对标记；未知或损坏内容仍需处理。升级会保留已采纳的定制。
+
+通知总预算为 4.5 秒，锁最多等待 4 秒，网络请求使用剩余时间。请求送达状态不明时不自动重复 Stop 通知；这可能少送一条，不能承诺严格一次送达。本地慢响应与并发测试不验证手机或眼镜实际显示。

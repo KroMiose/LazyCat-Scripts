@@ -1,188 +1,312 @@
-#!/bin/bash
-
-# ==============================================================================
-# 脚本名称: add_ssh_config.sh
-# 功    能: 交互式地将一个新的 SSH 服务器配置添加到 ~/.ssh/config 文件中，
-#           方便用户通过别名快速登录。
-# 适用系统: 所有 Linux & macOS 系统
-# 使用方法: bash -c "$(curl -fsSL https://raw.githubusercontent.com/KroMiose/LazyCat-Scripts/main/linux/add_ssh_config.sh)"
-# ==============================================================================
-
-set -e
-
-# --- 准备 .ssh 目录和 config 文件 ---
-SSH_DIR="$HOME/.ssh"
-SSH_CONFIG_PATH="$SSH_DIR/config"
-
-if [ ! -d "$SSH_DIR" ]; then
-    echo "🔧 首次使用，正在创建 .ssh 目录..."
-    mkdir -p "$SSH_DIR"
-    chmod 700 "$SSH_DIR"
-fi
-if [ ! -f "$SSH_CONFIG_PATH" ]; then
-    echo "🔧 首次使用，正在创建 .ssh/config 文件..."
-    touch "$SSH_CONFIG_PATH"
-    chmod 600 "$SSH_CONFIG_PATH"
-fi
-
-# --- 交互式获取信息 ---
-echo ""
-echo "---  SSH 配置小助手 ---"
-echo "我将引导您添加一个新的 SSH 服务器配置。"
-echo ""
-
-# 1. 获取服务器别名
-read -p " STEP 1: 请输入一个好记的服务器别名 (例如: prod-server): " host_alias
-if [ -z "$host_alias" ]; then
-    echo "❌ 错误: 服务器别名不能为空。" >&2
-    exit 1
-fi
-
-# 2. 获取 IP 或域名
-read -p " STEP 2: 请输入服务器的 IP 地址或域名: " hostname
-if [ -z "$hostname" ]; then
-    echo "❌ 错误: IP 地址或域名不能为空。" >&2
-    exit 1
-fi
-
-# 3. 获取用户名
-read -p " STEP 3: 请输入登录服务器的用户名: " user
-if [ -z "$user" ]; then
-    echo "❌ 错误: 用户名不能为空。" >&2
-    exit 1
-fi
-
-# 4. 获取端口号
-read -p " STEP 4: 请输入服务器的 SSH 端口 (默认为 22): " port
-port=${port:-22} # 如果用户未输入，则使用默认值 22
-
-# 5. 获取私钥
-echo " STEP 5: 请输入私钥文件的【绝对路径】，或直接按 Enter 键后粘贴私钥内容。"
-read -p "私钥文件路径: " identity_file_path
-
-identity_file_to_use=""
-
-# 处理拖放文件时可能产生的引号
-identity_file_path_clean=$(echo "$identity_file_path" | sed "s/'//g")
-
-if [ -n "$identity_file_path_clean" ]; then
-    # 情况一: 用户提供了文件路径
-    if [ ! -f "$identity_file_path_clean" ]; then
-        echo "❌ 错误: 私钥文件 '${identity_file_path_clean}' 未找到或不是一个有效文件。" >&2
-        exit 1
+#!/usr/bin/env bash
+# Add an independent owned SSH fragment; never parse-and-delete old Host blocks.
+set -euo pipefail
+# lazycat-file-transaction:begin
+# Single-file candidate/backup protocol. Embedded into standalone release scripts.
+# Call lc_tx_begin, edit "$LC_TX_CANDIDATE", validate, then lc_tx_commit.
+lc_tx_copy() {
+    # GNU cp -p preserves modes/ACLs but silently drops user xattrs. Request
+    # xattr explicitly (rather than --preserve=all, which tolerates failures).
+    case "$(uname -s)" in
+        Linux) cp --preserve=mode,ownership,timestamps,xattr -- "$1" "$2" ;;
+        Darwin) cp -p "$1" "$2" ;;
+        *) echo '未验证的文件属性复制平台，未提交修改' >&2; return 1 ;;
+    esac
+}
+# inode plus nanosecond ctime detects metadata-only edits (including ACL/xattr)
+# without adding Python/getfattr as an installation dependency.
+lc_tx_revision() {
+    case "$(uname -s)" in
+        Linux) LC_ALL=C stat -c '%d:%i:%z' -- "$1" ;;
+        Darwin) LC_ALL=C stat -f '%d:%i:%Fc' "$1" ;;
+        *) return 1 ;;
+    esac
+}
+# Automatic failure recovery may only replace the exact revision we published.
+# Missing revision evidence is a conflict, not permission to discard user attrs.
+lc_tx_matches_committed() {
+    local target="$1" operation="$2"
+    [[ -f "$target" && ! -L "$target" && -f "$operation/after" && ! -L "$operation/after" &&
+       -f "$operation/committed-revision" && ! -L "$operation/committed-revision" ]] || return 3
+    [[ "$(lc_tx_revision "$target")" == "$(cat "$operation/committed-revision")" ]] &&
+        cmp -s "$target" "$operation/after" || return 3
+}
+lc_tx_check_revision() {
+    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    if [[ "$LC_TX_EXISTED" == 1 ]]; then
+        [[ -f "$LC_TX_TARGET" && "$(lc_tx_revision "$LC_TX_TARGET")" == "$LC_TX_REVISION" ]] || { echo '文件或属性被并发修改，已停止' >&2; return 3; }
+    else
+        [[ ! -e "$LC_TX_TARGET" && ! -L "$LC_TX_TARGET" ]] || { echo '目标被并发创建，已停止' >&2; return 3; }
     fi
-    identity_file_to_use="$identity_file_path_clean"
-    echo "✅ 已确认私钥文件: $identity_file_to_use"
-else
-    # 情况二: 用户直接回车，准备粘贴密钥
-    
-    # 根据主机别名定义一个安全的密钥保存路径
-    new_key_path="$SSH_DIR/id_rsa_${host_alias}"
-
-    # 检查目标密钥文件是否已存在，防止误覆盖
-    if [ -f "$new_key_path" ]; then
-        echo ""
-        read -p "⚠️  警告: 目标私钥文件 '${new_key_path}' 已存在。您想覆盖它吗? (y/N): " overwrite_key
-        if [[ ! "$overwrite_key" =~ ^[Yy]$ ]]; then
-            echo "操作已取消，未覆盖任何文件。"
-            exit 0
+}
+lc_tx_check_path() {
+    local parent="$1"
+    while [[ -n "$parent" && "$parent" != / ]]; do
+        if [[ -L "$parent" ]]; then
+            case "$parent" in
+                /var|/tmp|/etc) [[ "$(uname -s)" == Darwin && "$parent" != "$1" ]] || { echo '路径包含符号链接，需要先明确采纳' >&2; return 3; } ;;
+                *) echo '路径包含符号链接，需要先明确采纳' >&2; return 3 ;;
+            esac
         fi
-        echo "好的，现有的密钥文件将被覆盖..."
-    fi
-    
-    echo ""
-    echo "请直接粘贴您的私钥内容。输入完成后，在新的一行按 Ctrl+D 结束。"
-    
-    # 读取多行输入直到遇到 EOF (Ctrl+D)
-    echo "⏳ 正在等待您粘贴私钥..."
-    cat > "$new_key_path"
-
-    # 检查用户是否真的输入了内容
-    if [ ! -s "$new_key_path" ]; then
-        echo "❌ 错误: 您没有输入任何内容，或输入为空。" >&2
-        rm "$new_key_path" # 清理创建的空文件
-        exit 1
-    fi
-
-    # 鲁棒性处理：确保文件末尾一定有换行符，以防用户复制时丢失。
-    # 这是处理 "invalid format" 错误的最终保险。
-    # sed -i 在 macOS 和 Linux 上语法不同，这里做兼容性处理。
-    if [[ "$(uname)" == "Darwin" ]]; then
-        sed -i '' -e '$a\' "$new_key_path" # macOS/BSD sed
+        parent="${parent%/*}"
+    done
+}
+lc_tx_begin() {
+    LC_TX_TARGET="$1"
+    [[ "$LC_TX_TARGET" == /* && "$LC_TX_TARGET" != *$'\n'* && "$LC_TX_TARGET" != *$'\r'* ]] || { echo '事务目标必须是绝对单行路径' >&2; return 2; }
+    lc_tx_check_path "$LC_TX_TARGET" || return 3
+    LC_TX_LOCK="${LC_TX_TARGET}.lazycat-lock"
+    LC_TX_LOCK_OWNED=0
+    [[ ! -e "${LC_TX_LOCK}.recovery" && ! -L "${LC_TX_LOCK}.recovery" ]] || { echo '锁恢复正在进行或中断，请检查恢复记录' >&2; return 3; }
+    (umask 077; mkdir "$LC_TX_LOCK") || { echo "操作锁已存在，请检查并发或中断状态：$LC_TX_LOCK" >&2; return 3; }
+    LC_TX_LOCK_OWNED=1
+    # Bash $$ identifies the original shell even inside a live subshell.
+    # exec makes the helper's parent the actual caller, including Bash 3.2.
+    LC_TX_OWNER_PID=$(exec /bin/sh -c 'printf "%s\n" "$PPID"')
+    [[ "$LC_TX_OWNER_PID" =~ ^[1-9][0-9]*$ ]] || return 3
+    printf '%s\n' "$LC_TX_OWNER_PID" > "$LC_TX_LOCK/pid"
+    printf 'actual-shell-v1\n' > "$LC_TX_LOCK/pid-format"
+    if [[ -e "${LC_TX_LOCK}.recovery" || -L "${LC_TX_LOCK}.recovery" ]]; then lc_tx_unlock; echo '锁恢复与新操作冲突，未写入目标' >&2; return 3; fi
+    LC_TX_OPERATION=$(mktemp -d "${LC_TX_TARGET}.lazycat-operation.XXXXXX")
+    chmod 700 "$LC_TX_OPERATION"
+    printf '%s\n' "$LC_TX_TARGET" > "$LC_TX_OPERATION/target"
+    LC_TX_EXISTED=0
+    if [[ -e "$LC_TX_TARGET" ]]; then
+        [[ -f "$LC_TX_TARGET" ]] || { lc_tx_unlock; echo '目标不是普通文件' >&2; return 3; }
+        LC_TX_EXISTED=1
+        LC_TX_REVISION=$(lc_tx_revision "$LC_TX_TARGET") || { lc_tx_unlock; return 1; }
+        LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')
+        printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
+        lc_tx_copy "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { lc_tx_unlock; return 1; }
     else
-        sed -i -e '$a\' "$new_key_path" # Linux/GNU sed
+        (umask 077; : > "$LC_TX_OPERATION/before")
     fi
-
-    # 确保文件权限正确
-    chmod 600 "$new_key_path"
-    identity_file_to_use="$new_key_path"
-    echo "✅ 私钥已自动为您保存到: $identity_file_to_use"
-fi
-
-# --- 准备配置内容 ---
-# IdentitiesOnly=yes 是一个好习惯，它强制 SSH 只使用此文件中指定的密钥
-CONFIG_BLOCK="
-Host ${host_alias}
-    HostName ${hostname}
-    User ${user}"
-
-if [[ "$port" != "22" ]]; then
-    CONFIG_BLOCK+="
-    Port ${port}"
-fi
-
-CONFIG_BLOCK+="
-    IdentityFile ${identity_file_to_use}
-    IdentitiesOnly yes
-"
-
-# --- 幂等性检查与写入操作 ---
-# 检查主机别名是否已存在
-if grep -q -E "^\s*Host\s+${host_alias}\s*$" "$SSH_CONFIG_PATH"; then
-    echo ""
-    read -p "⚠️  警告: 配置 '${host_alias}' 已存在。您想覆盖它吗? (y/N): " overwrite
-    if [[ "$overwrite" =~ ^[Yy]$ ]]; then
-        echo "⏳ 正在备份并覆盖现有配置..."
-        # 创建一个备份
-        cp "$SSH_CONFIG_PATH" "${SSH_CONFIG_PATH}.bak.$(date +'%Y-%m-%d_%H-%M-%S')"
-        
-        # 使用 awk 过滤掉旧的配置块
-        awk -v alias="$host_alias" '
-            BEGIN { in_block=0 }
-            /^\s*Host\s+/ {
-                if ($2 == alias) { in_block=1; next }
-                else { in_block=0 }
-            }
-            !in_block { print }
-        ' "$SSH_CONFIG_PATH" > "${SSH_CONFIG_PATH}.tmp"
-        
-        # 将新块追加到临时文件
-        echo "$CONFIG_BLOCK" >> "${SSH_CONFIG_PATH}.tmp"
-        
-        # 替换原文件
-        mv "${SSH_CONFIG_PATH}.tmp" "$SSH_CONFIG_PATH"
-        
-        echo "✅ 配置 '${host_alias}' 已成功更新。"
+    lc_tx_check_revision || { lc_tx_unlock; return 3; }
+    LC_TX_METADATA=$(LC_ALL=C ls -ldn "$LC_TX_OPERATION/before" | awk '{print $1, $3, $4}')
+    printf '%s\n' "$LC_TX_METADATA" > "$LC_TX_OPERATION/metadata"
+    printf '%s\n' "$LC_TX_EXISTED" > "$LC_TX_OPERATION/existed"
+    lc_tx_copy "$LC_TX_OPERATION/before" "$LC_TX_OPERATION/after" || { lc_tx_unlock; return 1; }
+    LC_TX_CANDIDATE="$LC_TX_OPERATION/after"
+    printf 'prepared\n' > "$LC_TX_OPERATION/status"
+}
+# Explicit stale-lock recovery. A live/reused PID, incomplete lock or competing
+# recovery is a conflict. Keep the original lock as evidence; never delete it.
+lc_tx_recover_lock() (
+    set -e
+    local target="$1" lock guard pid archived process result
+    [[ "$target" == /* && "$target" != *$'\n'* && "$target" != *$'\r'* ]] || return 2
+    lc_tx_check_path "$target" || return 3
+    lock="${target}.lazycat-lock"
+    guard="${lock}.recovery"
+    [[ -d "$lock" && ! -L "$lock" && -f "$lock/pid" && ! -L "$lock/pid" ]] || { echo '锁缺失、损坏或为链接，需人工检查' >&2; return 3; }
+    [[ -f "$lock/pid-format" && ! -L "$lock/pid-format" && "$(cat "$lock/pid-format")" == actual-shell-v1 ]] || { echo '旧锁没有实际持锁进程证据，需人工检查，未移动' >&2; return 3; }
+    (umask 077; mkdir "$guard") || return 3
+    trap 'rmdir "$guard"' EXIT
+    IFS= read -r pid < "$lock/pid"
+    [[ "$pid" =~ ^[1-9][0-9]*$ ]] || { echo '锁的 PID 无效，未移动' >&2; return 3; }
+    # ps also sees processes which kill -0 cannot probe due to permissions.
+    result=0
+    process=$(LC_ALL=C ps -p "$pid" -o pid=) || result=$?
+    [[ "$result" == 1 && -z "$process" ]] || { echo '锁的进程仍存在或无法确认，未移动' >&2; return 3; }
+    archived=$(mktemp -d "${lock}.recovered.XXXXXX")
+    chmod 700 "$archived"
+    mv "$lock" "$archived/lock"
+    printf '已保存失效锁：%s\n目标与事务备份未修改；请检查后回滚或重新执行。\n' "$archived"
+)
+lc_tx_unlock() {
+    [[ -n "${LC_TX_LOCK:-}" && "${LC_TX_LOCK_OWNED:-0}" == 1 ]] || return 0
+    [[ ! -L "$LC_TX_LOCK" && -f "$LC_TX_LOCK/pid" && ! -L "$LC_TX_LOCK/pid" &&
+       "$(cat "$LC_TX_LOCK/pid")" == "${LC_TX_OWNER_PID:-}" &&
+       "$(exec /bin/sh -c 'printf "%s\n" "$PPID"')" == "${LC_TX_OWNER_PID:-}" ]] || { echo '锁归属变化，未释放' >&2; return 3; }
+    rm -f "$LC_TX_LOCK/pid" "$LC_TX_LOCK/pid-format"
+    rmdir "$LC_TX_LOCK"
+    LC_TX_LOCK=''
+    LC_TX_LOCK_OWNED=0
+}
+lc_tx_commit() {
+    lc_tx_check_revision || return 3
+    if [[ "$LC_TX_EXISTED" == 1 ]]; then
+        [[ "$(LC_ALL=C ls -ldn "$LC_TX_TARGET" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] || { echo '文件权限或属主被并发修改' >&2; return 3; }
+        cmp -s "$LC_TX_TARGET" "$LC_TX_OPERATION/before" || { echo '检测到并发修改，已停止' >&2; return 3; }
     else
-        echo "操作已取消。"
-        exit 0
+        [[ ! -e "$LC_TX_TARGET" ]] || { echo '目标被并发创建，已停止' >&2; return 3; }
     fi
+    if [[ "$LC_TX_EXISTED" == 1 && "$(LC_ALL=C ls -ldn "$LC_TX_CANDIDATE" | awk '{print $1, $3, $4}')" == "$LC_TX_METADATA" ]] && cmp -s "$LC_TX_CANDIDATE" "$LC_TX_OPERATION/before"; then
+        rm -rf "$LC_TX_OPERATION"
+        lc_tx_unlock
+        return 0
+    fi
+    local staged
+    staged=$(mktemp "${LC_TX_TARGET}.lazycat-stage.XXXXXX")
+    lc_tx_copy "$LC_TX_CANDIDATE" "$staged" || { rm -f "$staged"; return 1; }
+    lc_tx_check_revision || { rm -f "$staged"; return 3; }
+    if ! mv "$staged" "$LC_TX_TARGET"; then rm -f "$staged"; return 1; fi
+    # A later metadata-only edit must also prevent destructive rollback. Record
+    # the published inode, not the candidate inode which rename may replace.
+    lc_tx_revision "$LC_TX_TARGET" > "$LC_TX_OPERATION/committed-revision" || return 1
+    printf 'committed\n' > "$LC_TX_OPERATION/status"
+    lc_tx_unlock
+    printf '操作记录与备份：%s\n' "$LC_TX_OPERATION"
+}
+lc_remove_block_candidate() {
+    local file="$1" begin="$2" end="$3" tmp
+    awk -v begin="$begin" -v end="$end" '
+        $0 == begin { if (inside || seen++) bad=1; inside=1 }
+        $0 == end { if (!inside) bad=1; inside=0 }
+        END { exit (bad || inside) ? 1 : 0 }
+    ' "$file" || { echo '托管标记损坏，未修改目标文件' >&2; return 3; }
+    tmp=$(mktemp "${file}.XXXXXX")
+    lc_tx_copy "$file" "$tmp" || { rm -f "$tmp"; return 1; }
+    awk -v begin="$begin" -v end="$end" '
+        $0 == begin { inside=1; next }
+        $0 == end { inside=0; next }
+        !inside { print }
+    ' "$file" > "$tmp"
+    mv "$tmp" "$file"
+}
+# lazycat-file-transaction:end
+alias_value='';hostname_value='';user_value='';port=22;identity='';allow_includes=0
+if [[ $# == 0 ]]; then
+    read -r -p '服务器别名: ' alias_value
+    read -r -p 'IP 或主机名: ' hostname_value
+    read -r -p '登录用户: ' user_value
+    read -r -p '端口 [22]: ' port;port=${port:-22}
+    read -r -p '已有私钥绝对路径（留空使用现有 SSH/agent 选择，不导入私钥）: ' identity
 else
-    # 如果不存在，直接追加
-    echo "⏳ 正在添加新配置..."
-    echo "$CONFIG_BLOCK" >> "$SSH_CONFIG_PATH"
-    echo "✅ 新配置 '${host_alias}' 已成功添加。"
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --alias|--host|--user|--port|--identity)
+                [[ $# -ge 2 ]] || exit 2
+                case "$1" in --alias) alias_value="$2" ;; --host) hostname_value="$2" ;; --user) user_value="$2" ;; --port) port="$2" ;; --identity) identity="$2" ;; esac
+                shift 2 ;;
+            --allow-existing-includes) allow_includes=1;shift ;;
+            *) echo '用法：--alias NAME --host HOST --user USER [--port PORT] [--identity PATH] [--allow-existing-includes]' >&2;exit 2 ;;
+        esac
+    done
 fi
-
-# --- 完成后提示 ---
-echo ""
-echo "========================================================"
-echo "      🎉 全部搞定! 🎉"
-echo "--------------------------------------------------------"
-echo "  您现在可以直接使用以下命令登录服务器了:"
-echo ""
-echo "      ssh ${host_alias}"
-echo ""
-echo "========================================================"
-
-exit 0 
+[[ "$alias_value" =~ ^[A-Za-z0-9._-]+$ && "$alias_value" != -* && "$alias_value" != . && "$alias_value" != .. ]] || exit 2
+[[ "$hostname_value" =~ ^[A-Za-z0-9._:%-]+$ && "$hostname_value" != -* ]] || exit 2
+[[ "$user_value" =~ ^[A-Za-z0-9._-]+$ && "$user_value" != -* ]] || exit 2
+[[ "$port" =~ ^[0-9]{1,5}$ ]] && ((10#$port>0 && 10#$port<=65535)) || exit 2
+if [[ -n "$identity" ]]; then
+    [[ "$identity" == /* && -f "$identity" && "$identity" != *$'\n'* && "$identity" != *$'\r'* ]] || { echo '私钥路径无效；未改动原密钥' >&2;exit 2; }
+fi
+config="$HOME/.ssh/config"
+folder="$HOME/.ssh/lazycat-hosts"
+fragment="$folder/$alias_value.conf"
+receipt="$folder/$alias_value.receipt"
+begin='# --- LAZYCAT HOSTS START ---'
+end='# --- LAZYCAT HOSTS END ---'
+escaped=${folder//\\/\\\\};escaped=${escaped//\"/\\\"}
+include_line="Include \"${escaped}/*.conf\""
+host_include_present() {
+    local line inside=0 seen=0 includes=0
+    [[ -f "$1" ]] || return 1
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        case "$line" in
+            "$begin")
+                [[ "$inside" == 0 && "$seen" == 0 ]] || return 3
+                inside=1;seen=1 ;;
+            "$end")
+                [[ "$inside" == 1 && "$includes" == 1 ]] || return 3
+                inside=0 ;;
+            *)
+                if [[ "$inside" == 1 ]]; then
+                    [[ "$line" == "$include_line" && "$includes" == 0 ]] || return 3
+                    includes=1
+                fi ;;
+        esac
+    done < "$1"
+    [[ "$inside" == 0 ]] || return 3
+    [[ "$seen" == 1 ]]
+}
+include_status=0
+host_include_present "$config" || include_status=$?
+[[ "$include_status" != 3 ]] || { echo 'Include 托管块损坏或有手改内容，未修改配置' >&2; exit 3; }
+if [[ -f "$config" ]]; then
+    if awk -v alias="$alias_value" 'tolower($1)=="host" {for(i=2;i<=NF;i++) if($i==alias) found=1} END{exit !found}' "$config"; then
+        echo '旧主配置已有同名 Host；未删除或覆盖，请先审阅迁移。' >&2;exit 3
+    fi
+    if [[ "$allow_includes" == 0 ]] && awk '
+        $0=="# --- LAZYCAT HOSTS START ---" {owned=1;next}
+        $0=="# --- LAZYCAT HOSTS END ---" {owned=0;next}
+        !owned && tolower($1)=="include" {found=1}
+        END {exit !found}
+    ' "$config"; then
+        echo '主配置包含外部 Include，无法证明没有同名条目；审阅后可显式 --allow-existing-includes。' >&2;exit 3
+    fi
+fi
+[[ ! -L "$HOME/.ssh" && ! -L "$folder" && ! -L "$receipt" && ! -L "$fragment" && ! -L "$config" ]] || { echo '符号链接需要人工采纳' >&2;exit 3; }
+if [[ -e "$fragment" ]]; then
+    [[ -f "$receipt" ]] && cmp -s "$fragment" "$receipt" || { echo '既有片段没有匹配的归属记录或已被修改' >&2;exit 3; }
+fi
+(umask 077;mkdir -p "$folder")
+# Keep every completed file operation available for recovery until all commit.
+committed=0
+operations=()
+host_finish() {
+    local result=$? j op target existed
+    trap - EXIT
+    lc_tx_unlock
+    if [[ "$committed" == 0 ]]; then
+        for ((j=${#operations[@]}-1;j>=0;j--)); do
+            op="${operations[$j]}"
+            [[ -d "$op" ]] || continue
+            IFS= read -r target < "$op/target"
+            if lc_tx_matches_committed "$target" "$op"; then
+                IFS= read -r existed < "$op/existed"
+                if [[ "$existed" == 1 ]]; then
+                    lc_tx_copy "$op/before" "$op/restore"
+                    if ! lc_tx_matches_committed "$target" "$op"; then
+                        printf 'rollback-required\n' > "$op/status"
+                        echo "恢复期间文件又被修改，保留现场：$op" >&2
+                        continue
+                    fi
+                    mv "$op/restore" "$target"
+                else rm "$target";fi
+                printf 'rolled-back\n' > "$op/status"
+            else
+                printf 'rollback-required\n' > "$op/status"
+                echo "恢复发现后续修改，保留现场：$op" >&2
+            fi
+        done
+    fi
+    exit "$result"
+}
+trap host_finish EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+lc_tx_begin "$fragment"
+{
+    printf '# Managed by LazyCat Host entry\nHost %s\n    HostName %s\n    User %s\n    Port %s\n' "$alias_value" "$hostname_value" "$user_value" "$((10#$port))"
+    if [[ -n "$identity" ]]; then
+        escaped=${identity//\\/\\\\};escaped=${escaped//\"/\\\"}
+        printf '    IdentityFile "%s"\n    IdentitiesOnly yes\n' "$escaped"
+    fi
+} > "$LC_TX_CANDIDATE"
+# Only the generated fragment is parsed; never evaluate Match exec in user config.
+ssh -G -F "$LC_TX_CANDIDATE" "$alias_value" >/dev/null
+operations+=("$LC_TX_OPERATION")
+lc_tx_commit
+lc_tx_begin "$receipt"
+cat "$fragment" > "$LC_TX_CANDIDATE"
+operations+=("$LC_TX_OPERATION")
+lc_tx_commit
+lc_tx_begin "$config"
+include_status=0
+host_include_present "$LC_TX_CANDIDATE" || include_status=$?
+case "$include_status" in
+    0) : ;; # Existing Include retains its exact position and SSH precedence.
+    1)
+        lc_tx_copy "$LC_TX_CANDIDATE" "$LC_TX_OPERATION/remainder"
+        {
+            printf '%s\n%s\n%s\n' "$begin" "$include_line" "$end"
+            cat "$LC_TX_OPERATION/remainder"
+        } > "$LC_TX_CANDIDATE"
+        ;;
+    *) echo 'Include 托管块被并发修改，停止提交' >&2; exit 3 ;;
+esac
+operations+=("$LC_TX_OPERATION")
+lc_tx_commit
+committed=1
+printf 'Host %s 已写入独立片段。原密钥、旧 Host 块和其他配置已保留。\n' "$alias_value"
