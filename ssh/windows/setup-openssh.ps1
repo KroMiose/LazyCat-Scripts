@@ -559,6 +559,7 @@ if (-not $PSCmdlet.ShouldProcess('Windows OpenSSH Server', 'Install/configure ss
 
 $stockRuleBeforeInstall = @(Get-NetFirewallRule -PolicyStore PersistentStore -Name $stockRuleName -ErrorAction SilentlyContinue)
 if ($capability.State -ne 'Installed') {
+    Write-Host 'Installing the Windows OpenSSH Server optional feature. Windows may need to download it.'
     try {
         $installResult = Add-WindowsCapability -Online -Name $capabilityName
     } catch {
@@ -573,6 +574,7 @@ if ($capability.State -ne 'Installed') {
     if ($installResult.RestartNeeded -or $capability.State -ne 'Installed') {
         throw 'OpenSSH Server installation requires a reboot or has not completed. Reboot Windows, then rerun this command.'
     }
+    Write-Host 'Windows OpenSSH Server optional feature installed.'
     $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='sshd'" -ErrorAction SilentlyContinue
 }
 

@@ -15,11 +15,16 @@ concurrency:
 jobs:
   smoke:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2025, windows-11-arm]
+        include:
+          - os: windows-2025
+            timeout_minutes: 20
+          - os: windows-11-arm
+            # Fetching the OpenSSH optional feature can exceed 20 minutes.
+            timeout_minutes: 40
     steps:
       - uses: actions/checkout@v7.0.1
         with:
