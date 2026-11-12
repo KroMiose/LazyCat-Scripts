@@ -30,13 +30,16 @@ $port = 22222
 $loginKey = Join-Path $temp 'client'
 $knownHosts = Join-Path $temp 'known_hosts'
 $clientConfig = Join-Path $temp 'ssh_config'
+$allowedSources = @('192.0.2.0/24', '2001:db8::/64')
 try {
-    & $setup -Port $port -AllowedRemoteAddress '127.0.0.1/32','::1/128' -FirewallProfile Any
+    # Windows Firewall rejects IPv6 loopback in a rule. Use documentation
+    # networks for the inbound rule; the SSH probe itself stays on loopback.
+    & $setup -Port $port -AllowedRemoteAddress $allowedSources -FirewallProfile Any
     if (-not (Get-NetTCPConnection -State Listen -LocalPort $port)) { throw "sshd is not listening on $port." }
     $stock = Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -PolicyStore ActiveStore -ErrorAction SilentlyContinue
     if ($stock -and $stock.Enabled -eq 'True') { throw 'The broad stock firewall rule was left enabled.' }
     $afterSetup = Get-FileHash -LiteralPath $config
-    & $setup -AllowedRemoteAddress '127.0.0.1','::1' -FirewallProfile Any
+    & $setup -AllowedRemoteAddress $allowedSources -FirewallProfile Any
     if ((Get-FileHash -LiteralPath $config).Hash -ne $afterSetup.Hash) { throw 'Re-running setup changed the SSH configuration.' }
 
     $password = ConvertTo-SecureString ("C!1" + [guid]::NewGuid().ToString('N')) -AsPlainText -Force
