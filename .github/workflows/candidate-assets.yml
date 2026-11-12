@@ -37,7 +37,7 @@ jobs:
           SCRIPTS_VERSION: ${{ inputs.scripts_version || format('lazycat-scripts-v0.0.0-ci.{0}', github.run_number) }}
           SSH_VERSION: ${{ inputs.ssh_version || format('lazycat-ssh-v0.0.0-ci.{0}', github.run_number) }}
         run: python3 scripts/build_release.py --scripts-version "$SCRIPTS_VERSION" --ssh-version "$SSH_VERSION" --output artifacts/candidate
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: candidate-assets
           path: artifacts/candidate/
@@ -77,7 +77,7 @@ jobs:
       - name: Historical task adoption in the runner GUI session
         if: runner.os == 'macOS'
         run: python3 tests/macos_launchd.py --assets artifacts/candidate --session gui
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: native-package-${{ matrix.os }}
@@ -115,7 +115,7 @@ jobs:
         env:
           TEST_IMAGE: ${{ matrix.image }}
         run: python3 tests/system/vm.py --image "$TEST_IMAGE" --suite docker --package-lock "tests/system/apt/$TEST_IMAGE.lock.json" --assets artifacts/candidate
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: system-package-${{ matrix.image }}
