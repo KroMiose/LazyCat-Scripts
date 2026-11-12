@@ -245,6 +245,7 @@ $action = if ($Remove) { 'Remove LazyCat SSH trust and restart sshd' } else { "E
 if (-not $PSCmdlet.ShouldProcess($config, $action)) { return }
 
 $tempConfig = Join-Path $configDir ('.lazycat-node-' + [guid]::NewGuid() + '.tmp')
+$probeConfig = "$tempConfig.probe"
 $backup = "$config.lazycat-node-$([guid]::NewGuid()).bak"
 $replaced = $false
 $newCaFile = $false
@@ -261,7 +262,18 @@ try {
     Set-Acl -LiteralPath $tempConfig -AclObject (Get-Acl -LiteralPath $config)
     $null = Invoke-NodeOpenSsh $sshd @('-t', '-f', $tempConfig)
     if ($caPath) {
-        $scoped = @(Invoke-NodeOpenSsh $sshd @('-T', '-f', $tempConfig, '-C',
+        # In-box sshd may need its LocalSystem service token to evaluate
+        # existing Match Group blocks. Our block comes first and sets all
+        # managed options, so probe it with only the global configuration.
+        $firstMatch = [regex]::Match($parts.Unmanaged, '(?im)^[ \t]*Match(?:[ \t=]|\r?$)')
+        $probePath = $tempConfig
+        if ($firstMatch.Success) {
+            [IO.File]::WriteAllText($probeConfig,
+                (Add-NodeConfigBlock $parts.Unmanaged.Substring(0, $firstMatch.Index) ($block + $lineEnd)), $utf8)
+            Set-Acl -LiteralPath $probeConfig -AclObject (Get-Acl -LiteralPath $config)
+            $probePath = $probeConfig
+        }
+        $scoped = @(Invoke-NodeOpenSsh $sshd @('-T', '-f', $probePath, '-C',
             "user=$User,host=localhost,addr=127.0.0.1,laddr=127.0.0.1,lport=$Port"))
         $expectedCa = "trustedusercakeys $configCaPath"
         if (($scoped -inotcontains $expectedCa -and $scoped -inotcontains "trustedusercakeys $caPath") -or
@@ -298,7 +310,7 @@ try {
     }
     throw
 } finally {
-    Remove-Item -LiteralPath $tempConfig -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $tempConfig, $probeConfig -Force -ErrorAction SilentlyContinue
 }
 
 if ($Remove) {
