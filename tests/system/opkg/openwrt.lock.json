@@ -120,79 +120,105 @@
       "path": "feeds/openwrt_packages/libfido2-1_1.14.0-r1_x86_64.ipk",
       "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/libfido2-1_1.14.0-r1_x86_64.ipk",
       "size": 77894,
-      "sha256": "bd16559fdb9e72149b99fe51ceb3d27a541d9996850b2cf5baeab0394592c92d"
+      "sha256": "bd16559fdb9e72149b99fe51ceb3d27a541d9996850b2cf5baeab0394592c92d",
+      "fixture": "archives/bd16559fdb9e72149b99fe51ceb3d27a541d9996850b2cf5baeab0394592c92d.gz",
+      "encoding": "gzip"
     },
     {
       "path": "feeds/openwrt_packages/libudev-zero_1.0.4-r1_x86_64.ipk",
       "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/libudev-zero_1.0.4-r1_x86_64.ipk",
       "size": 10893,
-      "sha256": "fa77e40e80261fef78c84dc63eaade9458eea50c43e97154f5fb35dbd40470a2"
+      "sha256": "fa77e40e80261fef78c84dc63eaade9458eea50c43e97154f5fb35dbd40470a2",
+      "fixture": "archives/fa77e40e80261fef78c84dc63eaade9458eea50c43e97154f5fb35dbd40470a2.gz",
+      "encoding": "gzip"
     },
     {
       "path": "feeds/openwrt_packages/libevdev_1.13.1-r1_x86_64.ipk",
       "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/libevdev_1.13.1-r1_x86_64.ipk",
       "size": 32427,
-      "sha256": "ac94335dd52bac82df044398c027b05d24b267e2d0891544e51228f9b1a88c6e"
+      "sha256": "ac94335dd52bac82df044398c027b05d24b267e2d0891544e51228f9b1a88c6e",
+      "fixture": "archives/ac94335dd52bac82df044398c027b05d24b267e2d0891544e51228f9b1a88c6e.gz",
+      "encoding": "gzip"
     },
     {
       "path": "feeds/openwrt_packages/libcbor0_0.11.0-r2_x86_64.ipk",
       "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/libcbor0_0.11.0-r2_x86_64.ipk",
       "size": 20635,
-      "sha256": "e6d3dcdc6599c26dfea5d4402de002f1bd48b248103d020d27db9a5186def2fa"
+      "sha256": "e6d3dcdc6599c26dfea5d4402de002f1bd48b248103d020d27db9a5186def2fa",
+      "fixture": "archives/e6d3dcdc6599c26dfea5d4402de002f1bd48b248103d020d27db9a5186def2fa.gz",
+      "encoding": "gzip"
     },
     {
       "path": "feeds/openwrt_packages/openssh-server_9.9_p2-r2_x86_64.ipk",
       "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/openssh-server_9.9_p2-r2_x86_64.ipk",
       "size": 596818,
-      "sha256": "c31c3441e15a81d0f6aa1687bb869dfb859b452284146c9f31cc40aa8f2d65eb"
+      "sha256": "c31c3441e15a81d0f6aa1687bb869dfb859b452284146c9f31cc40aa8f2d65eb",
+      "fixture": "archives/c31c3441e15a81d0f6aa1687bb869dfb859b452284146c9f31cc40aa8f2d65eb.gz",
+      "encoding": "gzip"
     },
     {
       "path": "feeds/openwrt_packages/openssh-client_9.9_p2-r2_x86_64.ipk",
       "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/openssh-client_9.9_p2-r2_x86_64.ipk",
       "size": 472775,
-      "sha256": "d16020fb9a408224de05032f4b41466a9b277a641cec378747d0ac6141a87c51"
+      "sha256": "d16020fb9a408224de05032f4b41466a9b277a641cec378747d0ac6141a87c51",
+      "fixture": "archives/d16020fb9a408224de05032f4b41466a9b277a641cec378747d0ac6141a87c51.gz",
+      "encoding": "gzip"
     },
     {
       "path": "feeds/openwrt_base/zlib_1.3.1-r1_x86_64.ipk",
       "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/base/zlib_1.3.1-r1_x86_64.ipk",
       "size": 44055,
-      "sha256": "e37b84681c6b7ab4521a88efa21aa97d832aaa9a4d7aa5d954bffc81d1a542ce"
+      "sha256": "e37b84681c6b7ab4521a88efa21aa97d832aaa9a4d7aa5d954bffc81d1a542ce",
+      "fixture": "archives/e37b84681c6b7ab4521a88efa21aa97d832aaa9a4d7aa5d954bffc81d1a542ce.gz",
+      "encoding": "gzip"
     },
     {
       "path": "feeds/openwrt_base/libopenssl3_3.0.22-r1_x86_64.ipk",
       "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/base/libopenssl3_3.0.22-r1_x86_64.ipk",
       "size": 2103194,
-      "sha256": "f1fb35fb380b9810ebe6e5e6077b86cffe83bddbfa3f9f93c622d671741b8cb3"
+      "sha256": "f1fb35fb380b9810ebe6e5e6077b86cffe83bddbfa3f9f93c622d671741b8cb3",
+      "fixture": "archives/f1fb35fb380b9810ebe6e5e6077b86cffe83bddbfa3f9f93c622d671741b8cb3.gz",
+      "encoding": "gzip"
     },
     {
       "path": "feeds/openwrt_packages/openssh-keygen_9.9_p2-r2_x86_64.ipk",
       "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/openssh-keygen_9.9_p2-r2_x86_64.ipk",
       "size": 209257,
-      "sha256": "0c99329e7150585354ca2d17963961643e080c22e7defc1fb245f035a082182a"
+      "sha256": "0c99329e7150585354ca2d17963961643e080c22e7defc1fb245f035a082182a",
+      "fixture": "archives/0c99329e7150585354ca2d17963961643e080c22e7defc1fb245f035a082182a.gz",
+      "encoding": "gzip"
     },
     {
       "path": "feeds/openwrt_base/libreadline8_8.2-r2_x86_64.ipk",
       "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/base/libreadline8_8.2-r2_x86_64.ipk",
       "size": 136059,
-      "sha256": "e14fd9f47d733b723947285eb9d6ab91d67e81bcad71d526940d02db0236960f"
+      "sha256": "e14fd9f47d733b723947285eb9d6ab91d67e81bcad71d526940d02db0236960f",
+      "fixture": "archives/e14fd9f47d733b723947285eb9d6ab91d67e81bcad71d526940d02db0236960f.gz",
+      "encoding": "gzip"
     },
     {
       "path": "feeds/openwrt_base/libncurses6_6.4-r2_x86_64.ipk",
       "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/base/libncurses6_6.4-r2_x86_64.ipk",
       "size": 181355,
-      "sha256": "55cd5c252579b0d96656efe840222f70a6fd92532067e470d9c060d642a4577e"
+      "sha256": "55cd5c252579b0d96656efe840222f70a6fd92532067e470d9c060d642a4577e",
+      "fixture": "archives/55cd5c252579b0d96656efe840222f70a6fd92532067e470d9c060d642a4577e.gz",
+      "encoding": "gzip"
     },
     {
       "path": "feeds/openwrt_base/terminfo_6.4-r2_x86_64.ipk",
       "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/base/terminfo_6.4-r2_x86_64.ipk",
       "size": 9499,
-      "sha256": "b66087925682e5810bdb6653107c9a987c5c6f024f85236eb8659bffa559d77e"
+      "sha256": "b66087925682e5810bdb6653107c9a987c5c6f024f85236eb8659bffa559d77e",
+      "fixture": "archives/b66087925682e5810bdb6653107c9a987c5c6f024f85236eb8659bffa559d77e.gz",
+      "encoding": "gzip"
     },
     {
       "path": "feeds/openwrt_packages/bash_5.2.37-r1_x86_64.ipk",
       "url": "https://downloads.openwrt.org/releases/24.10.3/packages/x86_64/packages/bash_5.2.37-r1_x86_64.ipk",
       "size": 480825,
-      "sha256": "875fd8155211e29f8d57ba1a50ada8293c328de2be7f30d57d9b5585fba6dfae"
+      "sha256": "875fd8155211e29f8d57ba1a50ada8293c328de2be7f30d57d9b5585fba6dfae",
+      "fixture": "archives/875fd8155211e29f8d57ba1a50ada8293c328de2be7f30d57d9b5585fba6dfae.gz",
+      "encoding": "gzip"
     }
   ]
 }
