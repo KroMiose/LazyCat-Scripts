@@ -1,0 +1,34 @@
+name: LazyCat SSH Windows
+
+on:
+  pull_request:
+    paths: ['ssh/windows/**', '.github/workflows/lazycat-ssh-windows.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lazycat-ssh-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            timeout_minutes: 20
+          - os: windows-11-arm
+            # Fetching the OpenSSH optional feature can exceed 20 minutes.
+            timeout_minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Exercise native sshd with LazyCat user certificates
+        shell: powershell
+        run: ./ssh/windows/tests/smoke.ps1

@@ -19,6 +19,7 @@
 | <a id="setup_en_dirssh"></a>[XDG 用户目录](linux/README.md) | 读取实际目录，默认只读检查，搬迁需显式选择 |
 | <a id="setup_sudo_nopasswdsh"></a>[sudoers](linux/README.md) | 候选先验证，再提交权限规则 |
 | [SSH CA / 节点 / 客户端](ssh/README.md) | 个人管理员的证书与线路管理，不是团队授权服务 |
+| [Windows SSH 被控端](ssh/README.md#windows-node) | 安装系统自带 OpenSSH，并为指定本地账号启用 LazyCat CA 证书登录 |
 | [Codex HUD](codex-hud/README.md) | Bark 通知、Hook 集成和独立版本分发 |
 | [离线检查与操作回滚](common/README.md) | `common/lazycat-check.sh --json` |
 | [Shadowrocket 示例](shadowrocket/selective-proxy.conf) | 规则样本；真实客户端导入与网络行为需单独验证 |

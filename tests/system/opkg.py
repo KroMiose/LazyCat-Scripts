@@ -100,14 +100,15 @@ def materialize(lock_path,image,cache,destination,fresh=False):
             if not re.fullmatch('[a-f0-9]{64}',digest) or type(size) is not int or not 0<size<64*1024*1024:raise ValueError('invalid opkg size/digest')
             cached=cache/digest
             fixture=resource.get('fixture')
-            if fixture is not None:
-                # Signed indexes are immutable repository fixtures. Re-fetching
-                # a mutable upstream Packages URL would destroy fixed-input CI.
+            is_package=name.endswith('.ipk')
+            if fixture is not None and (not fresh or not is_package):
+                # Keep exact signed indexes and archives for fixed-input CI.
+                # Fresh runs still probe upstream archive availability.
                 fixture_root=lock_path.parent.resolve()
                 source=(fixture_root/str(safe_path(fixture))).resolve()
-                if fixture_root not in source.parents or resource.get('encoding')!='gzip' or parts[2] not in ('Packages','Packages.sig'):raise ValueError('unsafe signed metadata fixture')
+                if fixture_root not in source.parents or resource.get('encoding')!='gzip' or (not is_package and parts[2] not in ('Packages','Packages.sig')):raise ValueError('unsafe opkg fixture')
                 with gzip.open(source,'rb') as stream:payload=stream.read(size+1)
-                if len(payload)!=size or hashlib.sha256(payload).hexdigest()!=digest:raise ValueError('signed metadata fixture mismatch')
+                if len(payload)!=size or hashlib.sha256(payload).hexdigest()!=digest:raise ValueError('opkg fixture mismatch')
                 cache_bytes(cache,digest,payload)
             elif fresh or not cached.exists():
                 download=root/'download'
