@@ -45,7 +45,7 @@ jobs:
         run: |
           git fetch --no-tags origin "$PR_BASE_SHA"
           git -c user.name=CI -c user.email=ci@example.invalid merge --no-commit --no-ff "$PR_BASE_SHA"
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: codex-hud/go.mod
           cache-dependency-path: codex-hud/go.sum
@@ -78,7 +78,7 @@ jobs:
         run: |
           git fetch --no-tags origin "$PR_BASE_SHA"
           git -c user.name=CI -c user.email=ci@example.invalid merge --no-commit --no-ff "$PR_BASE_SHA"
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: codex-hud/go.mod
           cache-dependency-path: codex-hud/go.sum
