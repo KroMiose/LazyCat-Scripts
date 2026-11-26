@@ -622,7 +622,7 @@
   )
   ```
 
-- **🪟 Windows 被控端：** 全新的 Windows 10 / 11 也能接入，只用系统自带 OpenSSH，按 [Windows Node](./ssh/README.md#windows-node) 的 5 步复制命令即可。
+- **🪟 Windows 被控端：** 全新的 Windows 10 / 11 也能接入，只用系统自带 OpenSSH。CA 管理脚本菜单 `3)` 会打印一行带好 CA 公钥的 PowerShell 命令，粘贴运行、按提示回车即可，详见 [Windows Node](./ssh/README.md#windows-node)。
 
 - **⚠️ CA 管理端：** 建议在可信环境运行（会在本机生成并保存 CA 私钥）。
 

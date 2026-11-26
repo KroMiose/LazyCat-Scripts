@@ -32,3 +32,6 @@ jobs:
       - name: Exercise native sshd with LazyCat user certificates
         shell: powershell
         run: ./ssh/windows/tests/smoke.ps1
+      - name: Exercise the one-paste install entry
+        shell: powershell
+        run: ./ssh/windows/tests/install.ps1

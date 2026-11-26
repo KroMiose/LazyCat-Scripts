@@ -471,8 +471,11 @@ DOWNLOAD
   lc_log ""
   cat "$(ca_pub_path)"
   lc_log ""
-  lc_log "Windows Node：仅将 CA 公钥文件复制到设备：$(ca_pub_path)"
-  lc_log "在管理员 PowerShell 中进入仓库的 ssh/windows 目录，按 ssh/README.md 运行 setup-openssh.ps1 和 lazycat-ssh-node.ps1。"
+  lc_log "Windows Node：在设备的 Windows PowerShell 中粘贴执行（需要时会自动请求管理员权限）："
+  local ca_key quote="'"
+  ca_key=$(tr -d '\r\n' < "$(ca_pub_path)")
+  # PowerShell single-quoted literal: only ' needs doubling.
+  printf "[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; & ([scriptblock]::Create((irm https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/windows/install.ps1))) -CaPublicKey '%s'\n" "${ca_key//$quote/$quote$quote}"
   lc_log ""
 }
 
