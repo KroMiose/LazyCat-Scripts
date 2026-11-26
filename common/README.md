@@ -2,6 +2,28 @@
 
 这些命令面向当前普通用户。`HOME` 应与实际操作身份对应。新生成的单文件入口内嵌文件事务助手，源码来自 `lib/file-transaction.sh`；`python3 scripts/embed.py --check` 检查副本一致性，不在运行时下载用户可写缓存库。
 
+## 一键执行
+
+无需克隆仓库，以下命令通过 [NekroEndpoint](https://ep.nekro.ai) 镜像获取 `main` 上的最新脚本，均以普通用户运行。需要传参时写成 `bash -c "$(curl ...)" _ 参数...`（`_` 占位 `$0`）；参数含义见下文各节。
+
+```sh
+# Zsh / P10k（--yes 非交互；--cleanup / --cleanup-all 清理托管配置）
+bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_zsh_p10k.sh)"
+# Shell 代理（不带参数为交互式向导）
+bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_proxy_config.sh)" _ --url 'http://127.0.0.1:7890' --apply --default off
+# SSH 公钥授权（不带参数时粘贴公钥）
+bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_ssh_access.sh)"
+# 添加 SSH Host（不带参数为交互式向导）
+bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/add_ssh_config.sh)"
+# Node / nvm（--check 健康检查；--set-default 调整默认版本）
+bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/setup_node_env.sh)"
+# 检查与恢复
+bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/lazycat-check.sh)" _ --json
+bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/common/restore_shell_backup.sh)"
+```
+
+下文使用本地仓库路径 `bash common/xxx.sh`，参数与一键命令完全相同。
+
 ## Shell 代理
 
 ```sh
