@@ -9,6 +9,7 @@ import tarfile
 import tempfile
 import urllib.parse
 import subprocess
+import sys
 
 def resolve_exported_url(url, files):
     prefix='mirror+file:/etc/apt/mirrors/'
@@ -23,6 +24,38 @@ def resolve_exported_url(url, files):
     if parts.scheme not in ('http','https') or not parts.hostname or parts.username or parts.password or parts.fragment or parts.query or any(c.isspace() for c in url):
         raise ValueError('unsupported exported package URL')
     return url
+
+# Upstream pools drop superseded versions. Snapshot services keep every
+# published byte under a timestamped path; the lock still pins each SHA-256.
+SNAPSHOT_PREFIXES=(
+    (('http://archive.ubuntu.com/ubuntu/','https://archive.ubuntu.com/ubuntu/','http://security.ubuntu.com/ubuntu/','https://security.ubuntu.com/ubuntu/'),'https://snapshot.ubuntu.com/ubuntu/{}/'),
+    (('http://deb.debian.org/debian-security/','https://deb.debian.org/debian-security/'),'https://snapshot.debian.org/archive/debian-security/{}/'),
+    (('http://deb.debian.org/debian/','https://deb.debian.org/debian/'),'https://snapshot.debian.org/archive/debian/{}/'),
+)
+
+def snapshot_urls(url,stamp,now=None):
+    """Candidate snapshot URLs: the resolution time, then a few later captures."""
+    import datetime
+    if stamp is None:return []
+    if not re.fullmatch(r'\d{8}T\d{6}Z',stamp):raise ValueError('invalid snapshot timestamp')
+    base=datetime.datetime.strptime(stamp,'%Y%m%dT%H%M%SZ').replace(tzinfo=datetime.timezone.utc)
+    now=now or datetime.datetime.now(datetime.timezone.utc)
+    for prefixes,template in SNAPSHOT_PREFIXES:
+        prefix=next((item for item in prefixes if url.startswith(item)),None)
+        if prefix is None:continue
+        # A capture can lag the archive slightly; later captures still hold the file.
+        stamps=[base+datetime.timedelta(days=days) for days in (0,1,7)]
+        return [template.format(when.strftime('%Y%m%dT%H%M%SZ'))+url[len(prefix):] for when in stamps if when<=now]
+    return []
+
+def download(url,size):
+    # A socket inactivity timeout does not bound a slowly trickling
+    # response. curl supplies an overall deadline and size limit.
+    with tempfile.TemporaryDirectory(prefix='lazycat-package-download-') as directory:
+        path=Path(directory)/'archive.deb'
+        subprocess.run(['curl','--fail','--silent','--show-error','--location','--proto','=http,https','--proto-redir','=http,https','--connect-timeout','15','--max-time','180','--max-filesize',str(size),url,'--output',str(path)],check=True,timeout=190)
+        if path.stat().st_size!=size:raise ValueError('package download size mismatch')
+        return path.read_bytes()
 
 def resolved_packages(files):
     """Match apt's selected archive to independent authenticated index metadata."""
@@ -86,13 +119,19 @@ def materialize(lock_path,image,cache,destination,fresh=False):
                 url=resolve_exported_url(package['url'],{})
                 # HTTP pool URLs are allowed only because every byte is pinned by
                 # the reviewed SHA-256 lock, originally resolved by authenticated apt.
-                # A socket inactivity timeout does not bound a slowly trickling
-                # response. curl supplies an overall deadline and size limit.
-                with tempfile.TemporaryDirectory(prefix='lazycat-package-download-') as download:
-                    path=Path(download)/'archive.deb'
-                    subprocess.run(['curl','--fail','--silent','--show-error','--location','--proto','=http,https','--proto-redir','=http,https','--connect-timeout','15','--max-time','180','--max-filesize',str(size),url,'--output',str(path)],check=True,timeout=190)
-                    if path.stat().st_size!=size:raise ValueError('package download size mismatch')
-                    data=path.read_bytes()
+                try:data=download(url,size)
+                except subprocess.CalledProcessError:
+                    data=None
+                    for candidate in snapshot_urls(url,lock.get('snapshot')):
+                        try:data=download(candidate,size)
+                        except subprocess.CalledProcessError:continue
+                        # Not a failure: the lock still pins the bytes. Surface it so the
+                        # lock is refreshed through environment-locks when convenient.
+                        notice=f'upstream no longer serves {name}; using {candidate}'
+                        if os.environ.get('GITHUB_ACTIONS')=='true':print('::warning::'+notice)
+                        else:print(notice,file=sys.stderr)
+                        break
+                    if data is None:raise
                 if len(data)!=size or hashlib.sha256(data).hexdigest()!=digest:raise ValueError('package download checksum mismatch')
                 cache_bytes(cache,digest,data)
             if cached.stat().st_size!=size or hashlib.sha256(cached.read_bytes()).hexdigest()!=digest:raise ValueError('cached package checksum mismatch')
@@ -126,7 +165,9 @@ def record_export(archive_path,image,cache,output):
                 materialize(proposed,image,cache,Path(directory)/'verified.tar')
             output.parent.mkdir(parents=True,exist_ok=True)
             if output.exists():raise ValueError('refusing to overwrite an existing reviewed package lock')
-            output.write_text(json.dumps(dict(format_version=1,image_digest=image['digest'],scope='authenticated apt resolution, host downloads verified by SHA-256; review before CI adoption',packages=packages),indent=2)+'\n')
+            import datetime
+            stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+            output.write_text(json.dumps(dict(format_version=1,image_digest=image['digest'],scope='authenticated apt resolution, host downloads verified by SHA-256; review before CI adoption',snapshot=stamp,packages=packages),indent=2)+'\n')
             return
         urls={}
         for line in files['uris.txt'].decode().splitlines():

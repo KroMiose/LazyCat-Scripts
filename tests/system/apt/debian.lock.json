@@ -2,6 +2,7 @@
   "format_version": 1,
   "image_digest": "2bc4bad1dafce08937f04760d86fb735a35ca862c322a2c0018e86124bbac0d24fc276047559b11e31b51caf73a5d295e3259a0aef69506af6ec62ae0a71ab81",
   "scope": "authenticated apt resolution, host downloads verified by SHA-256; review before CI adoption",
+  "snapshot": "20261126T071900Z",
   "packages": [
     {
       "filename": "perl-base_5.36.0-7+deb12u4_amd64.deb",

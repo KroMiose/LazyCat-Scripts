@@ -35,6 +35,56 @@ class PackageLock(unittest.TestCase):
         finally:
             server.shutdown();thread.join();server.server_close()
 
+    def test_removed_upstream_archive_falls_back_to_snapshot(self):
+        import http.server
+        import threading
+        import os
+        from unittest.mock import patch
+        payload=b'fictional superseded package bytes'
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                body=payload if self.path.startswith('/snapshot/20260101T000000Z/') else (b'altered' if self.path.startswith('/altered/') else None)
+                if body is None:self.send_response(404);self.end_headers();return
+                self.send_response(200);self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
+            def log_message(self,*args):pass
+        server=http.server.ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        thread=threading.Thread(target=server.serve_forever);thread.start()
+        try:
+            origin=f'http://127.0.0.1:{server.server_port}'
+            prefixes=(((origin+'/pool-origin/',),origin+'/snapshot/{}/'),)
+            with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,{'PATH':'/usr/bin:/bin','NO_PROXY':'127.0.0.1'},clear=True), patch('system.packages.SNAPSHOT_PREFIXES',prefixes):
+                root=Path(directory);digest=hashlib.sha256(payload).hexdigest()
+                package=dict(filename='fixture_1_amd64.deb',sha256=digest,size=len(payload),url=origin+'/pool-origin/pool/main/f/fixture_1_amd64.deb',control='Package: fixture\nVersion: 1\nArchitecture: amd64\n')
+                data=dict(format_version=1,image_digest='fixture',snapshot='20260101T000000Z',packages=[package]);lock=root/'lock.json';lock.write_text(json.dumps(data))
+                materialize(lock,{'digest':'fixture'},root/'cache',root/'repo.tar')
+                self.assertEqual((root/'cache'/digest).read_bytes(),payload)
+                # Without a recorded snapshot the original download failure stands.
+                lock.write_text(json.dumps({k:v for k,v in data.items() if k!='snapshot'}))
+                with self.assertRaises(Exception):materialize(lock,{'digest':'fixture'},root/'no-snapshot',root/'no-snapshot.tar')
+                # Snapshot bytes are held to the same pinned SHA-256.
+                with patch('system.packages.SNAPSHOT_PREFIXES',(((origin+'/pool-origin/',),origin+'/altered/{}/'),)):
+                    lock.write_text(json.dumps({**data,'packages':[{**package,'size':len(b'altered')}]}))
+                    with self.assertRaises(ValueError):materialize(lock,{'digest':'fixture'},root/'altered',root/'altered.tar')
+                self.assertFalse((root/'no-snapshot'/digest).exists());self.assertFalse((root/'altered.tar').exists())
+        finally:
+            server.shutdown();thread.join();server.server_close()
+
+    def test_snapshot_urls_cover_known_archives_only(self):
+        import datetime
+        from system.packages import snapshot_urls
+        now=datetime.datetime(2026,12,31,tzinfo=datetime.timezone.utc)
+        stamp='20261126T071900Z'
+        self.assertEqual(snapshot_urls('http://archive.ubuntu.com/ubuntu/pool/main/a/x.deb',stamp,now),
+            ['https://snapshot.ubuntu.com/ubuntu/%s/pool/main/a/x.deb'%s for s in ('20261126T071900Z','20261127T071900Z','20261203T071900Z')])
+        self.assertEqual(snapshot_urls('https://deb.debian.org/debian-security/pool/updates/main/a/x.deb',stamp,now)[0],
+            'https://snapshot.debian.org/archive/debian-security/20261126T071900Z/pool/updates/main/a/x.deb')
+        self.assertEqual(snapshot_urls('https://deb.debian.org/debian/pool/main/a/x.deb',stamp,now)[0],
+            'https://snapshot.debian.org/archive/debian/20261126T071900Z/pool/main/a/x.deb')
+        self.assertEqual(len(snapshot_urls('https://deb.debian.org/debian/pool/x.deb',stamp,datetime.datetime(2026,11,26,8,tzinfo=datetime.timezone.utc))),1)
+        self.assertEqual(snapshot_urls('https://example.invalid/pool/x.deb',stamp,now),[])
+        self.assertEqual(snapshot_urls('https://deb.debian.org/debian/pool/x.deb',None,now),[])
+        with self.assertRaises(ValueError):snapshot_urls('https://deb.debian.org/debian/pool/x.deb','2026-11-26',now)
+
     def test_authenticated_resolution_and_fixture_mirror(self):
         name='fixture_1+2_amd64.deb';digest='a'*64
         url='mirror+file:/etc/apt/mirrors/debian.list/pool/main/f/'+name.replace('+','%2b')
