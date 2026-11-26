@@ -179,11 +179,11 @@
       "control": "Package: libaprutil1\nSource: apr-util\nVersion: 1.6.3-1+deb12u1\nInstalled-Size: 284\nMaintainer: Debian Apache Maintainers <debian-apache@lists.debian.org>\nArchitecture: amd64\nDepends: libapr1 (>= 1.6.2), libc6 (>= 2.25), libcrypt1 (>= 1:4.1.0), libdb5.3, libexpat1 (>= 2.0.1), libgdbm6 (>= 1.16), libssl3 (>= 3.0.0)\nDescription: Apache Portable Runtime Utility Library\nDescription-md5: e0d4198f7ab8d2d00a12d0e044194068\nHomepage: https://apr.apache.org/\nMulti-Arch: same\nSection: libs\nPriority: optional\n"
     },
     {
-      "filename": "apache2-utils_2.4.68-1~deb12u1_amd64.deb",
-      "url": "https://deb.debian.org/debian/pool/main/a/apache2/apache2-utils_2.4.68-1%7edeb12u1_amd64.deb",
-      "size": 218672,
-      "sha256": "d665b7aa7e3a8a18774cc24ab4546cd76941b6ff8ac5f263d7b46f2030c07b48",
-      "control": "Package: apache2-utils\nSource: apache2\nVersion: 2.4.68-1~deb12u1\nInstalled-Size: 448\nMaintainer: Debian Apache Maintainers <debian-apache@lists.debian.org>\nArchitecture: amd64\nDepends: libapr1 (>= 1.4.8-2~), libaprutil1 (>= 1.5.0), libc6 (>= 2.34), libcrypt1 (>= 1:4.1.0), libssl3 (>= 3.0.0)\nDescription: Apache HTTP Server (utility programs for web servers)\nDescription-md5: f1e2440381fa90571f125990da6a52fc\nMulti-Arch: foreign\nHomepage: https://httpd.apache.org/\nTag: admin::configuring, devel::lang:perl, devel::library, implemented-in::c,\n implemented-in::perl, interface::commandline, network::service,\n protocol::http, protocol::ipv6, role::devel-lib, role::program,\n scope::utility, security::authentication, suite::apache,\n works-with-format::html, works-with::text\nSection: httpd\nPriority: optional\n"
+      "filename": "apache2-utils_2.4.71-1~deb12u1_amd64.deb",
+      "url": "https://deb.debian.org/debian-security/pool/updates/main/a/apache2/apache2-utils_2.4.71-1%7edeb12u1_amd64.deb",
+      "size": 223608,
+      "sha256": "1d62a5130d3aed55b46a2201f6b8ec3e8dd3afc5d73a46c52ae479003251ad42",
+      "control": "Package: apache2-utils\nSource: apache2\nVersion: 2.4.71-1~deb12u1\nInstalled-Size: 452\nMaintainer: Debian Apache Maintainers <debian-apache@lists.debian.org>\nArchitecture: amd64\nDepends: libapr1 (>= 1.4.8-2~), libaprutil1 (>= 1.5.0), libc6 (>= 2.34), libcrypt1 (>= 1:4.1.0), libssl3 (>= 3.0.0)\nDescription: Apache HTTP Server (utility programs for web servers)\nDescription-md5: f1e2440381fa90571f125990da6a52fc\nHomepage: https://httpd.apache.org/\nMulti-Arch: foreign\nSection: httpd\nPriority: optional\n"
     },
     {
       "filename": "binutils-common_2.40-2_amd64.deb",
@@ -375,11 +375,11 @@
       "control": "Package: libterm-readkey-perl\nSource: libterm-readkey-perl (2.38-2)\nVersion: 2.38-2+b1\nInstalled-Size: 73\nMaintainer: Debian Perl Group <pkg-perl-maintainers@lists.alioth.debian.org>\nArchitecture: amd64\nDepends: perl (>= 5.36.0-4), perlapi-5.36.0, libc6 (>= 2.28)\nDescription: perl module for simple terminal control\nDescription-md5: a763f4d7fa9fbc16eb1fb4e5fabadfa9\nHomepage: https://metacpan.org/release/TermReadKey\nTag: devel::lang:perl, devel::library, implemented-in::c,\n implemented-in::perl, interface::text-mode, role::devel-lib,\n role::program\nSection: perl\nPriority: optional\n"
     },
     {
-      "filename": "needrestart_3.6-4+deb12u3_all.deb",
-      "url": "https://deb.debian.org/debian/pool/main/n/needrestart/needrestart_3.6-4%2bdeb12u3_all.deb",
-      "size": 60496,
-      "sha256": "3cdeccf188630cd8fecfd71c3a8866bc7f9f439866b6fa04c8ccaeff23b82f05",
-      "control": "Package: needrestart\nVersion: 3.6-4+deb12u3\nInstalled-Size: 295\nMaintainer: Patrick Matth\u00e4i <pmatthaei@debian.org>\nArchitecture: all\nDepends: perl:any, dpkg (>= 1.16.0), gettext-base, libintl-perl, libproc-processtable-perl, libsort-naturally-perl, libterm-readkey-perl, libmodule-find-perl, binutils, xz-utils\nRecommends: libpam-systemd | sysvinit-core, systemd | libimvirt-perl\nSuggests: needrestart-session | libnotify-bin, iucode-tool\nEnhances: intel-microcode\nDescription: check which daemons need to be restarted after library upgrades\nDescription-md5: a26ee5dd9ec37fe484bee4f1ce585d87\nHomepage: https://github.com/liske/needrestart\nSection: admin\nPriority: optional\n"
+      "filename": "needrestart_3.6-4+deb12u4_all.deb",
+      "url": "https://deb.debian.org/debian-security/pool/updates/main/n/needrestart/needrestart_3.6-4%2bdeb12u4_all.deb",
+      "size": 60684,
+      "sha256": "7a7e622790d9492215aeca63b355d37968b94018b743dec036e8ad6bdfb1a0a8",
+      "control": "Package: needrestart\nVersion: 3.6-4+deb12u4\nInstalled-Size: 296\nMaintainer: Patrick Matth\u00e4i <pmatthaei@debian.org>\nArchitecture: all\nDepends: perl:any, dpkg (>= 1.16.0), gettext-base, libintl-perl, libproc-processtable-perl, libsort-naturally-perl, libterm-readkey-perl, libmodule-find-perl, binutils, xz-utils\nSuggests: needrestart-session | libnotify-bin, iucode-tool\nDescription: check which daemons need to be restarted after library upgrades\nDescription-md5: a26ee5dd9ec37fe484bee4f1ce585d87\nHomepage: https://github.com/liske/needrestart\nEnhances: intel-microcode\nRecommends: libpam-systemd | sysvinit-core, systemd | libimvirt-perl\nSection: admin\nPriority: optional\n"
     },
     {
       "filename": "patch_2.7.6-7_amd64.deb",
