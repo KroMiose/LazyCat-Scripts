@@ -66,6 +66,13 @@ try {
     $null = & $paste -CaPublicKey $caKey -Alias 'ci-paste' -Address '127.0.0.1' -User $user @common
     if ((Get-FileHash -LiteralPath $config).Hash -ne $afterJoin.Hash) { throw 'Re-running the paste entry changed sshd_config.' }
     $null = & $paste -Status -Source $base
+    # Loopback logins below bypass the firewall, so check the rule can match a
+    # remote connection: sshd has no service SID, so a service condition never does.
+    $managedRule = Get-NetFirewallRule -PolicyStore ActiveStore -Name 'LazyCat-OpenSSH-Server-In-TCP'
+    $ruleService = [string]($managedRule | Get-NetFirewallServiceFilter).Service
+    if ($ruleService -and $ruleService -ine 'Any') { throw "Managed firewall rule is scoped to service '$ruleService'." }
+    $ruleProgram = [Environment]::ExpandEnvironmentVariables([string]($managedRule | Get-NetFirewallApplicationFilter).Program)
+    if ($ruleProgram -notlike '*\OpenSSH\sshd.exe') { throw "Managed firewall rule program is '$ruleProgram'." }
     # Local files: Windows PowerShell 5.1 must decode the Chinese text ("管理员").
     foreach ($file in @($install, (Join-Path $base 'setup-openssh.ps1'), (Join-Path $base 'lazycat-ssh-node.ps1'))) {
         $tokens = $null; $errors = $null

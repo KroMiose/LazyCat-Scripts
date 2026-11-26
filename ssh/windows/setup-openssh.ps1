@@ -386,7 +386,7 @@ function New-ManagedFirewallRule([int]$TargetPort, [string[]]$Sources, [string[]
     $null = New-NetFirewallRule -PolicyStore PersistentStore -Name $managedRuleName `
         -DisplayName 'LazyCat OpenSSH Server (sshd)' -Description $managedRuleDescription `
         -Enabled True -Profile $Profiles -Direction Inbound -Action Allow -Protocol TCP `
-        -LocalPort $TargetPort -RemoteAddress $Sources -Program $SshdPath -Service sshd
+        -LocalPort $TargetPort -RemoteAddress $Sources -Program $SshdPath
 }
 
 function Restore-ManagedFirewallRule([object]$Snapshot) {
@@ -442,9 +442,15 @@ function Assert-ManagedFirewallRule(
     $program = [Environment]::ExpandEnvironmentVariables(
         [string](($rules[0] | Get-NetFirewallApplicationFilter).Program)
     )
+    # The built-in sshd service has SID type NONE, so a service condition never
+    # matches and remote connections fall through to the default block; loopback
+    # bypasses the firewall, so local tests cannot catch this.
     $service = [string](($rules[0] | Get-NetFirewallServiceFilter).Service)
-    if ($program -ine $SshdPath -or $service -ine 'sshd') {
-        throw '生效的受管防火墙规则未限定为仅作用于内置的 sshd 服务。'
+    if ($program -ine $SshdPath) {
+        throw '生效的受管防火墙规则未限定为仅作用于内置的 sshd.exe。'
+    }
+    if ($service -and $service -ine 'Any') {
+        throw "生效的受管防火墙规则带有服务条件 '$service'，sshd 进程不带服务 SID，远程连接会被拦截。"
     }
 }
 
