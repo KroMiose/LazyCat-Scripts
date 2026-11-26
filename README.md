@@ -622,7 +622,7 @@
   )
   ```
 
-- **🪟 Windows 被控端：** 使用系统自带 OpenSSH，并为指定本地账号启用 CA 证书登录，步骤见 [Windows Node](./ssh/README.md#windows-node)。
+- **🪟 Windows 被控端：** 全新的 Windows 10 / 11 也能接入，只用系统自带 OpenSSH，按 [Windows Node](./ssh/README.md#windows-node) 的 5 步复制命令即可。
 
 - **⚠️ CA 管理端：** 建议在可信环境运行（会在本机生成并保存 CA 私钥）。
 
