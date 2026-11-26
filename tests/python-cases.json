@@ -62,6 +62,8 @@
     "test_package_lock.PackageLock.test_authenticated_resolution_and_fixture_mirror",
     "test_package_lock.PackageLock.test_download_uses_real_http_and_rejects_truncation",
     "test_package_lock.PackageLock.test_exact_cache_and_base_required",
+    "test_package_lock.PackageLock.test_removed_upstream_archive_falls_back_to_snapshot",
+    "test_package_lock.PackageLock.test_snapshot_urls_cover_known_archives_only",
     "test_proxy_entrypoint.ProxyEntrypoint.test_apply_repeat_ipv6_and_broken_marker",
     "test_proxy_entrypoint.ProxyEntrypoint.test_default_preference_is_read_from_locked_snapshot",
     "test_proxy_entrypoint.ProxyEntrypoint.test_failed_interactive_test_can_continue_or_cancel",
