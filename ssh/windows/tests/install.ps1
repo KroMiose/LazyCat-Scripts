@@ -29,8 +29,11 @@ $port = 22222
 $loginKey = Join-Path $temp 'client'
 $knownHosts = Join-Path $temp 'known_hosts'
 $clientConfig = Join-Path $temp 'ssh_config'
-# The exact paste form from the docs, with the local checkout replacing the mirror.
-$paste = [scriptblock]::Create([IO.File]::ReadAllText($install))
+# The exact paste form from the docs, with the local checkout replacing the
+# mirror: irm returns the UTF-8 text including the BOM, which the entry trims.
+$downloaded = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($install))
+if ($downloaded[0] -ne [char]0xFEFF) { throw 'install.ps1 must be saved as UTF-8 with BOM for Windows PowerShell 5.1.' }
+$paste = [scriptblock]::Create($downloaded.TrimStart([char]0xFEFF))
 $common = @{ AllowedRemoteAddress = @('192.0.2.0/24', '2001:db8::/64'); FirewallProfile = 'Any'; Source = $base; Yes = $true }
 try {
     foreach ($name in @('ca', 'client')) {
@@ -42,7 +45,8 @@ try {
     $beforeAdmin = Get-FileHash -LiteralPath $config
     $refused = $false
     try { $null = & $paste -CaPublicKey $caKey -Alias 'ci-admin' -Address '127.0.0.1' -User $env:USERNAME @common }
-    catch { $refused = "$_" -match 'local administrator' }
+    # "本地管理员" (local administrator), escaped to keep this file ASCII.
+    catch { $refused = "$_" -match '\u672c\u5730\u7ba1\u7406\u5458' }
     if (-not $refused) { throw 'An administrator account was not refused.' }
     if ((Get-FileHash -LiteralPath $config).Hash -ne $beforeAdmin.Hash) { throw 'Refusing an administrator still changed sshd_config.' }
 
@@ -62,6 +66,14 @@ try {
     $null = & $paste -CaPublicKey $caKey -Alias 'ci-paste' -Address '127.0.0.1' -User $user @common
     if ((Get-FileHash -LiteralPath $config).Hash -ne $afterJoin.Hash) { throw 'Re-running the paste entry changed sshd_config.' }
     $null = & $paste -Status -Source $base
+    # Local files: Windows PowerShell 5.1 must decode the Chinese text ("管理员").
+    foreach ($file in @($install, (Join-Path $base 'setup-openssh.ps1'), (Join-Path $base 'lazycat-ssh-node.ps1'))) {
+        $tokens = $null; $errors = $null
+        $ast = [Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors)
+        if ($errors.Count -gt 0) { throw "$file does not parse: $($errors -join '; ')" }
+        if ($ast.Extent.Text -notmatch '\u7ba1\u7406\u5458') { throw "$file Chinese text was not decoded as UTF-8." }
+    }
+    & $install -Status
 
     $hostPublicKey = (Get-Content -LiteralPath (Join-Path $env:ProgramData 'ssh\ssh_host_ed25519_key.pub') -Raw).Trim()
     [IO.File]::WriteAllText($knownHosts, "[127.0.0.1]:$port $hostPublicKey`n")

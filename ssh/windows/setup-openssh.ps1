@@ -1,26 +1,24 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-Install and configure the Windows built-in OpenSSH Server.
+安装并配置 Windows 内置的 OpenSSH Server。
 .DESCRIPTION
-Uses the stock sshd_config as the base for a new configuration, manages one
-global LazyCat block, and manages one narrowly scoped Windows Firewall rule.
-Existing authentication settings and host keys are preserved. A newly created
-configuration disables password authentication before sshd is first started.
+以系统自带的 sshd_config 作为新配置的基础，管理一个全局 LazyCat 配置块，
+以及一条范围严格限定的 Windows 防火墙规则。
+已有的认证设置和主机密钥会被保留。新建的配置会在 sshd 首次启动前禁用密码认证。
 .PARAMETER Port
-Listener port. When omitted, keep the current effective port; a new stock
-configuration uses port 22.
+监听端口。省略时保持当前生效的端口；全新的默认配置使用 22 端口。
 .PARAMETER AllowedRemoteAddress
-One or more source IP addresses, CIDR networks, LocalSubnet, or explicit Any.
-Required unless -NoFirewall is used.
+一个或多个来源 IP 地址、CIDR 网段、LocalSubnet，或显式指定的 Any。
+除非使用 -NoFirewall，否则必须指定。
 .PARAMETER FirewallProfile
-Windows Firewall profiles for the managed rule. Defaults to Domain,Private.
+受管防火墙规则所用的 Windows 防火墙配置文件。默认为 Domain,Private。
 .PARAMETER NoFirewall
-Do not create or change firewall rules. A stock rule created by a capability
-installed during this run is still disabled before sshd starts.
+不创建或修改防火墙规则。若本次运行安装的功能自带了默认规则，
+该规则仍会在 sshd 启动前被禁用。
 .PARAMETER Status
-Display capability, service, listener, firewall, and host-key status.
+显示功能、服务、监听端口、防火墙和主机密钥的状态。
 #>
 [CmdletBinding(DefaultParameterSetName = 'Configure', SupportsShouldProcess)]
 param(
@@ -58,7 +56,7 @@ function Invoke-OpenSsh([string]$Exe, [string[]]$Arguments) {
     $ErrorActionPreference = 'Continue'
     $output = @(& $Exe @Arguments 2>&1)
     if ($LASTEXITCODE -ne 0) {
-        throw "$([IO.Path]::GetFileName($Exe)) failed: $($output -join [Environment]::NewLine)"
+        throw "$([IO.Path]::GetFileName($Exe)) 执行失败：$($output -join [Environment]::NewLine)"
     }
     return $output
 }
@@ -66,7 +64,7 @@ function Invoke-OpenSsh([string]$Exe, [string[]]$Arguments) {
 function Assert-PlainPath([string]$Path) {
     $item = Get-Item -LiteralPath $Path -Force
     if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
-        throw "Refusing to use a reparse point: $Path"
+        throw "拒绝使用重解析点：$Path"
     }
 }
 
@@ -79,7 +77,7 @@ function Get-SetupConfigParts([string]$Text) {
         return @{ Unmanaged = $Text; Managed = '' }
     }
     if ($starts.Count -ne 1 -or $ends.Count -ne 1 -or $starts[0].Index -ge $ends[0].Index) {
-        throw 'Invalid LazyCat setup markers in sshd_config. Repair the managed block before continuing.'
+        throw 'sshd_config 中的 LazyCat 配置块标记无效。请先修复该受管配置块再继续。'
     }
     $start = $starts[0].Index
     $after = $ends[0].Index + $ends[0].Length
@@ -97,7 +95,7 @@ function Get-ManagedSettings([string]$Block) {
         $trimmed = $line.Trim()
         if (-not $trimmed -or $trimmed.StartsWith('#')) { continue }
         if ($trimmed -match '\APort[ \t=]+([0-9]+)(?:[ \t]+#.*)?\z') {
-            if ($settings.HasPort) { throw 'The LazyCat setup block contains more than one Port directive.' }
+            if ($settings.HasPort) { throw 'LazyCat 配置块中包含多于一条 Port 指令。' }
             $settings.HasPort = $true
             $settings.Port = [int]$Matches[1]
             continue
@@ -106,7 +104,7 @@ function Get-ManagedSettings([string]$Block) {
             $settings.DisablePassword = $true
             continue
         }
-        throw "Unexpected directive in the LazyCat setup block: $trimmed"
+        throw "LazyCat 配置块中存在意外的指令：$trimmed"
     }
     return $settings
 }
@@ -171,51 +169,51 @@ function Get-EffectivePort([string]$Sshd, [string]$Config) {
         } | Sort-Object -Unique)
     }
     if ($ports.Count -ne 1) {
-        throw "Expected exactly one effective sshd listener port; found: $($ports -join ', ')."
+        throw "应当有且仅有一个生效的 sshd 监听端口，实际为：$($ports -join ', ')。"
     }
     return $ports[0]
 }
 
 function ConvertTo-ValidatedRemoteAddresses([string[]]$Values) {
     if (-not $Values -or $Values.Count -eq 0) {
-        throw 'Specify -AllowedRemoteAddress, or use -NoFirewall when another system manages the firewall.'
+        throw '请指定 -AllowedRemoteAddress；若防火墙由其他系统管理，请使用 -NoFirewall。'
     }
     $result = New-Object 'System.Collections.Generic.List[string]'
     foreach ($raw in $Values) {
-        if ($null -eq $raw -or -not $raw.Trim()) { throw 'AllowedRemoteAddress cannot contain an empty value.' }
+        if ($null -eq $raw -or -not $raw.Trim()) { throw 'AllowedRemoteAddress 不能包含空值。' }
         $value = $raw.Trim()
         if ($value -ieq 'Any') { $result.Add('Any'); continue }
         if ($value -ieq 'LocalSubnet') { $result.Add('LocalSubnet'); continue }
 
         $pieces = @($value -split '/')
-        if ($pieces.Count -gt 2 -or -not $pieces[0]) { throw "Invalid IP address or CIDR network: $value" }
+        if ($pieces.Count -gt 2 -or -not $pieces[0]) { throw "无效的 IP 地址或 CIDR 网段：$value" }
         $ip = $null
         if (-not [Net.IPAddress]::TryParse($pieces[0], [ref]$ip)) {
-            throw "AllowedRemoteAddress must be an IP address, CIDR network, LocalSubnet, or Any: $value"
+            throw "AllowedRemoteAddress 必须是 IP 地址、CIDR 网段、LocalSubnet 或 Any：$value"
         }
         $isV4 = $ip.AddressFamily -eq [Net.Sockets.AddressFamily]::InterNetwork
         if ($isV4 -and $pieces[0] -notmatch '\A(?:[0-9]{1,3}\.){3}[0-9]{1,3}\z') {
-            throw "Use four-octet notation for IPv4 addresses: $value"
+            throw "IPv4 地址请使用四段式写法：$value"
         }
         if (-not $isV4 -and $ip.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetworkV6) {
-            throw "Unsupported IP address: $value"
+            throw "不支持的 IP 地址：$value"
         }
         $canonical = $ip.ToString()
         if ($pieces.Count -eq 2) {
             $prefix = 0
-            if (-not [int]::TryParse($pieces[1], [ref]$prefix)) { throw "Invalid CIDR prefix: $value" }
+            if (-not [int]::TryParse($pieces[1], [ref]$prefix)) { throw "无效的 CIDR 前缀：$value" }
             $maximum = if ($isV4) { 32 } else { 128 }
-            if ($prefix -lt 0 -or $prefix -gt $maximum) { throw "CIDR prefix is out of range: $value" }
+            if ($prefix -lt 0 -or $prefix -gt $maximum) { throw "CIDR 前缀超出范围：$value" }
             $bytes = $ip.GetAddressBytes()
             $fullBytes = [int][Math]::Floor($prefix / 8)
             $remainingBits = $prefix % 8
             if ($remainingBits -gt 0) {
                 $hostMask = (1 -shl (8 - $remainingBits)) - 1
-                if (($bytes[$fullBytes] -band $hostMask) -ne 0) { throw "CIDR must use its network address: $value" }
+                if (($bytes[$fullBytes] -band $hostMask) -ne 0) { throw "CIDR 必须使用其网络地址：$value" }
                 $fullBytes++
             }
             for ($i = $fullBytes; $i -lt $bytes.Length; $i++) {
-                if ($bytes[$i] -ne 0) { throw "CIDR must use its network address: $value" }
+                if ($bytes[$i] -ne 0) { throw "CIDR 必须使用其网络地址：$value" }
             }
             $canonical += "/$prefix"
         }
@@ -223,7 +221,7 @@ function ConvertTo-ValidatedRemoteAddresses([string[]]$Values) {
     }
     $unique = @($result | Sort-Object -Unique)
     if ($unique -icontains 'Any' -and $unique.Count -ne 1) {
-        throw 'Use AllowedRemoteAddress Any by itself; do not combine it with narrower sources.'
+        throw 'AllowedRemoteAddress 的 Any 必须单独使用，不能与范围更窄的来源同时指定。'
     }
     return $unique
 }
@@ -231,7 +229,7 @@ function ConvertTo-ValidatedRemoteAddresses([string[]]$Values) {
 function ConvertTo-ValidatedProfiles([string[]]$Profiles) {
     $unique = @($Profiles | Sort-Object -Unique)
     if ($unique -icontains 'Any' -and $unique.Count -ne 1) {
-        throw 'Use FirewallProfile Any by itself; do not combine it with named profiles.'
+        throw 'FirewallProfile 的 Any 必须单独使用，不能与具名配置文件同时指定。'
     }
     return $unique
 }
@@ -359,11 +357,11 @@ function Get-OverlappingFirewallRules([int]$TargetPort, [string]$SshdPath) {
 
 function Get-ManagedFirewallSnapshot {
     $rules = @(Get-NetFirewallRule -PolicyStore PersistentStore -Name $managedRuleName -ErrorAction SilentlyContinue)
-    if ($rules.Count -gt 1) { throw "More than one persistent firewall rule is named $managedRuleName." }
+    if ($rules.Count -gt 1) { throw "存在多条名为 $managedRuleName 的持久防火墙规则。" }
     if ($rules.Count -eq 0) { return $null }
     $rule = $rules[0]
     if ($rule.Description -ne $managedRuleDescription) {
-        throw "Firewall rule '$managedRuleName' exists but is not owned by this script. Rename or remove it first."
+        throw "防火墙规则 '$managedRuleName' 已存在，但不属于本脚本管理。请先重命名或删除它。"
     }
     $portFilter = $rule | Get-NetFirewallPortFilter
     $addressFilter = $rule | Get-NetFirewallAddressFilter
@@ -422,31 +420,31 @@ function Assert-ManagedFirewallRule(
     $rules = @(Get-NetFirewallRule -PolicyStore ActiveStore -Name $managedRuleName -ErrorAction SilentlyContinue)
     if ($rules.Count -ne 1 -or $rules[0].Enabled -ne 'True' -or $rules[0].Direction -ne 'Inbound' -or
         $rules[0].Action -ne 'Allow') {
-        throw "The effective managed firewall rule '$managedRuleName' is missing or inactive. Group Policy may be overriding it."
+        throw "生效的受管防火墙规则 '$managedRuleName' 缺失或未启用。可能被组策略覆盖。"
     }
     $portFilter = $rules[0] | Get-NetFirewallPortFilter
     if (([string]$portFilter.Protocol -notin @('TCP', '6')) -or
         -not (Test-PortExpression $portFilter.LocalPort $TargetPort)) {
-        throw "The effective managed firewall rule does not allow TCP port $TargetPort."
+        throw "生效的受管防火墙规则未放行 TCP 端口 $TargetPort。"
     }
     $actualSources = @(($rules[0] | Get-NetFirewallAddressFilter).RemoteAddress |
         ForEach-Object { ConvertTo-CanonicalFirewallAddress ([string]$_) } | Sort-Object -Unique)
     $expectedSources = @($Sources |
         ForEach-Object { ConvertTo-CanonicalFirewallAddress ([string]$_) } | Sort-Object -Unique)
     if (($actualSources -join ',').ToLowerInvariant() -ne ($expectedSources -join ',').ToLowerInvariant()) {
-        throw "The effective managed firewall sources differ from the requested sources: $($actualSources -join ', ')."
+        throw "生效的受管防火墙来源与请求的来源不一致：$($actualSources -join ', ')。"
     }
     $actualProfiles = @(([string]$rules[0].Profile -split ',') | ForEach-Object { $_.Trim() } | Sort-Object -Unique)
     $expectedProfiles = @($Profiles | Sort-Object -Unique)
     if (($actualProfiles -join ',').ToLowerInvariant() -ne ($expectedProfiles -join ',').ToLowerInvariant()) {
-        throw "The effective managed firewall profiles differ from the requested profiles: $($actualProfiles -join ', ')."
+        throw "生效的受管防火墙配置文件与请求的配置文件不一致：$($actualProfiles -join ', ')。"
     }
     $program = [Environment]::ExpandEnvironmentVariables(
         [string](($rules[0] | Get-NetFirewallApplicationFilter).Program)
     )
     $service = [string](($rules[0] | Get-NetFirewallServiceFilter).Service)
     if ($program -ine $SshdPath -or $service -ine 'sshd') {
-        throw 'The effective managed firewall rule is not restricted to the built-in sshd service.'
+        throw '生效的受管防火墙规则未限定为仅作用于内置的 sshd 服务。'
     }
 }
 
@@ -458,22 +456,22 @@ function Wait-SshListener([int]$TargetPort) {
                 Select-Object -ExpandProperty LocalPort -Unique | Sort-Object)
             if ($ports.Count -eq 1 -and $ports[0] -eq $TargetPort) { return }
             if ($ports.Count -gt 0 -and ($ports -notcontains $TargetPort -or $ports.Count -gt 1)) {
-                throw "sshd is listening on unexpected port(s): $($ports -join ', ')."
+                throw "sshd 正在监听意外的端口：$($ports -join ', ')。"
             }
         }
         Start-Sleep -Milliseconds 500
     }
-    throw "sshd did not begin listening on TCP port $TargetPort within 15 seconds."
+    throw "sshd 未能在 15 秒内开始监听 TCP 端口 $TargetPort。"
 }
 
 function Write-HostFingerprints([string]$Keygen, [string]$ConfigDir) {
     $keys = @(Get-ChildItem -LiteralPath $ConfigDir -Filter 'ssh_host_*_key.pub' -File -ErrorAction SilentlyContinue |
         Sort-Object Name)
     if ($keys.Count -eq 0) {
-        Write-Output 'Host key fingerprints: none found'
+        Write-Output '主机密钥指纹：未找到'
         return
     }
-    Write-Output 'Host key fingerprints:'
+    Write-Output '主机密钥指纹：'
     foreach ($key in $keys) {
         $fingerprint = (Invoke-OpenSsh $Keygen @('-l', '-E', 'sha256', '-f', $key.FullName)) -join ' '
         Write-Output "  $fingerprint"
@@ -485,7 +483,7 @@ function Get-StartupType([string]$StartMode) {
         'Auto' { return 'Automatic' }
         'Manual' { return 'Manual' }
         'Disabled' { return 'Disabled' }
-        default { throw "Unsupported sshd start mode: $StartMode" }
+        default { throw "不支持的 sshd 启动模式：$StartMode" }
     }
 }
 
@@ -495,14 +493,14 @@ function Disable-NewStockRule([bool]$RuleExistedBeforeInstall) {
     foreach ($rule in $rules) {
         if ($rule.Enabled -eq 'True') {
             Disable-NetFirewallRule -InputObject $rule
-            Write-Warning "Disabled the broad stock firewall rule created by the OpenSSH capability: $stockRuleName"
+            Write-Warning "已禁用 OpenSSH 功能自带的宽泛默认防火墙规则：$stockRuleName"
         }
     }
 }
 
 $windowsDir = $env:WINDIR
 $programData = $env:ProgramData
-if (-not $windowsDir -or -not $programData) { throw 'Windows environment paths are unavailable.' }
+if (-not $windowsDir -or -not $programData) { throw '无法获取 Windows 环境路径。' }
 $sshBin = Join-Path $windowsDir 'System32\OpenSSH'
 $sshd = Join-Path $sshBin 'sshd.exe'
 $keygen = Join-Path $sshBin 'ssh-keygen.exe'
@@ -514,33 +512,33 @@ $capability = Get-WindowsCapability -Online -Name $capabilityName
 $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='sshd'" -ErrorAction SilentlyContinue
 
 if ($Status) {
-    Write-Output "OpenSSH Server capability: $($capability.State)"
+    Write-Output "OpenSSH Server 功能：$($capability.State)"
     if (-not $service) {
-        Write-Output 'sshd service: missing'
+        Write-Output 'sshd 服务：缺失'
         return
     }
-    Write-Output "sshd service: $($service.State) (start mode: $($service.StartMode))"
-    Write-Output "sshd service command: $($service.PathName)"
+    Write-Output "sshd 服务：$($service.State)（启动模式：$($service.StartMode)）"
+    Write-Output "sshd 服务命令：$($service.PathName)"
     if (-not (Test-ServiceExecutable $service $sshd)) {
-        Write-Output 'Configuration status: unsupported custom sshd executable or service arguments'
+        Write-Output '配置状态：不支持自定义的 sshd 可执行文件或服务参数'
         return
     }
     if (-not (Test-Path -LiteralPath $config -PathType Leaf)) {
-        Write-Output "Configuration: not initialized ($config)"
+        Write-Output "配置：未初始化（$config）"
     } else {
         Assert-PlainPath $config
         $null = Invoke-OpenSsh $sshd @('-t', '-f', $config)
         $effectivePort = Get-EffectivePort $sshd $config
-        Write-Output "Effective configured port: $effectivePort"
+        Write-Output "生效的配置端口：$effectivePort"
         if ($service.State -eq 'Running' -and $service.ProcessId -gt 0) {
             $listening = @(Get-NetTCPConnection -State Listen -OwningProcess $service.ProcessId -ErrorAction SilentlyContinue |
                 Select-Object -ExpandProperty LocalPort -Unique | Sort-Object)
-            Write-Output "Actual listening port(s): $($listening -join ', ')"
+            Write-Output "实际监听端口：$($listening -join ', ')"
         }
     }
     $managedFirewall = @(Get-NetFirewallRule -PolicyStore ActiveStore -Name $managedRuleName -ErrorAction SilentlyContinue)
-    if ($managedFirewall.Count -eq 0) { Write-Output 'Managed firewall rule: absent' }
-    else { Write-Output "Managed firewall rule: $($managedFirewall[0].Enabled), profiles $($managedFirewall[0].Profile)" }
+    if ($managedFirewall.Count -eq 0) { Write-Output '受管防火墙规则：不存在' }
+    else { Write-Output "受管防火墙规则：$($managedFirewall[0].Enabled)，配置文件 $($managedFirewall[0].Profile)" }
     if (Test-Path -LiteralPath $keygen -PathType Leaf) { Write-HostFingerprints $keygen $configDir }
     return
 }
@@ -549,47 +547,47 @@ $validatedProfiles = ConvertTo-ValidatedProfiles $FirewallProfile
 $validatedSources = $null
 if ($NoFirewall) {
     if ($PSBoundParameters.ContainsKey('AllowedRemoteAddress') -or $PSBoundParameters.ContainsKey('FirewallProfile')) {
-        throw 'Do not combine -NoFirewall with -AllowedRemoteAddress or -FirewallProfile.'
+        throw '-NoFirewall 不能与 -AllowedRemoteAddress 或 -FirewallProfile 同时使用。'
     }
 } else {
     $validatedSources = ConvertTo-ValidatedRemoteAddresses $AllowedRemoteAddress
 }
 
-if (-not $PSCmdlet.ShouldProcess('Windows OpenSSH Server', 'Install/configure sshd and its inbound firewall rule')) { return }
+if (-not $PSCmdlet.ShouldProcess('Windows OpenSSH Server', '安装/配置 sshd 及其入站防火墙规则')) { return }
 
 $stockRuleBeforeInstall = @(Get-NetFirewallRule -PolicyStore PersistentStore -Name $stockRuleName -ErrorAction SilentlyContinue)
 if ($capability.State -ne 'Installed') {
-    Write-Host 'Installing the Windows OpenSSH Server optional feature. Windows may need to download it.'
+    Write-Host '正在安装 Windows OpenSSH Server 可选功能，Windows 可能需要下载组件。'
     try {
         $installResult = Add-WindowsCapability -Online -Name $capabilityName
     } catch {
         $message = [string]$_
         if ($message -match '0x800f0954|0x8024402c|WSUS|source files could not be found') {
-            throw "OpenSSH Server capability installation failed, likely because Windows Update/WSUS cannot provide the payload. Ask the Windows administrator to allow the OpenSSH optional feature, then rerun. Original error: $message"
+            throw "OpenSSH Server 功能安装失败，可能是 Windows Update/WSUS 无法提供安装包。请让 Windows 管理员允许 OpenSSH 可选功能，然后重新运行。原始错误：$message"
         }
         throw
     }
     Disable-NewStockRule ($stockRuleBeforeInstall.Count -gt 0)
     $capability = Get-WindowsCapability -Online -Name $capabilityName
     if ($installResult.RestartNeeded -or $capability.State -ne 'Installed') {
-        throw 'OpenSSH Server installation requires a reboot or has not completed. Reboot Windows, then rerun this command.'
+        throw 'OpenSSH Server 安装需要重启或尚未完成。请重启 Windows，然后重新运行此命令。'
     }
-    Write-Host 'Windows OpenSSH Server optional feature installed.'
+    Write-Host 'Windows OpenSSH Server 可选功能已安装。'
     $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='sshd'" -ErrorAction SilentlyContinue
 }
 
 if (-not $service) {
-    throw 'The OpenSSH capability is installed but the sshd service is unavailable. Reboot Windows, then rerun.'
+    throw 'OpenSSH 功能已安装，但 sshd 服务不可用。请重启 Windows 后重新运行。'
 }
 if (-not (Test-ServiceExecutable $service $sshd)) {
-    throw "The sshd service uses a custom executable or arguments: $($service.PathName). Only the Windows built-in OpenSSH service with its standard config path is supported."
+    throw "sshd 服务使用了自定义的可执行文件或参数：$($service.PathName)。仅支持使用标准配置路径的 Windows 内置 OpenSSH 服务。"
 }
 foreach ($path in @($sshd, $keygen, $stockConfig)) {
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Required OpenSSH file is missing: $path" }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "缺少必需的 OpenSSH 文件：$path" }
     Assert-PlainPath $path
 }
 if ($service.State -notin @('Running', 'Stopped')) {
-    throw "sshd is in unsupported state '$($service.State)'. Stop or resume it, then rerun."
+    throw "sshd 处于不支持的状态 '$($service.State)'。请先停止或恢复它，然后重新运行。"
 }
 
 $newConfiguration = -not (Test-Path -LiteralPath $config -PathType Leaf)
@@ -646,7 +644,7 @@ try {
     $unmanagedPorts = @($rendered.UnmanagedPorts)
     $conflictingPorts = @($unmanagedPorts | Where-Object { $_ -ne $targetPort })
     if ($targetPort -ne $currentPort -and $conflictingPorts.Count -gt 0) {
-        throw "Refusing to override active unmanaged Port directive(s): $($conflictingPorts -join ', '). Update them explicitly, then rerun."
+        throw "拒绝覆盖生效中的非受管 Port 指令：$($conflictingPorts -join ', ')。请手动更新它们，然后重新运行。"
     }
 
     $candidate = $rendered.Text
@@ -657,12 +655,12 @@ try {
     $null = Invoke-OpenSsh $sshd @('-t', '-f', $candidateTemp)
     $candidatePort = Get-EffectivePort $sshd $candidateTemp
     if ($candidatePort -ne $targetPort) {
-        throw "The candidate configuration is ineffective: requested port $targetPort, effective port $candidatePort. Check Include, Port, and ListenAddress directives."
+        throw "候选配置未生效：请求的端口为 $targetPort，实际生效端口为 $candidatePort。请检查 Include、Port 和 ListenAddress 指令。"
     }
     if ($rendered.DisablePassword) {
         $effective = @(Invoke-OpenSsh $sshd @('-T', '-f', $candidateTemp))
         if ($effective -notcontains 'passwordauthentication no') {
-            throw 'The candidate configuration does not effectively disable password authentication.'
+            throw '候选配置未能有效禁用密码认证。'
         }
     }
 
@@ -671,7 +669,7 @@ try {
             Where-Object { $_.OwningProcess -ne $service.ProcessId })
         if ($otherListeners.Count -gt 0) {
             $owners = @($otherListeners | Select-Object -ExpandProperty OwningProcess -Unique)
-            throw "TCP port $targetPort is already in use by process ID(s): $($owners -join ', ')."
+            throw "TCP 端口 $targetPort 已被进程 ID 占用：$($owners -join ', ')。"
         }
     }
 
@@ -679,13 +677,13 @@ try {
         $firewallSnapshot = Get-ManagedFirewallSnapshot
         $overlaps = @(Get-OverlappingFirewallRules $targetPort $sshd)
         if ($overlaps.Count -gt 0) {
-            throw "Other enabled inbound allow rule(s) overlap sshd TCP port ${targetPort}: $($overlaps -join '; '). Disable or narrow them, then rerun."
+            throw "其他已启用的入站放行规则与 sshd 的 TCP 端口 ${targetPort} 重叠：$($overlaps -join '; ')。请禁用或收窄这些规则，然后重新运行。"
         }
     } else {
         $enabledStockRules = @(Get-NetFirewallRule -PolicyStore ActiveStore -Name $stockRuleName -ErrorAction SilentlyContinue |
             Where-Object { $_.Enabled -eq 'True' })
         if ($enabledStockRules.Count -gt 0) {
-            Write-Warning "NoFirewall was requested; existing stock rule '$stockRuleName' remains enabled and unmanaged."
+            Write-Warning "已指定 NoFirewall；现有的默认规则 '$stockRuleName' 仍保持启用且不受管理。"
         }
     }
 
@@ -695,7 +693,7 @@ try {
             $configCreated = $true
         } else {
             if ([IO.File]::ReadAllText($config, $utf8) -cne $original) {
-                throw 'sshd_config changed while setup was running. Rerun the command.'
+                throw '安装过程中 sshd_config 发生了变化。请重新运行该命令。'
             }
             [IO.File]::Replace($candidateTemp, $config, $backup)
             $configReplaced = $true
@@ -709,9 +707,9 @@ try {
             if ($rule.Enabled -eq 'True') {
                 $stockRulesDisabled += $rule
                 Disable-NetFirewallRule -InputObject $rule
-                Write-Host "Adopted and disabled broad stock firewall rule: $stockRuleName"
+                Write-Host "已接管并禁用宽泛的默认防火墙规则：$stockRuleName"
             } else {
-                Write-Host "Existing stock firewall rule is already disabled and remains disabled: $stockRuleName"
+                Write-Host "现有的默认防火墙规则已处于禁用状态，将保持禁用：$stockRuleName"
             }
         }
         New-ManagedFirewallRule $targetPort $validatedSources $validatedProfiles $sshd
@@ -732,28 +730,28 @@ try {
         Assert-ManagedFirewallRule $targetPort $validatedSources $validatedProfiles $sshd
     }
 
-    if ($configReplaced) { Write-Host "Saved previous configuration to $backup" }
-    Write-Output "OpenSSH Server is running and listening on TCP port $targetPort."
-    if ($NoFirewall) { Write-Warning 'Windows Firewall was not configured. Ensure another policy allows only the intended sources.' }
-    else { Write-Output "Managed firewall sources: $($validatedSources -join ', ') (profiles: $($validatedProfiles -join ', '))" }
+    if ($configReplaced) { Write-Host "已将之前的配置保存到 $backup" }
+    Write-Output "OpenSSH Server 正在运行，并监听 TCP 端口 $targetPort。"
+    if ($NoFirewall) { Write-Warning '未配置 Windows 防火墙。请确保其他策略只放行预期的来源。' }
+    else { Write-Output "受管防火墙来源：$($validatedSources -join ', ')（配置文件：$($validatedProfiles -join ', ')）" }
     Write-HostFingerprints $keygen $configDir
 } catch {
     $failure = $_
     if ($configReplaced) {
         try {
             [IO.File]::Replace($backup, $config, $rejected)
-            Write-Warning "Restored the previous sshd_config. Rejected configuration: $rejected"
-        } catch { Write-Warning "Could not restore sshd_config: $_. Backups are in $configDir." }
+            Write-Warning "已恢复之前的 sshd_config。被拒绝的配置：$rejected"
+        } catch { Write-Warning "无法恢复 sshd_config：$_。备份位于 $configDir。" }
     } elseif ($configCreated) {
-        try { Remove-Item -LiteralPath $config -Force } catch { Write-Warning "Could not remove the new sshd_config during rollback: $_" }
+        try { Remove-Item -LiteralPath $config -Force } catch { Write-Warning "回滚时无法删除新的 sshd_config：$_" }
     }
     if ($firewallChanged) {
         try { Restore-ManagedFirewallRule $firewallSnapshot }
-        catch { Write-Warning "Could not restore the managed firewall rule: $_" }
+        catch { Write-Warning "无法恢复受管防火墙规则：$_" }
     }
     foreach ($rule in $stockRulesDisabled) {
         try { Enable-NetFirewallRule -InputObject $rule }
-        catch { Write-Warning "Could not re-enable stock firewall rule '$($rule.Name)': $_" }
+        catch { Write-Warning "无法重新启用默认防火墙规则 '$($rule.Name)'：$_" }
     }
     if ($serviceOperationAttempted -or $startupChanged) {
         try {
@@ -768,7 +766,7 @@ try {
             if ($startupChanged) {
                 Set-Service -Name sshd -StartupType (Get-StartupType $originalStartMode)
             }
-        } catch { Write-Warning "Could not fully restore sshd service state: $_" }
+        } catch { Write-Warning "无法完全恢复 sshd 服务状态：$_" }
     }
     throw $failure
 } finally {

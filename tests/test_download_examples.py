@@ -57,7 +57,7 @@ exit "$DOWNLOAD_EXIT"
             self.assertIsNotNone(command,result.stdout)
             self.exercise(command.group(),key)
             # PowerShell single-quoted literals expand nothing; '' is the only escape.
-            windows=re.search(r"^.*windows/install\.ps1\)\)\) -CaPublicKey '((?:[^']|'')*)'$",result.stdout,re.M)
+            windows=re.search(r"^.*windows/install\.ps1\)\.TrimStart\(\[char\]0xFEFF\)\)\) -CaPublicKey '((?:[^']|'')*)'$",result.stdout,re.M)
             self.assertIsNotNone(windows,result.stdout)
             self.assertEqual(windows.group(1).replace("''","'"),key)
             public.write_text("ssh-ed25519 AAAA it's-mine\n")

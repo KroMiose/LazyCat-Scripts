@@ -92,7 +92,7 @@ Go 候选客户端与验证边界见 [整改记录](../docs/REMEDIATION.md) 和 
 手边没有 CA 脚本时，也可以用下面这行通用命令，运行时会提示你粘贴 CA 公钥（在 CA 端执行 `cat ~/.lazycat/ssh-ca/lazycat-ssh-ca.pub` 获取）：
 
 ```powershell
-[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; & ([scriptblock]::Create((irm https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/windows/install.ps1)))
+[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; & ([scriptblock]::Create((irm https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/windows/install.ps1).TrimStart([char]0xFEFF)))
 ```
 
 **第 2 步：在 Windows 上粘贴运行**
@@ -103,10 +103,10 @@ Go 候选客户端与验证边界见 [整改记录](../docs/REMEDIATION.md) 和 
 
 | 询问 | 默认值 | 说明 |
 |---|---|---|
-| Alias on the controller | 计算机名（小写） | 控制端里 `ssh <别名>` 用的名字 |
-| Address the controller connects to | 本机默认网卡的 IPv4 | 控制端连接这台机器用的地址 |
-| Allowed client sources | `LocalSubnet` | 只允许同一局域网连接；经跳板或组网工具（如 Tailscale）连接时，改成对方地址或网段，多个用逗号分隔 |
-| Also allow SSH on Public networks? | 是 | 仅当前网络被识别为"公用网络"时才问（新装系统连 Wi-Fi 常见），否则防火墙规则不会生效 |
+| 控制端使用的别名 | 计算机名（小写） | 控制端里 `ssh <别名>` 用的名字 |
+| 控制端连接本机的地址 | 物理网卡的 IPv4 | 控制端连接这台机器用的地址。自动忽略代理 TUN（如 Clash 的 `198.18.x.x`）、VPN、虚拟机等虚拟网卡；默认值不对时手动填写 |
+| 允许连接的来源 | `LocalSubnet` | 只允许同一局域网连接；经跳板或组网工具（如 Tailscale）连接时，改成对方地址或网段，多个用逗号分隔 |
+| 是否也在公用网络下放行 SSH？ | 是 | 仅当连接所用的网卡被识别为"公用网络"时才问（新装系统连 Wi-Fi 常见），否则防火墙规则不会生效 |
 
 确认后，脚本会自动完成：安装并启动 OpenSSH（可能要几分钟）、创建专用的普通账号 `lazycat`（随机密码，之后用不到）、写入 CA 公钥并接入。
 
@@ -132,7 +132,7 @@ ssh win-pc whoami
 
 输出 `<计算机名>\lazycat` 就成功了。
 
-**查看状态 / 撤销接入**：再次粘贴第 1 步的通用命令，在菜单里选 `2) Show status` 或 `3) Remove LazyCat enrollment`。重复选 `1)` 可以更新配置，已有的设置会保留。
+**查看状态 / 撤销接入**：再次粘贴第 1 步的通用命令，在菜单里选 `2) 查看状态` 或 `3) 撤销 LazyCat 接入`。重复选 `1)` 可以更新配置，已有的设置会保留。
 
 撤销只关闭 LazyCat 的证书登录，保留 OpenSSH 服务、防火墙规则和 `lazycat` 账号；不再需要时可执行 `Remove-LocalUser lazycat` 删除账号。要让控制端不再显示这台机器，还需要删掉 Gist 里的条目并重新同步。
 
@@ -142,7 +142,7 @@ ssh win-pc whoami
 一行命令末尾可以直接加参数，跳过对应的询问，例如：
 
 ```powershell
-[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; & ([scriptblock]::Create((irm https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/windows/install.ps1))) -CaPublicKey 'ssh-ed25519 AAAA...' -Alias win-pc -Address 100.64.0.8 -AllowedRemoteAddress '100.64.0.0/10' -Route Tun -Yes
+[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; & ([scriptblock]::Create((irm https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/windows/install.ps1).TrimStart([char]0xFEFF))) -CaPublicKey 'ssh-ed25519 AAAA...' -Alias win-pc -Address 100.64.0.8 -AllowedRemoteAddress '100.64.0.0/10' -Route Tun -Yes
 ```
 
 `install.ps1` 参数：

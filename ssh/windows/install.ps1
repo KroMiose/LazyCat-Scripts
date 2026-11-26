@@ -1,36 +1,35 @@
-<#
+﻿<#
 .SYNOPSIS
-One-paste entry for enrolling a Windows device as a LazyCat SSH node.
+把 Windows 设备接入 LazyCat SSH 被控端的一行粘贴入口。
 .DESCRIPTION
-Run from an administrator Windows PowerShell (it relaunches itself elevated
-when needed):
+在 Windows PowerShell 中粘贴运行（不是管理员时会通过 UAC 自动以管理员重开）：
 
-  & ([scriptblock]::Create((irm https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/windows/install.ps1)))
+  [Net.ServicePointManager]::SecurityProtocol = 'Tls12'; & ([scriptblock]::Create((irm https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/windows/install.ps1).TrimStart([char]0xFEFF)))
 
-Without parameters it shows a menu and asks only for what it cannot infer.
-It downloads setup-openssh.ps1 and lazycat-ssh-node.ps1 next to each other
-under %ProgramData%\LazyCat\ssh-windows, installs the built-in OpenSSH
-Server, creates the standard login account when missing, and enrolls the
-LazyCat CA. Both scripts stay idempotent; re-running keeps their state.
+不带参数时显示菜单，只询问无法推断的值。它把 setup-openssh.ps1 和
+lazycat-ssh-node.ps1 下载到 %ProgramData%\LazyCat\ssh-windows，安装系统自带的
+OpenSSH Server，缺少登录账号时创建普通账号，并接入 LazyCat CA。两个底层脚本均可
+重复执行，重跑会保留已有状态。
+
+本文件以带 BOM 的 UTF-8 保存：Windows PowerShell 5.1 会把无 BOM 的 UTF-8 中文按
+系统代码页误读。粘贴入口用 TrimStart 去掉网络取回文本开头的 BOM。
 .PARAMETER CaPublicKey
-The CA public key line (cat ~/.lazycat/ssh-ca/lazycat-ssh-ca.pub on the CA host).
+CA 公钥整行（在 CA 端执行 cat ~/.lazycat/ssh-ca/lazycat-ssh-ca.pub）。
 .PARAMETER Alias
-Controller alias. Defaults to the lowercase computer name.
+控制端使用的别名。默认为小写的计算机名。
 .PARAMETER Address
-Address the controller connects to. Defaults to the IPv4 address of the
-interface that holds the default route.
+控制端连接本机使用的地址。默认取有默认网关的物理网卡 IPv4，忽略代理 TUN、VPN、虚拟机等虚拟网卡。
 .PARAMETER User
-Standard local account for certificate login. Created when missing. Defaults to lazycat.
+证书登录使用的本地普通账号，缺失时自动创建。默认 lazycat。
 .PARAMETER AllowedRemoteAddress
-Firewall sources passed to setup-openssh.ps1. Defaults to LocalSubnet.
+传给 setup-openssh.ps1 的防火墙来源。默认 LocalSubnet。
 .PARAMETER FirewallProfile
-Firewall profiles. Defaults to Domain,Private, plus the current profile when
-the active network is Public and you agree.
+防火墙配置文件。默认 Domain,Private；连接所用网络为公用网络且同意时加上 Public。
 .PARAMETER Source
-Directory or URL holding the two scripts. Defaults to the directory of this
-file when it has them, otherwise LAZYCAT_SSH_WINDOWS_SOURCE or the ep mirror.
+两个底层脚本所在的目录或 URL。默认使用本文件所在目录（含这两个脚本时），否则使用
+LAZYCAT_SSH_WINDOWS_SOURCE 或 ep 镜像。
 .PARAMETER Yes
-Accept defaults without asking. Missing required values become errors.
+全部采用默认值，不再询问；缺少必填值时报错。
 #>
 [CmdletBinding(DefaultParameterSetName = 'Join')]
 param(
@@ -56,6 +55,8 @@ $scripts = @('setup-openssh.ps1', 'lazycat-ssh-node.ps1')
 $work = Join-Path $env:ProgramData 'LazyCat\ssh-windows'
 # $PSCommandPath is empty when pasted through [scriptblock]::Create.
 $selfPath = if ($PSCommandPath) { $PSCommandPath } else { $null }
+# Inside a function $PSBoundParameters is that function's own; keep the script's.
+$scriptParameters = $PSBoundParameters
 
 function Format-Literal([string]$Value) { "'" + $Value.Replace("'", "''") + "'" }
 
@@ -84,15 +85,15 @@ function Restart-Elevated {
     # Re-run the same entry with the parameters already given. EncodedCommand
     # avoids quoting problems with key comments and paths.
     $invocation = if ($selfPath) { '& ' + (Format-Literal $selfPath) }
-        else { "[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; & ([scriptblock]::Create((Invoke-RestMethod $(Format-Literal "$mirror/install.ps1"))))" }
-    foreach ($entry in $PSBoundParameters.GetEnumerator()) {
+        else { "[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; & ([scriptblock]::Create((Invoke-RestMethod $(Format-Literal "$mirror/install.ps1")).TrimStart([char]0xFEFF)))" }
+    foreach ($entry in $scriptParameters.GetEnumerator()) {
         $value = $entry.Value
         if ($value -is [switch]) { if ($value.IsPresent) { $invocation += " -$($entry.Key)" } }
         elseif ($value -is [array]) { $invocation += " -$($entry.Key) " + (($value | ForEach-Object { Format-Literal ([string]$_) }) -join ',') }
         else { $invocation += " -$($entry.Key) " + (Format-Literal ([string]$value)) }
     }
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($invocation))
-    Write-Host 'Administrator rights are required. Approve the UAC prompt to continue in a new window.'
+    Write-Host '需要管理员权限。请在弹出的 UAC 窗口中同意，随后会在新的管理员窗口中继续。'
     Start-Process -FilePath powershell.exe -Verb RunAs -ArgumentList @('-NoProfile', '-NoExit', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded)
 }
 
@@ -109,26 +110,48 @@ function Get-Scripts {
     foreach ($name in $scripts) {
         $target = Join-Path $work $name
         $partial = "$target.download"
+        # Raw bytes keep the UTF-8 BOM that Windows PowerShell 5.1 needs.
         if ($remote) { Invoke-WebRequest -UseBasicParsing -Uri ($origin.TrimEnd('/') + "/$name") -OutFile $partial }
         else { Copy-Item -LiteralPath (Join-Path $origin $name) -Destination $partial -Force }
         # Reject an empty or truncated download before replacing a working copy.
         $text = [IO.File]::ReadAllText($partial)
         if ($text -notmatch '\A#Requires -Version 5\.1' -or $text -notmatch '(?m)^\$ErrorActionPreference = ''Stop''') {
             Remove-Item -LiteralPath $partial -Force
-            throw "Downloaded $name is incomplete or unexpected; nothing was changed."
+            throw "下载的 $name 不完整或内容异常，未做任何改动。"
         }
         Move-Item -LiteralPath $partial -Destination $target -Force
     }
     # Local files are subject to the execution policy; pasted entries are not.
-    try { Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force } catch { Write-Warning "Could not relax the process execution policy: $_" }
+    try { Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force } catch { Write-Warning "无法放宽当前进程的脚本执行策略：$_" }
     @{ Setup = (Join-Path $work $scripts[0]); Node = (Join-Path $work $scripts[1]) }
 }
 
+function Get-PhysicalInterface {
+    # Proxy TUN (e.g. Clash/Meta, 198.18.0.0/15), VPN, Hyper-V and other
+    # virtual adapters are not reachable from other devices on the LAN.
+    @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object Status -eq 'Up' | ForEach-Object { $_.ifIndex })
+}
+
 function Get-DefaultAddress {
-    $config = Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -and $_.NetAdapter.Status -eq 'Up' } | Select-Object -First 1
-    $addresses = @(if ($config) { $config.IPv4Address })
-    if ($addresses.Count -gt 0) { return $addresses[0].IPAddress }
+    $physical = Get-PhysicalInterface
+    $candidates = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object {
+        $physical -contains $_.InterfaceIndex -and $_.IPAddress -notmatch '^(127\.|169\.254\.|198\.1[89]\.)'
+    })
+    $routed = @(Get-NetIPConfiguration -ErrorAction SilentlyContinue | Where-Object { $_.IPv4DefaultGateway } | ForEach-Object { $_.InterfaceIndex })
+    $preferred = @($candidates | Where-Object { $routed -contains $_.InterfaceIndex })
+    if ($preferred.Count -gt 0) { return $preferred[0].IPAddress }
+    if ($candidates.Count -gt 0) { return $candidates[0].IPAddress }
     return ''
+}
+
+function Get-PublicNetwork([string]$ConnectAddress) {
+    # Judge the network that actually carries the controller's connection:
+    # the interface owning the address when it is local, else physical adapters.
+    $owner = @(Get-NetIPAddress -IPAddress $ConnectAddress -ErrorAction SilentlyContinue | ForEach-Object { $_.InterfaceIndex })
+    $interfaces = if ($owner.Count -gt 0) { $owner } else { Get-PhysicalInterface }
+    @(Get-NetConnectionProfile -ErrorAction SilentlyContinue | Where-Object {
+        $interfaces -contains $_.InterfaceIndex -and [string]$_.NetworkCategory -eq 'Public'
+    })
 }
 
 function Get-DefaultAlias {
@@ -143,45 +166,45 @@ function New-StandardUser([string]$Name) {
     $null = New-LocalUser -Name $Name -Password $password -PasswordNeverExpires -AccountNeverExpires -Description 'LazyCat SSH certificate login'
     # Users by SID, so localized Windows editions work too.
     Add-LocalGroupMember -SID 'S-1-5-32-545' -Member $Name
-    Write-Host "Created standard local account '$Name'."
+    Write-Host "已创建本地普通账号 '$Name'。"
 }
 
 function Invoke-Join($files) {
     $key = $CaPublicKey
     while (-not $key) {
-        if ($Yes) { throw 'Specify -CaPublicKey.' }
-        Write-Host 'Paste the CA public key. On the CA host run: cat ~/.lazycat/ssh-ca/lazycat-ssh-ca.pub'
-        $key = (Read-Host 'CA public key').Trim()
+        if ($Yes) { throw '请通过 -CaPublicKey 提供 CA 公钥。' }
+        Write-Host '请粘贴 CA 公钥。在 CA 端执行：cat ~/.lazycat/ssh-ca/lazycat-ssh-ca.pub'
+        $key = (Read-Host 'CA 公钥').Trim()
     }
     if ($key.Trim() -cnotmatch '\A(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(?:256|384|521))[ \t]+[A-Za-z0-9+/]+={0,2}([ \t]+[^\r\n]*)?\z') {
-        throw 'The CA public key must be one line starting with ssh-ed25519, ssh-rsa or ecdsa-sha2-*.'
+        throw 'CA 公钥必须是以 ssh-ed25519、ssh-rsa 或 ecdsa-sha2-* 开头的一整行。'
     }
-    $alias = if ($Alias) { $Alias } else { Read-Default 'Alias on the controller' (Get-DefaultAlias) }
-    $address = if ($Address) { $Address } else { Read-Default 'Address the controller connects to' (Get-DefaultAddress) }
-    if (-not $address) { throw 'Could not detect an address. Specify -Address.' }
+    $alias = if ($Alias) { $Alias } else { Read-Default '控制端使用的别名' (Get-DefaultAlias) }
+    $address = if ($Address) { $Address } else { Read-Default '控制端连接本机的地址' (Get-DefaultAddress) }
+    if (-not $address) { throw '未能检测到可用地址，请通过 -Address 指定。' }
     $account = $User.ToLowerInvariant()
-    $sources = if ($AllowedRemoteAddress) { $AllowedRemoteAddress } else { @((Read-Default 'Allowed client sources (IP, CIDR or LocalSubnet; comma separated)' 'LocalSubnet') -split '\s*,\s*') }
+    $sources = if ($AllowedRemoteAddress) { $AllowedRemoteAddress } else { @((Read-Default '允许连接的来源（IP、CIDR 网段或 LocalSubnet，多个用逗号分隔）' 'LocalSubnet') -split '\s*,\s*') }
     $profiles = $FirewallProfile
     if (-not $profiles) {
         $profiles = @('Domain', 'Private')
-        $public = @(Get-NetConnectionProfile -ErrorAction SilentlyContinue | Where-Object NetworkCategory -eq 'Public')
+        $public = Get-PublicNetwork $address
         if ($public.Count -gt 0) {
-            Write-Host "The active network '$($public[0].Name)' is Public. The firewall rule would not apply to it by default."
-            if (Confirm-Step 'Also allow SSH on Public networks (still limited to the sources above)?' $true) { $profiles += 'Public' }
+            Write-Host "连接所用的网络「$($public[0].Name)」是公用网络，防火墙规则默认不在公用网络下生效。"
+            if (Confirm-Step '是否也在公用网络下放行 SSH（仍只限上面填写的来源）？' $true) { $profiles += 'Public' }
         }
     }
     $existing = Get-LocalUser -Name $account -ErrorAction SilentlyContinue
     # Refuse before changing anything; the node script would reject it after OpenSSH setup.
     if ($existing -and (Get-LocalGroupMember -SID 'S-1-5-32-544' | Where-Object { $_.SID -eq $existing.SID })) {
-        throw "'$account' is a local administrator. Use -User with a standard account name, for example lazycat."
+        throw "'$account' 是本地管理员账号。请用 -User 指定一个普通账号名，例如 lazycat。"
     }
 
     Write-Host ''
-    Write-Host 'About to:'
-    Write-Host "  - install/configure the built-in OpenSSH Server (sources: $($sources -join ', '); profiles: $($profiles -join ', '))"
-    if (-not $existing) { Write-Host "  - create standard local account '$account'" }
-    Write-Host "  - enroll the LazyCat CA for '$account' as alias '$alias' at $address (restarts sshd)"
-    if (-not (Confirm-Step 'Continue?' $true)) { Write-Host 'Cancelled; nothing was changed.'; return }
+    Write-Host '即将执行：'
+    Write-Host "  - 安装并配置系统自带的 OpenSSH Server（来源：$($sources -join ', ')；网络类型：$($profiles -join ', ')）"
+    if (-not $existing) { Write-Host "  - 创建本地普通账号 '$account'" }
+    Write-Host "  - 为 '$account' 接入 LazyCat CA，别名 '$alias'，地址 $address（会重启 sshd）"
+    if (-not (Confirm-Step '继续？' $true)) { Write-Host '已取消，未做任何改动。'; return }
 
     $setupArgs = @{ AllowedRemoteAddress = $sources; FirewallProfile = $profiles }
     if ($Port) { $setupArgs.Port = $Port }
@@ -196,32 +219,32 @@ function Invoke-Join($files) {
     $entry = ((& $files.Node @joinArgs) -join "`n") -replace "`r", ''
 
     Write-Host ''
-    Write-Host 'Done on this device. On the controller:'
-    Write-Host '  1. Add this entry under hosts: in the Gist:'
+    Write-Host '本机已完成。接下来在控制端：'
+    Write-Host '  1. 把下面这段加到 Gist 的 hosts: 下：'
     Write-Host ''
     Write-Host $entry
     Write-Host ''
-    Write-Host "  2. Append $account to ca.principals in the Gist (keep the existing values)."
-    Write-Host '  3. Run lazycat-ssh and choose 2) sync, which also renews the certificate.'
-    Write-Host "  4. Test with: ssh $alias whoami   (compare the host key fingerprint shown above)"
+    Write-Host "  2. 在 Gist 的 ca.principals 末尾追加 $account（保留原有的值）。"
+    Write-Host '  3. 运行 lazycat-ssh，选择 2) 同步，同步时会重新申请证书。'
+    Write-Host "  4. 测试：ssh $alias whoami（首次连接时核对上面显示的主机公钥指纹）"
     # The entry alone on the pipeline, for callers that capture it.
     Write-Output $entry
 }
 
 if (-not (Test-Administrator)) {
-    if ($Yes) { throw 'Run from an administrator Windows PowerShell.' }
+    if ($Yes) { throw '请在管理员身份的 Windows PowerShell 中运行。' }
     Restart-Elevated
     return
 }
 
 $mode = $PSCmdlet.ParameterSetName
 if ($mode -eq 'Join' -and -not $CaPublicKey -and -not $Yes) {
-    Write-Host 'LazyCat SSH Windows node'
-    Write-Host '  1) Enroll or update this device'
-    Write-Host '  2) Show status'
-    Write-Host '  3) Remove LazyCat enrollment'
-    Write-Host '  q) Quit'
-    switch ((Read-Host 'Choose [1]').Trim()) {
+    Write-Host 'LazyCat SSH Windows 被控端'
+    Write-Host '  1) 接入或更新本机'
+    Write-Host '  2) 查看状态'
+    Write-Host '  3) 撤销 LazyCat 接入'
+    Write-Host '  q) 退出'
+    switch ((Read-Host '请选择 [1]').Trim()) {
         { $_ -in '', '1' } { $mode = 'Join' }
         '2' { $mode = 'Status' }
         '3' { $mode = 'Remove' }
@@ -236,10 +259,10 @@ switch ($mode) {
         & $files.Node -Status | Out-Host
     }
     'Remove' {
-        if (-not (Confirm-Step 'Remove LazyCat certificate login and restore the previous SSH policy?' $true)) { return }
+        if (-not (Confirm-Step '撤销 LazyCat 证书登录，并恢复原来的 SSH 配置？' $true)) { return }
         & $files.Node -Remove -Confirm:$false | Out-Host
-        Write-Host 'OpenSSH Server, firewall rules and the login account are kept. Delete the account if unused, for example: Remove-LocalUser lazycat'
-        Write-Host 'Also delete the Gist entry and sync so controllers drop this alias.'
+        Write-Host 'OpenSSH Server、防火墙规则和登录账号均已保留。账号不再需要时可删除，例如：Remove-LocalUser lazycat'
+        Write-Host '还需要删除 Gist 中的条目并同步，控制端才不再显示这台机器。'
     }
     default { Invoke-Join $files }
 }
