@@ -185,7 +185,7 @@ function Invoke-Join($files) {
 
     $setupArgs = @{ AllowedRemoteAddress = $sources; FirewallProfile = $profiles }
     if ($Port) { $setupArgs.Port = $Port }
-    & $files.Setup @setupArgs
+    & $files.Setup @setupArgs | Out-Host
     if (-not $existing) { New-StandardUser $account }
 
     $caFile = Join-Path $work 'lazycat-ssh-ca.pub'
@@ -193,17 +193,19 @@ function Invoke-Join($files) {
     $joinArgs = @{ User = $account; Alias = $alias; Address = $address; CaPublicKeyFile = $caFile; Route = $Route }
     if ($Port) { $joinArgs.Port = $Port }
     if ($Via) { $joinArgs.Via = $Via }
-    $entry = (& $files.Node @joinArgs) -join "`n"
+    $entry = ((& $files.Node @joinArgs) -join "`n") -replace "`r", ''
 
     Write-Host ''
     Write-Host 'Done on this device. On the controller:'
     Write-Host '  1. Add this entry under hosts: in the Gist:'
     Write-Host ''
-    Write-Output $entry
+    Write-Host $entry
     Write-Host ''
     Write-Host "  2. Append $account to ca.principals in the Gist (keep the existing values)."
     Write-Host '  3. Run lazycat-ssh and choose 2) sync, which also renews the certificate.'
     Write-Host "  4. Test with: ssh $alias whoami   (compare the host key fingerprint shown above)"
+    # The entry alone on the pipeline, for callers that capture it.
+    Write-Output $entry
 }
 
 if (-not (Test-Administrator)) {
@@ -230,12 +232,12 @@ if ($mode -eq 'Join' -and -not $CaPublicKey -and -not $Yes) {
 $files = Get-Scripts
 switch ($mode) {
     'Status' {
-        & $files.Setup -Status
-        & $files.Node -Status
+        & $files.Setup -Status | Out-Host
+        & $files.Node -Status | Out-Host
     }
     'Remove' {
         if (-not (Confirm-Step 'Remove LazyCat certificate login and restore the previous SSH policy?' $true)) { return }
-        & $files.Node -Remove -Confirm:$false
+        & $files.Node -Remove -Confirm:$false | Out-Host
         Write-Host 'OpenSSH Server, firewall rules and the login account are kept. Delete the account if unused, for example: Remove-LocalUser lazycat'
         Write-Host 'Also delete the Gist entry and sync so controllers drop this alias.'
     }

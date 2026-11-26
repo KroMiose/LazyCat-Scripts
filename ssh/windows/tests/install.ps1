@@ -47,7 +47,8 @@ try {
     if ((Get-FileHash -LiteralPath $config).Hash -ne $beforeAdmin.Hash) { throw 'Refusing an administrator still changed sshd_config.' }
 
     $entry = (& $paste -CaPublicKey $caKey -Alias 'ci-paste' -Address '127.0.0.1' -User $user @common) -join "`n"
-    if ($entry -notmatch "(?m)^    user: '$user'$" -or $entry -notmatch "(?m)^    lan_port: $port$") {
+    # Only the Gist entry reaches the pipeline; progress goes to the host.
+    if ($entry -notmatch "\A  'ci-paste':`n    user: '$user'`n    lan_host: '127\.0\.0\.1'`n    lan_port: $port\z") {
         throw "Unexpected Gist entry:`n$entry"
     }
     $account = Get-LocalUser -Name $user
