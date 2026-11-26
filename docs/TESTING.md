@@ -70,7 +70,7 @@ python3 tests/system/vm.py --image ubuntu --suite docker --package-lock tests/sy
 
 锁文件绑定 Ubuntu 基础镜像摘要，并记录 31 个官方包的原始 URL、控制元数据、大小和 SHA-256。驱动在客体外校验下载/缓存，生成本地 apt 源；QEMU 从启动起设置 `restrict=on`。客体里的 apt 是真实包管理器，测试开始时 Squid 缺失。两次新 overlay 生命周期已通过，第二次包括经本地 TLS 仓库成功拉取 Docker 镜像；没有访问 Docker Hub。
 
-包源更新使用单独的准备步骤：`python3 tests/system/vm.py --image ubuntu --export-package-lock artifacts/proposed.lock.json`。它仅下载、不安装包，结果是 environment-prepared，不能算产品验证。审阅原始来源和摘要，再用新的独立场景验证后才能更新仓库锁文件。`--fresh-packages` 重新从锁定 URL 下载且校验；每周第一轮执行它，以发现旧包入口失效。
+包源更新使用单独的准备步骤：`python3 tests/system/vm.py --image ubuntu --export-package-lock artifacts/proposed.lock.json`。它仅下载、不安装包，结果是 environment-prepared，不能算产品验证。审阅原始来源和摘要，再用新的独立场景验证后才能更新仓库锁文件。`--fresh-packages` 重新从锁定 URL 下载且校验；每周第一轮执行它，以发现旧包入口失效。上游仓库下架旧版本时，按锁文件 `snapshot` 时间戳回退到 snapshot.ubuntu.com / snapshot.debian.org 下载同一字节（仍校验 SHA-256），CI 记一条 warning 而不失败；看到 warning 时再通过 environment-locks 刷新锁文件。
 
 候选产物工作流采用 GitHub 官方的 ubuntu-24.04、ubuntu-24.04-arm、macos-15-intel、macos-15 四类 runner，并断言实际架构。官方标签表见 https://docs.github.com/en/actions/reference/runners/github-hosted-runners 。四个平台已有托管运行结果，例如 e5b92ef 的完整运行 34182250412；此结果只覆盖该提交登记的场景，不代表后续提交或完整发布契约通过。
 

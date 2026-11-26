@@ -2,6 +2,7 @@
   "format_version": 1,
   "image_digest": "d0fe84bb5f80853425fa6be28e2c106f30104c3cfe8611933f2e65c9b63f0e30",
   "scope": "authenticated apt resolution, host downloads verified by SHA-256; review before CI adoption",
+  "snapshot": "20261126T071900Z",
   "packages": [
     {
       "filename": "libperl5.38t64_5.38.2-3.2ubuntu0.7_amd64.deb",
