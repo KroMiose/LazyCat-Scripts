@@ -1,24 +1,24 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-Enroll an existing Windows OpenSSH Server as a LazyCat SSH node.
+将已有的 Windows OpenSSH Server 接入为 LazyCat SSH 节点。
 .DESCRIPTION
-Configure certificate-only login for one existing local standard user. Print a
-hosts entry for the controller's Gist; no credentials for writing to Gist are needed.
-Run locally, since restarting sshd can interrupt existing SSH sessions.
+为一个已有的本地标准用户配置仅限证书的登录方式，并输出一条
+用于控制端 Gist 的 hosts 条目，无需任何写入 Gist 的凭据。
+请在本机运行，因为重启 sshd 可能会中断现有的 SSH 会话。
 .EXAMPLE
 .\lazycat-ssh-node.ps1 -User lazycat -Alias win-dev-01 -Address win-dev-01.example.net -CaPublicKeyFile .\lazycat-ssh-ca.pub
 .PARAMETER Port
-Advertised port for the controller. If omitted, discover the single effective listener port.
+向控制端公布的端口。省略时自动识别唯一生效的监听端口。
 .PARAMETER Route
-Gist route for the advertised endpoint: Lan (default), Wan or Tun.
+公布的端点所用的 Gist 路由：Lan（默认）、Wan 或 Tun。
 .PARAMETER Via
-Optional LazyCat alias of a jump host to use for this route.
+可选，此路由所用跳板机的 LazyCat 别名。
 .PARAMETER Status
-Show sshd and LazyCat enrollment status without modifying the node.
+显示 sshd 和 LazyCat 接入状态，不修改节点。
 .PARAMETER Remove
-Remove the LazyCat trust block and restore the account's previous SSH policy.
+移除 LazyCat 信任配置块，并恢复该账户之前的 SSH 策略。
 #>
 [CmdletBinding(DefaultParameterSetName = 'Join', SupportsShouldProcess)]
 param(
@@ -70,7 +70,7 @@ function Get-NodeConfigParts([string]$Text) {
         return @{ Unmanaged = $Text; Managed = '' }
     }
     if ($starts.Count -ne 1 -or $ends.Count -ne 1 -or $starts[0].Index -ge $ends[0].Index) {
-        throw 'Invalid LazyCat markers in sshd_config. Repair the managed block before continuing.'
+        throw 'sshd_config 中的 LazyCat 标记无效。请先修复该受管配置块再继续。'
     }
     $start = $starts[0].Index
     $after = $ends[0].Index + $ends[0].Length
@@ -95,7 +95,7 @@ function Invoke-NodeOpenSsh([string]$Exe, [string[]]$Arguments) {
     $ErrorActionPreference = 'Continue'
     $output = @(& $Exe @Arguments 2>&1 | ForEach-Object { ([string]$_).TrimEnd() })
     if ($LASTEXITCODE -ne 0) {
-        throw "$([IO.Path]::GetFileName($Exe)) failed: $($output -join [Environment]::NewLine)"
+        throw "$([IO.Path]::GetFileName($Exe)) 执行失败：$($output -join [Environment]::NewLine)"
     }
     return $output
 }
@@ -103,7 +103,7 @@ function Invoke-NodeOpenSsh([string]$Exe, [string[]]$Arguments) {
 function Assert-NodePath([string]$Path) {
     $item = Get-Item -LiteralPath $Path -Force
     if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
-        throw "Refusing to use a reparse point: $Path"
+        throw "拒绝使用重解析点：$Path"
     }
 }
 
@@ -111,7 +111,7 @@ function New-NodeCaFile([string]$Path, [string]$Contents) {
     if (Test-Path -LiteralPath $Path) {
         Assert-NodePath $Path
         if ([IO.File]::ReadAllText($Path, $utf8) -cne $Contents) {
-            throw "CA file already exists with unexpected contents: $Path"
+            throw "CA 文件已存在，但内容不符合预期：$Path"
         }
     } else {
         $stream = [IO.File]::Open($Path, [IO.FileMode]::CreateNew)
@@ -149,18 +149,18 @@ function Test-NodeAddress([string]$Value) {
 }
 
 $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='sshd'"
-if (-not $service) { throw 'The sshd service is missing. Run setup-openssh.ps1 first.' }
+if (-not $service) { throw 'sshd 服务不存在。请先运行 setup-openssh.ps1。' }
 $sshBin = Join-Path $env:WINDIR 'System32\OpenSSH'
 $sshd = Join-Path $sshBin 'sshd.exe'
 $keygen = Join-Path $sshBin 'ssh-keygen.exe'
 $servicePath = [Environment]::ExpandEnvironmentVariables($service.PathName).Trim()
 if ($servicePath -ine $sshd -and $servicePath -ine ('"' + $sshd + '"')) {
-    throw "The sshd service uses a custom executable or arguments: $servicePath. This script supports Windows built-in OpenSSH with the default config path."
+    throw "sshd 服务使用了自定义的可执行文件或参数：$servicePath。本脚本仅支持使用默认配置路径的 Windows 内置 OpenSSH。"
 }
 $configDir = Join-Path $env:ProgramData 'ssh'
 $config = Join-Path $configDir 'sshd_config'
 if (-not (Test-Path -LiteralPath $config -PathType Leaf)) {
-    throw 'sshd_config does not exist. Run setup-openssh.ps1 first.'
+    throw 'sshd_config 不存在。请先运行 setup-openssh.ps1。'
 }
 Assert-NodePath $configDir
 Assert-NodePath $config
@@ -168,18 +168,18 @@ $original = [IO.File]::ReadAllText($config, $utf8)
 $parts = Get-NodeConfigParts $original
 
 if ($Status) {
-    Write-Output "sshd: $($service.State)"
-    Write-Output "Configuration: $config"
+    Write-Output "sshd：$($service.State)"
+    Write-Output "配置：$config"
     if ($parts.Managed) { Write-Output $parts.Managed.TrimEnd() }
-    else { Write-Output 'LazyCat node is not enrolled.' }
+    else { Write-Output 'LazyCat 节点尚未接入。' }
     return
 }
 if ($Remove -and -not $parts.Managed) {
-    Write-Output 'LazyCat node is already unenrolled.'
+    Write-Output 'LazyCat 节点已处于未接入状态。'
     return
 }
 if ($service.State -ne 'Running') {
-    throw 'sshd must be running before changing enrollment. Start it or run setup-openssh.ps1 first.'
+    throw '修改接入状态前 sshd 必须处于运行状态。请先启动它，或先运行 setup-openssh.ps1。'
 }
 
 $candidateText = $parts.Unmanaged
@@ -187,35 +187,35 @@ $caPath = $null
 $caContents = $null
 $caFingerprint = $null
 if (-not $Remove) {
-    if (-not (Test-NodeAddress $Address)) { throw 'Specify an IPv4 address, IPv6 address, or DNS hostname in -Address.' }
+    if (-not (Test-NodeAddress $Address)) { throw '请在 -Address 中指定 IPv4 地址、IPv6 地址或 DNS 主机名。' }
     $User = $User.ToLowerInvariant()
     $account = Get-LocalUser -Name $User
     if (-not $account.Enabled -or $account.PrincipalSource -ne 'Local') {
-        throw "'$User' must be an enabled local Windows account."
+        throw "'$User' 必须是已启用的本地 Windows 账户。"
     }
     $adminGroup = [Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
     if (Get-LocalGroupMember -SID $adminGroup | Where-Object { $_.SID -eq $account.SID }) {
-        throw "'$User' is a local administrator. Select a standard user for LazyCat SSH."
+        throw "'$User' 是本地管理员。请为 LazyCat SSH 选择标准用户。"
     }
     if ($candidateText -match '(?im)^[ \t]*(?:Include|TrustedUserCAKeys|AuthorizedPrincipalsFile|AuthorizedPrincipalsCommand)[ \t=]') {
-        throw 'sshd_config already includes other configuration files or certificate policy. Review the existing SSH policy before enrolling this host.'
+        throw 'sshd_config 已包含其他配置文件或证书策略。接入此主机前，请先审阅现有的 SSH 策略。'
     }
     if ($candidateText -match '(?im)^[ \t]*AuthenticationMethods[ \t=]+(?!(?:any|publickey)(?:[ \t]*(?:#.*)?\r?$))') {
-        throw 'sshd_config has a custom AuthenticationMethods policy. Review it before enrolling this host.'
+        throw 'sshd_config 中有自定义的 AuthenticationMethods 策略。接入此主机前请先审阅。'
     }
     $effective = @(Invoke-NodeOpenSsh $sshd @('-T', '-f', $config))
     if (-not $PSBoundParameters.ContainsKey('Port')) {
         $ports = @($effective | ForEach-Object {
             if ($_ -match '^listenaddress\s+\S+:(\d+)\s*$') { [int]$Matches[1] }
         } | Sort-Object -Unique)
-        if ($ports.Count -ne 1) { throw 'Could not infer one listener port. Set the advertised port with -Port.' }
+        if ($ports.Count -ne 1) { throw '无法推断出唯一的监听端口。请用 -Port 指定要公布的端口。' }
         $Port = $ports[0]
     }
 
     $source = (Resolve-Path -LiteralPath $CaPublicKeyFile).ProviderPath
     $publicKey = [IO.File]::ReadAllText($source, $utf8).Trim()
     if ($publicKey -cnotmatch '\A(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(?:256|384|521))[ \t]+([A-Za-z0-9+/]+={0,2})(?:[ \t]+[^\r\n]*)?\z') {
-        throw 'Expected a single SSH CA public key (Ed25519, RSA or ECDSA) in -CaPublicKeyFile.'
+        throw '-CaPublicKeyFile 中应当只有一个 SSH CA 公钥（Ed25519、RSA 或 ECDSA）。'
     }
     $caContents = "$($Matches[1]) $($Matches[2])`n"
     $blob = [Convert]::FromBase64String($Matches[2])
@@ -241,7 +241,7 @@ if (-not $Remove) {
     $candidateText = Add-NodeConfigBlock $candidateText ($block + $lineEnd)
 }
 
-$action = if ($Remove) { 'Remove LazyCat SSH trust and restart sshd' } else { "Enroll Windows user '$User' in LazyCat SSH" }
+$action = if ($Remove) { '移除 LazyCat SSH 信任并重启 sshd' } else { "将 Windows 用户 '$User' 接入 LazyCat SSH" }
 if (-not $PSCmdlet.ShouldProcess($config, $action)) { return }
 
 $tempConfig = Join-Path $configDir ('.lazycat-node-' + [guid]::NewGuid() + '.tmp')
@@ -255,7 +255,7 @@ try {
         New-NodeCaFile $caPath $caContents
         $caFingerprint = (Invoke-NodeOpenSsh $keygen @('-l', '-E', 'sha256', '-f', $caPath)) -join ' '
         if ($caFingerprint -cnotmatch ('\bSHA256:' + [regex]::Escape($hash) + '(?:\s|$)')) {
-            throw 'The CA file did not validate as an SSH public key.'
+            throw 'CA 文件未通过 SSH 公钥校验。'
         }
     }
     [IO.File]::WriteAllText($tempConfig, $candidateText, $utf8)
@@ -280,20 +280,20 @@ try {
             $scoped -notcontains 'authorizedprincipalsfile none' -or $scoped -notcontains 'authorizedkeysfile none' -or
             $scoped -notcontains 'pubkeyauthentication yes' -or $scoped -notcontains 'passwordauthentication no' -or
             $scoped -notcontains 'authenticationmethods publickey') {
-            throw "sshd did not apply the expected certificate-only settings for '$User'."
+            throw "sshd 未对 '$User' 应用预期的仅限证书的设置。"
         }
         $unscoped = @(Invoke-NodeOpenSsh $sshd @('-T', '-f', $tempConfig))
-        if ($unscoped -notcontains 'trustedusercakeys none') { throw 'The CA trust is not scoped to the intended user.' }
+        if ($unscoped -notcontains 'trustedusercakeys none') { throw 'CA 信任未限定在目标用户范围内。' }
     }
     if ($candidateText -cne $original) {
         if ([IO.File]::ReadAllText($config, $utf8) -cne $original) {
-            throw 'sshd_config was modified during enrollment. Re-run the command.'
+            throw '接入过程中 sshd_config 被修改。请重新运行该命令。'
         }
         [IO.File]::Replace($tempConfig, $config, $backup)
         $replaced = $true
         Restart-Service -Name sshd
         (Get-Service -Name sshd).WaitForStatus('Running', [TimeSpan]::FromSeconds(15))
-        Write-Host "Saved previous configuration to $backup"
+        Write-Host "已将之前的配置保存到 $backup"
     }
 } catch {
     if ($replaced) {
@@ -301,9 +301,9 @@ try {
             [IO.File]::Replace($backup, $config, "$backup.failed")
             Restart-Service -Name sshd
             (Get-Service -Name sshd).WaitForStatus('Running', [TimeSpan]::FromSeconds(15))
-            Write-Warning "Restored previous SSH configuration. Rejected configuration: $backup.failed"
+            Write-Warning "已恢复之前的 SSH 配置。被拒绝的配置：$backup.failed"
             $replaced = $false
-        } catch { Write-Warning "Rollback failed: $_. Check $config and backups at $configDir." }
+        } catch { Write-Warning "回滚失败：$_。请检查 $config 以及位于 $configDir 的备份。" }
     }
     if ($newCaFile -and -not $replaced) {
         Remove-Item -LiteralPath $caPath -Force -ErrorAction SilentlyContinue
@@ -314,11 +314,11 @@ try {
 }
 
 if ($Remove) {
-    Write-Output 'LazyCat trust removed. Remove the Gist entry separately if this host should no longer appear on controllers.'
+    Write-Output '已移除 LazyCat 信任。若此主机不应再出现在控制端，请另行删除对应的 Gist 条目。'
     return
 }
-Write-Host "CA fingerprint: $caFingerprint"
-Write-Host "Merge this entry into the existing hosts map in the controller Gist, then sync and verify: ssh $Alias whoami"
+Write-Host "CA 指纹：$caFingerprint"
+Write-Host "请将此条目合并到控制端 Gist 中现有的 hosts 映射，然后同步并验证：ssh $Alias whoami"
 $routeKey = $Route.ToLowerInvariant()
 Write-Output @"
   '${Alias}':

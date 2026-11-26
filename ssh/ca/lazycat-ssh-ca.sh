@@ -475,7 +475,7 @@ DOWNLOAD
   local ca_key quote="'"
   ca_key=$(tr -d '\r\n' < "$(ca_pub_path)")
   # PowerShell single-quoted literal: only ' needs doubling.
-  printf "[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; & ([scriptblock]::Create((irm https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/windows/install.ps1))) -CaPublicKey '%s'\n" "${ca_key//$quote/$quote$quote}"
+  printf "[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; & ([scriptblock]::Create((irm https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/windows/install.ps1).TrimStart([char]0xFEFF))) -CaPublicKey '%s'\n" "${ca_key//$quote/$quote$quote}"
   lc_log ""
 }
 
