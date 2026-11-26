@@ -56,3 +56,10 @@ exit "$DOWNLOAD_EXIT"
             command=re.search(r'^\(\n.*?^\)$',result.stdout,re.M|re.S)
             self.assertIsNotNone(command,result.stdout)
             self.exercise(command.group(),key)
+            # PowerShell single-quoted literals expand nothing; '' is the only escape.
+            windows=re.search(r"^.*windows/install\.ps1\)\)\) -CaPublicKey '((?:[^']|'')*)'$",result.stdout,re.M)
+            self.assertIsNotNone(windows,result.stdout)
+            self.assertEqual(windows.group(1).replace("''","'"),key)
+            public.write_text("ssh-ed25519 AAAA it's-mine\n")
+            result=subprocess.run(['bash',str(script)],input='3\n4\n',env=environment(home),capture_output=True,text=True,timeout=10)
+            self.assertIn("-CaPublicKey 'ssh-ed25519 AAAA it''s-mine'",result.stdout)

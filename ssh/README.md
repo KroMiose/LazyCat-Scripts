@@ -78,68 +78,39 @@ Go 候选客户端与验证边界见 [整改记录](../docs/REMEDIATION.md) 和 
 
 #### Windows Node
 
-把一台**全新的 Windows 10 / 11**（没装过 SSH 之类的工具）接入，让控制端可以 `ssh <别名>` 登录。全程只用系统自带的 OpenSSH，不需要额外安装软件。
+把一台**全新的 Windows 10 / 11**（没装过 SSH 之类的工具）接入，让控制端可以 `ssh <别名>` 登录。只用系统自带的 OpenSSH，不需要额外安装软件，也不需要手动下载脚本。
 
 **开始前确认：**
 
 - 已经按上面第 1 步初始化好 CA，并按第 3 步配好了控制端（Gist + `lazycat-ssh`）。
-- 你人坐在这台 Windows 前操作（第 3 步会重启 sshd，不要远程操作）。
-- 这台 Windows 能上网（安装 OpenSSH 要从 Windows 更新下载组件）。
+- 你人坐在这台 Windows 前操作（接入时会重启 sshd，不要远程操作），并且这台机器能上网。
 
-下面所有 Windows 命令都在 **管理员身份的 Windows PowerShell** 里执行：开始菜单搜索 `PowerShell` → 右键 → **以管理员身份运行**。
+**第 1 步：复制命令**
 
-**第 1 步：下载两个脚本**
+在 **CA 管理端** 运行 CA 脚本，选择 `3) 查看 Node 端配置提示`。最后一段"Windows Node"下面就是给 Windows 用的一行命令，已经带好了 CA 公钥，整行复制。
 
-```powershell
-[Net.ServicePointManager]::SecurityProtocol = 'Tls12'
-$dir = "$env:ProgramData\LazyCat"; New-Item -ItemType Directory -Force $dir | Out-Null; Set-Location $dir
-foreach ($f in 'setup-openssh.ps1', 'lazycat-ssh-node.ps1') {
-  Invoke-WebRequest -UseBasicParsing "https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/windows/$f" -OutFile $f
-}
-Set-ExecutionPolicy -Scope Process Bypass -Force
-```
-
-脚本保存在 `C:\ProgramData\LazyCat`。最后一行只对当前窗口放行脚本执行，关掉窗口就恢复。如果之后新开了窗口，需要先 `Set-Location C:\ProgramData\LazyCat`，再执行一次这行。
-
-**第 2 步：安装并启动 OpenSSH**
+手边没有 CA 脚本时，也可以用下面这行通用命令，运行时会提示你粘贴 CA 公钥（在 CA 端执行 `cat ~/.lazycat/ssh-ca/lazycat-ssh-ca.pub` 获取）：
 
 ```powershell
-.\setup-openssh.ps1 -AllowedRemoteAddress LocalSubnet
+[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; & ([scriptblock]::Create((irm https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/windows/install.ps1)))
 ```
 
-- `LocalSubnet` 表示只允许同一局域网的设备连接，家用 / 办公室内网直接用它即可。控制端在别的网段，或经跳板机、组网工具（如 Tailscale）连接时，改成控制端（或跳板机）的地址，例如 `-AllowedRemoteAddress '100.64.0.0/10'`，可以写多个，用逗号分隔。
-- 防火墙规则默认只在"专用"和"域"网络下生效。先运行 `Get-NetConnectionProfile` 看 `NetworkCategory`：如果是 `Public`（新装系统连 Wi-Fi 常见），到 设置 → 网络和 Internet → 当前网络属性 改为"专用网络"，或在命令后加 `-FirewallProfile Private,Public`。
-- 默认端口 22，新装默认关闭密码登录。安装可能要几分钟，请耐心等待。
-- 完成后会显示 **主机公钥指纹**，记下来，第 5 步首次连接时核对。
+**第 2 步：在 Windows 上粘贴运行**
 
-**第 3 步：创建专用登录账号**
+开始菜单搜索 `PowerShell`，打开 **Windows PowerShell**，粘贴刚才那行并回车。不是管理员窗口时，会弹出 UAC 请求授权，然后在新的管理员窗口里继续。
 
-脚本只允许普通账号（非管理员）用证书登录，所以新建一个叫 `lazycat` 的普通账号。密码随机生成，之后不会用到：
+脚本会依次询问以下几项，括号里是自动填好的默认值，**直接回车即可**：
 
-```powershell
-$pw = ConvertTo-SecureString ("Lc!1" + [guid]::NewGuid().ToString('N')) -AsPlainText -Force
-New-LocalUser -Name lazycat -Password $pw -PasswordNeverExpires -AccountNeverExpires | Out-Null
-Add-LocalGroupMember -SID S-1-5-32-545 -Member lazycat
-```
+| 询问 | 默认值 | 说明 |
+|---|---|---|
+| Alias on the controller | 计算机名（小写） | 控制端里 `ssh <别名>` 用的名字 |
+| Address the controller connects to | 本机默认网卡的 IPv4 | 控制端连接这台机器用的地址 |
+| Allowed client sources | `LocalSubnet` | 只允许同一局域网连接；经跳板或组网工具（如 Tailscale）连接时，改成对方地址或网段，多个用逗号分隔 |
+| Also allow SSH on Public networks? | 是 | 仅当前网络被识别为"公用网络"时才问（新装系统连 Wi-Fi 常见），否则防火墙规则不会生效 |
 
-最后一行把它加入系统的"Users"组（用 SID 写，中文系统也适用）。
+确认后，脚本会自动完成：安装并启动 OpenSSH（可能要几分钟）、创建专用的普通账号 `lazycat`（随机密码，之后用不到）、写入 CA 公钥并接入。
 
-**第 4 步：接入 LazyCat**
-
-先在 **CA 管理端**（Linux / macOS）查看 CA 公钥，复制整行输出：
-
-```bash
-cat ~/.lazycat/ssh-ca/lazycat-ssh-ca.pub
-```
-
-回到 Windows，把下面的 `ssh-ed25519 AAAA...` 换成刚复制的整行内容，`win-pc` 换成你想用的别名，`192.168.1.50` 换成这台 Windows 的 IP（可用 `ipconfig` 查看）：
-
-```powershell
-Set-Content -Encoding ascii .\lazycat-ssh-ca.pub 'ssh-ed25519 AAAA...替换为CA公钥整行'
-.\lazycat-ssh-node.ps1 -User lazycat -Alias win-pc -Address 192.168.1.50 -CaPublicKeyFile .\lazycat-ssh-ca.pub
-```
-
-成功后最后会输出一段类似下面的内容，复制下来，第 5 步要用：
+结束时会打印 **主机公钥指纹** 和一段 Gist 条目，类似：
 
 ```yaml
   'win-pc':
@@ -148,12 +119,12 @@ Set-Content -Encoding ascii .\lazycat-ssh-ca.pub 'ssh-ed25519 AAAA...替换为CA
     lan_port: 22
 ```
 
-**第 5 步：在控制端登记并测试**
+**第 3 步：在控制端登记并测试**
 
-1. 打开 Gist，把第 4 步输出的那段粘贴到 `hosts:` 下面，和其他主机并列。
+1. 打开 Gist，把第 2 步输出的那段粘贴到 `hosts:` 下面，和其他主机并列。
 2. 在 Gist 的 `ca.principals` 末尾追加 `lazycat`（保留原有的值），例如 `principals: root,ubuntu,lazycat`。证书里必须包含这个账号名才能登录。
 3. 在控制端运行 `lazycat-ssh`，选择 `2) 从 Gist 同步 SSH 配置`。同步会重新申请证书。
-4. 测试登录，首次连接时核对第 2 步记下的指纹：
+4. 测试登录，首次连接时核对第 2 步显示的指纹：
 
 ```bash
 ssh win-pc whoami
@@ -161,41 +132,47 @@ ssh win-pc whoami
 
 输出 `<计算机名>\lazycat` 就成功了。
 
-**查看状态 / 撤销接入**（Windows 管理员 PowerShell，在 `C:\ProgramData\LazyCat` 下执行，先执行第 1 步最后那行放行脚本）：
+**查看状态 / 撤销接入**：再次粘贴第 1 步的通用命令，在菜单里选 `2) Show status` 或 `3) Remove LazyCat enrollment`。重复选 `1)` 可以更新配置，已有的设置会保留。
 
-```powershell
-.\setup-openssh.ps1 -Status       # OpenSSH 服务、监听端口、防火墙
-.\lazycat-ssh-node.ps1 -Status    # LazyCat 接入状态
-.\lazycat-ssh-node.ps1 -Remove    # 撤销接入，恢复该账号原来的 SSH 配置
-```
-
-`-Remove` 只撤销 LazyCat 的证书登录，保留 OpenSSH 服务、防火墙规则和 CA 公钥文件。要让控制端不再显示这台机器，还需要删掉 Gist 里的条目并重新同步。
+撤销只关闭 LazyCat 的证书登录，保留 OpenSSH 服务、防火墙规则和 `lazycat` 账号；不再需要时可执行 `Remove-LocalUser lazycat` 删除账号。要让控制端不再显示这台机器，还需要删掉 Gist 里的条目并重新同步。
 
 <details>
 <summary><strong>进阶参数与注意事项</strong></summary>
 
-`setup-openssh.ps1`：
+一行命令末尾可以直接加参数，跳过对应的询问，例如：
 
-- `-Port 2222`：改用其他端口。省略时沿用已有端口，新装使用 22。
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = 'Tls12'; & ([scriptblock]::Create((irm https://ep.nekro.ai/e/KroMiose/LazyCat/main/ssh/windows/install.ps1))) -CaPublicKey 'ssh-ed25519 AAAA...' -Alias win-pc -Address 100.64.0.8 -AllowedRemoteAddress '100.64.0.0/10' -Route Tun -Yes
+```
+
+`install.ps1` 参数：
+
+- `-CaPublicKey`：CA 公钥整行。
+- `-Alias` / `-Address`：别名与连接地址，默认值见上表。
+- `-User`：登录账号，默认 `lazycat`，不存在时自动创建普通账号；已存在的管理员账号会被拒绝（在改动系统之前）。
 - `-AllowedRemoteAddress`：允许连接的来源，可传多个 IP 或 CIDR 网段，也可以用 `LocalSubnet`；经跳板连接时，通常应填跳板机的地址。
-- `-FirewallProfile`：防火墙规则生效的网络类型，默认 `Domain,Private`，可选 `Domain`、`Private`、`Public`、`Any`。
-- `-NoFirewall`：防火墙由组织统一管理时使用，并请管理员配置入站规则。
-- 脚本管理入站规则时，会停用 Windows 自带的 `OpenSSH-Server-In-TCP` 规则，并用指定范围的规则替代。其他可能同时放行 SSH 的规则需要按报错提示处理。
-- 已有组织策略禁止运行本地脚本时，组织策略优先。
-
-`lazycat-ssh-node.ps1`：
-
-- `-User` 必须是已启用的本地普通账号（非管理员），并须与证书中的登录主体（principal）一致。脚本仅对该账号启用 LazyCat 证书登录，并关闭该账号的普通公钥和密码登录；不会为其授予管理员权限。
-- 若 sshd 已有其他 SSH CA、`Include` 或自定义多因子认证配置，脚本会拒绝自动接管。
+- `-FirewallProfile`：防火墙规则生效的网络类型，默认 `Domain,Private`（当前为公用网络且同意时加上 `Public`），可选 `Domain`、`Private`、`Public`、`Any`。
+- `-Port`：同时作为 sshd 监听端口和写入 Gist 的端口。省略时沿用已有端口，新装使用 22。
 - `-Route` 可选 `Lan`（默认）、`Wan`、`Tun`，决定写入 Gist 的线路字段；需要跳板时可传 `-Via <跳板别名>`。
-- 默认读取唯一的实际监听端口；有端口映射或多个监听端口时，用 `-Port` 指定写入 Gist 的连接端口。
+- `-Status` / `-Remove`：查看状态 / 撤销接入。
+- `-Yes`：全部采用默认值，不再询问；缺少必填的 CA 公钥时报错。
+- `-Source`：脚本来源目录或 URL，默认使用 ep 镜像（也可用环境变量 `LAZYCAT_SSH_WINDOWS_SOURCE` 指定）。已克隆仓库时直接运行 `ssh\windows\install.ps1`，会使用同目录的脚本。
+
+它在 `C:\ProgramData\LazyCat\ssh-windows` 下保存并调用两个底层脚本，需要更细的控制时可以直接用它们：
+
+- `setup-openssh.ps1`：安装和配置 OpenSSH Server。额外支持 `-NoFirewall`（防火墙由组织统一管理时使用，并请管理员配置入站规则）。管理入站规则时，会停用 Windows 自带的 `OpenSSH-Server-In-TCP` 规则，并用指定范围的规则替代；其他可能同时放行 SSH 的规则需要按报错提示处理。
+- `lazycat-ssh-node.ps1`：接入 CA。`-User` 必须是已启用的本地普通账号，并须与证书中的登录主体（principal）一致。脚本仅对该账号启用 LazyCat 证书登录，并关闭该账号的普通公钥和密码登录；不会为其授予管理员权限。默认读取唯一的实际监听端口；有端口映射或多个监听端口时，用 `-Port` 指定写入 Gist 的连接端口。
+
+其他注意事项：
+
+- 若 sshd 已有其他 SSH CA、`Include` 或自定义多因子认证配置，脚本会拒绝自动接管。
 - 原有的 `AllowUsers`、`AllowGroups` 等登录限制仍然生效。若已配置这些限制，先确认该账号符合现有规则。
 - 现有签发流程由客户端提交 `principals`，Gist 本身不能按成员控制签发权限。
-- 要求 64 位 Windows PowerShell 5.1（Windows 10 / 11 自带），使用 Windows 自带的 OpenSSH Server。
+- 要求 64 位 Windows PowerShell 5.1（Windows 10 / 11 自带）。组织策略禁止运行脚本时，组织策略优先。
 
 </details>
 
-仓库的 [Windows 验收工作流](../.github/workflows/lazycat-ssh-windows.yml) 在 GitHub 托管的 Windows 运行器上测试这两个命令，不需要在开发机安装 Windows。
+仓库的 [Windows 验收工作流](../.github/workflows/lazycat-ssh-windows.yml) 在 GitHub 托管的 Windows 运行器上测试一行粘贴入口和两个底层脚本，不需要在开发机安装 Windows。
 
 ---
 
