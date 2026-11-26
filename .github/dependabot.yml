@@ -1,18 +1,18 @@
 version: 2
+# 所有版本更新合并为每周一个 PR；安全更新仍由 Dependabot 单独发起。
+multi-ecosystem-groups:
+  all-dependencies:
+    schedule:
+      interval: weekly
 updates:
   - package-ecosystem: github-actions
     directory: /
-    schedule:
-      interval: weekly
+    patterns: ["*"]
+    multi-ecosystem-group: all-dependencies
   - package-ecosystem: gomod
-    directory: /ssh
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
-    directory: /codex-hud
-    schedule:
-      interval: weekly
-  - package-ecosystem: gomod
-    directory: /tests/tools
-    schedule:
-      interval: weekly
+    directories:
+      - /ssh
+      - /codex-hud
+      - /tests/tools
+    patterns: ["*"]
+    multi-ecosystem-group: all-dependencies
