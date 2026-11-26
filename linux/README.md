@@ -2,6 +2,28 @@
 
 服务类操作需要实际 Linux/systemd；不能用容器中的 service 替身证明服务生命周期。当前自动验证的范围及待补项目见 [测试契约](../docs/TESTING.md)。
 
+## 一键执行
+
+无需克隆仓库，以下命令通过 [NekroEndpoint](https://ep.nekro.ai) 镜像获取 `main` 上的最新脚本。需要传参时写成 `bash -c "$(curl ...)" _ 参数...`（`_` 占位 `$0`），参数与下表本地入口相同。Python 与 XDG 必须以普通用户运行，不要加 `sudo`。
+
+```sh
+# Python（默认 uv；可列出 uv pyenv poetry pdm；--check 健康检查）
+bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_python_env.sh)"
+# Docker 代理（不带参数为菜单；加 --restart 立即生效）
+sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_docker_proxy.sh)" _ set --url http://127.0.0.1:7890
+sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_docker_proxy.sh)" _ remove
+# Docker 组（默认 add 当前 sudo 用户；check / remove / --user USER）
+sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_docker_nopasswd.sh)"
+# Squid（--rotate-credentials 轮换；--recover <操作目录> 中断恢复）
+sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_squid_proxy.sh)"
+# sudoers
+sudo bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_sudo_nopasswd.sh)"
+# XDG 目录（默认只读检查；确认后 --apply --move-files）
+bash -c "$(curl -fsSL https://ep.nekro.ai/e/KroMiose/LazyCat/main/linux/setup_en_dirs.sh)"
+```
+
+## 本地入口
+
 | 工具 | 入口 | 存量影响 |
 |---|---|---|
 | Python | `bash linux/setup_python_env.sh uv`；可选 `pyenv poetry pdm`；`--check` | 普通用户安装，已有版本和项目环境保留；不会重新设置 keyring、默认解释器或 .venv 偏好 |
